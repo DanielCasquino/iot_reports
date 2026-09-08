@@ -1,7 +1,21 @@
 
 \section*{Conclusion}
 
-GOOD CONCLUSION
+This laboratory made it possible to connect the theoretical behavior of electrical circuits with their simulation and physical implementation. The different experiences showed that circuit behavior does not depend only on the components used, but also on their values, polarity, arrangement, and the way the system is programmed. In addition, the comparison between Falstad, Tinkercad, and the physical breadboard helped identify the advantages of simulation while also showing why experimental verification is necessary.
+
+The Falstad Wheatstone bridge simulation showed that its balance depends on maintaining the correct correlation between the resistances. A small change in one resistor was enough to produce a potential difference and current through the central branch. Reversing the source also confirmed that diode conduction depends on polarity. It is recommended to compare the simulated results with theoretical calculations to distinguish meaningful measurements from numerical approximations produced by the simulator.
+
+The Tinkercad experience demonstrated that the balance condition of a Wheatstone bridge can be found by adjusting a variable resistance until the current through its central branch becomes zero. This helped connect the theoretical balance condition with a measurable circuit response. It is recommended to record intermediate potentiometer values to observe more clearly how the bridge approaches equilibrium.
+
+The diode simulation showed that different types and colors of diodes require different voltages and therefore do not behave identically under the same supply conditions. It also showed that increasing resistance or reducing the source voltage directly affects their brightness. It is recommended to calculate an appropriate current-limiting resistance for each LED instead of using the same value without considering its electrical characteristics.
+
+The breadboard implementation confirmed that resistance, component arrangement, and diode orientation directly affect current flow and LED brightness. It also showed that physical behavior can be less straightforward to compare than simulated results, especially when brightness is evaluated visually. For this reason, it is recommended to support visual observations with current and voltage measurements whenever possible.
+
+The timing-control experience demonstrated that non-blocking programming is essential when a system must manage outputs while remaining responsive to asynchronous inputs. Using \texttt{millis()} allowed the button to change the LED sequence without waiting for the current timing interval to finish. It is recommended to include button-debouncing logic and test the response at different sequence speeds to ensure reliable event detection.
+
+The matrix keypad access system showed how several input, validation, and output tasks can be coordinated without blocking the microcontroller. Maintaining keypad scanning while the LEDs provided feedback demonstrated the importance of managing the program through states and time conditions. It is recommended to define clear system states and reset the stored PIN after every attempt to prevent unexpected behavior during repeated use.
+
+Overall, the laboratory showed that reliable circuit design requires both correct electrical connections and suitable programming logic. Simulation helped predict and understand the expected behavior, while physical implementation revealed practical factors that are not always evident in a virtual environment. Future implementations should combine theoretical calculations, simulations, and physical measurements to obtain more reliable results.
 
 % if have a single appendix:
 %\appendix[Proof of the Zonklar Equations]
