@@ -13,9 +13,7 @@
 % 
 % Here we have the typical use of a "T" for an initial drop letter
 % and "HIS" in caps to complete the first word.
-\IEEEPARstart{G}{ood} INTRO is one of the most widely used protocols for network communication, and
-serves as the base for network data transmission. As such, understanding its inner workings and
-applications is essential.\@
+\IEEEPARstart{C}{ircuit} simulation and physical prototyping represent fundamental pillars in the design, testing, and deployment of modern embedded systems and Internet of Things (IoT) platforms. While analytical models provide the mathematical groundwork for electrical networks, the inherent complexity of non-linear semiconductor components and real-time microcontroller firmware requires a dual-stage approach combining computational simulation with hands-on physical verification. In this laboratory experience, students transition from virtual schematic validation to practical breadboard prototyping, thereby establishing a rigorous feedback loop between theory, simulation, and physical implementation.\@
 % You must have at least 2 lines in the paragraph with the drop letter
 % (should never be an issue)
 
@@ -27,8 +25,35 @@ applications is essential.\@
 % needed in second column of first page if using \IEEEpubid
 %\IEEEpubidadjcol
 
-\subsubsection{TERM1}
-GOOD DEFINITION FOR TERM 1 ~\cite{kurose:2021}.
+\subsubsection{The Wheatstone Bridge Circuit}
+The Wheatstone Bridge is a classic electrical bridge network consisting of four resistive arms arranged in a closed-loop configuration, powered by a DC voltage source. It is widely employed for the precise measurement of small fractional variations in electrical resistance. The bridge is in a balanced state when the potential difference between its two central output nodes, $A$ and $B$, is exactly zero ($V_{AB} = 0\text{ V}$), which prevents any current from flowing through the central branch ($I_{AB} = 0\text{ A}$). Mathematically, this equilibrium occurs when the ratios of the opposing resistive arms are equal:
+\begin{equation}
+    \frac{R_2}{R_4} = \frac{R_3}{R_5}
+\end{equation}
+When any resistor in the bridge undergoes a fractional change (such as a strain gauge or thermistor responding to physical stimuli), the bridge becomes unbalanced, generating a potential difference $V_{AB}$ proportional to the change in resistance. This differential voltage output can be easily filtered, amplified, and converted into digital data, making the Wheatstone Bridge a fundamental block in modern sensor telemetry \cite{pamungkas2023, harris2020}.
+
+\subsubsection{Semiconductor and Light Emitting Diodes}
+A semiconductor diode is a two-terminal electronic component featuring a P-N junction that exhibits highly non-linear, asymmetric electrical characteristics. It permits current to flow easily in a forward-biased direction while blocking conduction in the reverse-biased direction. A minimum threshold voltage, known as the forward voltage ($V_F$), must be applied across the anode and cathode to overcome the internal depletion region barrier and initiate significant conduction. 
+
+Conventional silicon diodes typically exhibit a $V_F$ of $0.6\text{ V}$ to $0.7\text{ V}$. In contrast, Light Emitting Diodes (LEDs) require wider-bandgap semiconductor compounds (e.g., gallium arsenide, gallium nitride) to emit photons, resulting in significantly higher forward voltage thresholds. Depending on the chemical composition and the emitted wavelength, $V_F$ ranges from approximately $1.8\text{ V}$ for red LEDs to $3.6\text{ V}$ for blue and white LEDs. Because of this steep exponential current-voltage relationship, an LED must always be connected in series with a current-limiting resistor ($R_{limit}$) calculated via Ohm's Law:
+\begin{equation}
+    R_{limit} = \frac{V_{source} - V_F}{I_{target}}
+\end{equation}
+Without this series resistance, the diode will draw excessive current, leading to thermal runaway and immediate component failure \cite{ridgway2024}.
+
+\subsubsection{Non-Blocking Microcontroller Timing}
+In embedded systems, executing multiple tasks concurrently requires efficient processor scheduling. The standard Arduino framework provides the blocking function \texttt{delay()}, which halts program execution by keeping the microcontroller in a busy-wait loop for a specified number of milliseconds. During this interval, the CPU cannot read digital pins, poll inputs, or handle secondary routines, rendering the system completely unresponsive to asynchronous user actions (e.g., button presses).
+
+To resolve this limitation, non-blocking timing schedules must be implemented. This is achieved by utilizing the hardware-timer-driven function \texttt{millis()}, which returns the number of milliseconds elapsed since the microcontroller began running the current program. By tracking the difference between the current time and a recorded timestamp, the firmware can execute periodic tasks on a flexible time-sliced schedule:
+\begin{equation}
+    t_{current} - t_{previous} \ge t_{interval}
+\end{equation}
+This allows the main loop (\texttt{void loop()}) to run continuously at maximum speed, scanning asynchronous input events instantaneously while managing periodic output events in parallel \cite{dahlen2023}.
+
+\subsubsection{Matrix Keypad Scanning and Multiplexing}
+Interfacing multiple digital pushbuttons with a microcontroller typically consumes one General Purpose Input/Output (GPIO) pin per button, which rapidly depletes available I/O resources. To optimize pin efficiency, buttons are arranged in an $N \times M$ matrix keypad, which connects keys at the intersections of row and column wires. For instance, a $4 \times 4$ matrix keypad contains 16 buttons but requires only 8 GPIO pins (4 rows and 4 columns) instead of 16.
+
+The microcontroller decodes keypresses using a row-column sequential scanning algorithm. The four rows are configured as outputs and the four columns as inputs with internal pull-up resistors (so columns read HIGH by default). The microcontroller sequentially drives one row LOW while keeping the others HIGH. If a key is pressed, the physical contact pulls the corresponding column line LOW. By reading which column is LOW during the active-LOW state of a specific row, the microcontroller uniquely maps the column-row intersection coordinates to decode the pressed alphanumeric character \cite{achary2025}.
 
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
@@ -122,4 +147,9 @@ GOOD DEFINITION FOR TERM 1 ~\cite{kurose:2021}.
 % \fnbelowfloat command of the stfloats package.
 
 \subsection{State of the Art}
-GOOD STATE OF ART~\cite{rfc9110}.
+
+Over the past decade, the paradigm of engineering education has undergone a profound shift, moving away from static paper-based exercises toward visual, interactive, and hybrid computational-physical laboratories. Recent academic literature has extensively investigated the pedagogical efficacy of visual circuit simulators—specifically Autodesk Tinkercad Circuits and the online Falstad schematic applet—in smoothing the cognitive learning curve for undergraduate electronics students. 
+
+Research by Valiente et al. \cite{valiente2019} demonstrates that visual interactive applets such as Falstad provide immediate, intuitive feedback through real-time animation of current flows and voltage variations. This visual scaffolding actively addresses persistent student misconceptions regarding circuit behaviors (e.g., viewing current as "flowing water in a single pipe"). Furthermore, a comprehensive study conducted at Dublin City University by TechRxiv researchers \cite{ridgway2024} shows that integrating Tinkercad simulations as a pre-laboratory requirement before hands-on physical breadboarding significantly lowers the barriers to entry for novice students. This combined-method workflow allows students to perform debugging in a risk-free virtual space, which drastically increases practical troubleshooting confidence and dramatically reduces the rate of accidental hardware destruction in the physical lab.
+
+Concurrently, the architectural demands of microcontroller-based systems—especially in Internet of Things (IoT) edge devices—have established asynchronous, non-blocking software development as a fundamental standard. Modern IoT nodes are increasingly tasked with running resource-constrained multitasking routines, such as high-frequency sensor polling, visual display multiplexing, and network protocol stack execution (e.g., MQTT, Wi-Fi) on single-core microcontrollers. Embedded systems engineers and researchers have adapted industrial PLC (Programmable Logic Controller) scheduling and Finite State Machine (FSM) structures to the Arduino environment. By replacing primitive blocking delay routines with non-blocking timing loops driven by hardware timers, developers can ensure that low-cost edge platforms remain highly responsive to real-time events while preserving minimal power consumption and maximum operational reliability \cite{dahlen2023, achary2025}.
