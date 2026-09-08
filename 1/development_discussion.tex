@@ -11,8 +11,79 @@ obtained during the experiences.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=1\linewidth]{img/1.png}
-    \caption{Captured packets}\label{fig:1}
+    \caption{Initial Wheatstone bridge circuit implemented in Falstad with the voltmeter.}\label{fig:1}
 \end{figure}
 
+\textbf{2) Using the measurement tools:}
+
+\begin{enumerate}[label=\alph*]
+    \item Measure the currents and voltages across resistors R2, R3, R4, and R5.
+    The measured current and voltage values were as follows:
+    \begin{itemize}
+        \item R2: $I_{R2}=1.116\,\mathrm{mA}$ and $V_{R2}=6.698\,\mathrm{V}$.
+        \item R3: $I_{R3}=837.209\,\mathrm{\mu A}$ and $V_{R3}=6.698\,\mathrm{V}$.
+        \item R4: $I_{R4}=1.116\,\mathrm{mA}$ and $V_{R4}=3.349\,\mathrm{V}$.
+        \item R5: $I_{R5}=837.209\,\mathrm{\mu A}$ and $V_{R5}=3.349\,\mathrm{V}$.
+    \end{itemize}
+    \item Measure the current flowing through diodes D1 and D2.
+    The current through both diodes was approximately zero:
+    \[
+    I_{D1}=0\,\mathrm{A},
+    \qquad
+    I_{D2}=0\,\mathrm{A}.
+    \]
+    \item Change the resistance of R5 to $8\,\mathrm{k\Omega}$. What changes are observed in the ammeters and the voltmeter located in the central branch?
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/2.png}
+        \caption{Wheatstone bridge measurements after changing resistor R5}\label{fig:2}
+    \end{figure}
+    Before changing R5, the central-branch voltmeter measured approximately $46.066\,\mathrm{pV}$,
+    while both ammeters measured $0\,\mathrm{A}$. After changing R5 to $8\,\mathrm{k\Omega}$, the
+    voltmeter measured $-1.348\,\mathrm{V}$, while the ammeters measured $-93.2\,\mathrm{pA}$ and
+    $-59.02\,\mathrm{\mu A}$, respectively. These results indicate that changing R5 unbalanced the
+    bridge and produced current flow through the central branch.
+\end{enumerate}
+
+
+\textbf{3) Reverse the polarity of the voltage source. Are the currents through the diodes affected?}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/3.png}
+    \caption{Wheatstone bridge simulation after reversing the polarity of the voltage source.}\label{fig:2}
+\end{figure}
+
+Reversing the polarity of the voltage source affected the currents through the diodes. 
+The measured currents were $I_{D1}=59.02\,\mathrm{\mu A}$ and $I_{D2}=-93.2\,\mathrm{pA}$.
+Therefore, D1 was forward-biased and conducted current, whereas the current through D2 was
+practically zero, indicating that D2 was reverse-biased.
+
+\subsubsection{Simulation exercise in Tinkercad}
+Using the measurement tools, do the following:
+\begin{enumerate}
+    \item Determine the value of the current supplied by the voltage source.
+    The current supplied by the voltage source was $1.13\,\mathrm{mA}$.
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/4.png}
+        \caption{Measurement of the total current supplied by the voltage source in the Tinkercad Wheatstone bridge simulation.}\label{fig:4}
+    \end{figure}
+    \item Turn the potentiometer knob to its minimum value. What is the current flowing through the potentiometer?
+    \item Turn the potentiometer knob to its maximum value. What is the current flowing through the potentiometer now?
+    Adjust the potentiometer until current $i$ becomes zero, corresponding to the balanced condition of the Wheatstone bridge.
+    \item What is the resistance of the potentiometer under the balanced condition?
+    \item Measure the voltage drop across resistor R0.
+    \item Under this condition, what are the currents and voltages across resistors R2 and R4? Are any of these values equal? Explain why.
+\end{enumerate}
+
+
+When the potentiometer was set to its minimum value, the current flowing through it was $1.10\,\mathrm{mA}$, as shown in Fig.~\ref{fig:potentiometer_minimum}.
+
+When the potentiometer was set to its maximum value, the measured current was $486\,\mathrm{\mu A}$. The potentiometer was then adjusted until the current through the central branch became approximately zero, thereby reaching the balanced condition of the Wheatstone bridge.
+
+Under the balanced condition, the potentiometer resistance was $10\,\mathrm{k\Omega}$. The measured voltage drop across R0 was $1.36\,\mathrm{V}$.
+
+The voltage drops across R2 and R4 were $4.86\,\mathrm{V}$ and $1.94\,\mathrm{V}$, respectively. Both resistors carried the same current of $194\,\mathrm{\mu A}$. Because the bridge was balanced, no current flowed through the central branch. Consequently, R2 and R4 behaved as components connected in series and carried the same current.
 
 \subsection{Part 2}
