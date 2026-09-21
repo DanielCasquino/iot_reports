@@ -13,15 +13,11 @@
 % 
 % Here we have the typical use of a "T" for an initial drop letter
 % and "HIS" in caps to complete the first word.
-\IEEEPARstart{I}{P} addresses allow us to identify devices on a network,
+\IEEEPARstart{G}{ood} INTRO addresses allow us to identify devices on a network,
 and allow us to communicate with the precise device we want to reach.
 However, there's only so many IP addresses that can be assigned and/or remembered, and as such,
 a scalable solution is needed.
 
-In these lab sessions, we experimented with the Domain Name System (DNS), which
-functions as a system that maps strings of numbers to human-readable hostnames.
-The goal of this report is to document and summarize our findings and
-conclusions.
 % You must have at least 2 lines in the paragraph with the drop letter
 % (should never be an issue)
 
@@ -32,27 +28,9 @@ conclusions.
 \subsection{Theoretical Framework}
 % needed in second column of first page if using \IEEEpubid
 %\IEEEpubidadjcol
-\subsubsection{Domain}
-A domain can be defined as a group or subset of hostnames that are
-hierarchically organized. There are several levels, starting from the root
-domain, followed by the top-level domain, and finally authoritative and
-subdomains~\cite{tanenbaum:networks}.
 
-\subsubsection{Domain Name System (DNS)}
-DNS is a protocol used for IP address resolution, translating human-readable
-hostnames to IP addresses that can be used in a
-network~\cite{tanenbaum:networks}.
-
-\subsubsection{ipconfig}
-\texttt{ipconfig} is a Windows command that displays
-the current TCP/IP network configuration values, such as the device's IP address,
-subnet mask, default gateway, and DNS servers~\cite{microsoft:ipconfig}.
-
-\subsubsection{nslookup}
-The \texttt{nslookup} command can be used to obtain domain name or IP address
-mapping information. It can be used to find the IP address associated with a
-hostname by querying DNS servers. It also supports setting the type of query
-(NS, MX, A, CNAME)~\cite{microsoft:nslookup}.
+\subsubsection{TERM1}
+GOOD DEFINITION FOR TERM 1 ~\cite{kurose:2021}.
 
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
@@ -146,12 +124,4 @@ hostname by querying DNS servers. It also supports setting the type of query
 % \fnbelowfloat command of the stfloats package.
 
 \subsection{State of the Art}
-Classic DNS over UDP (``Do53'') offers minimal overhead and broad compatibility but provides neither confidentiality nor origin authentication, exposing users to passive observation and active attacks (e.g., spoofing, cache poisoning). To address this, encrypted transports emerged: DNS over TLS (DoT) and DNS over HTTPS (DoH). Both preserve DNS semantics while encapsulating queries in TLS over TCP, bringing authenticated encryption at the cost of additional connection setup (typically 2-RTT with TLS~1.3) and some CPU/memory overhead on clients and resolvers~\cite{lyu2023survey}.
-
-Recent work shifts the transport to QUIC. Standardized in 2022, DNS over QUIC (DoQ) runs atop UDP and integrates the cryptographic and transport handshakes, typically achieving 1-RTT session establishment. QUIC’s loss recovery and stream design remove TCP-level head-of-line blocking and improve performance on lossy or mobile paths, while providing confidentiality and integrity comparable to TLS-based DNS~\cite{rfc9250}. DoQ thus targets a better balance between privacy and latency than DoT/DoH when conditions are adverse (packet loss, path variability) or when repeated lookups benefit from connection reuse.
-
-Empirical evaluations refine this picture. At Internet scale, DoQ has been shown to reduce page load times versus DoH for simple sites (up to \(\sim\)10\% faster) and approach the latency of classic unencrypted UDP DNS (within \(\sim\)2\% in controlled settings). These measurements suggest that encrypted DNS can be practically ``near-UDP'' in responsiveness when QUIC is used, narrowing the historical performance gap between privacy-preserving and plaintext DNS~\cite{kosek2022doq}. Earlier adoption studies also documented the growth of DoQ-capable resolvers across regions, while noting implementation variance during the standardization period.
-
-Privacy research has moved beyond link encryption to unlinkability. Oblivious DoH (ODoH) decouples client identity from query contents by introducing a proxy/relay: the proxy sees the client’s IP but not the query, and the resolver sees the query but not the client, preventing a single entity from learning both~\cite{rfc9230}. This strengthens user privacy even when the recursive resolver is untrusted, at the cost of additional components and operational complexity. Complementary surveys highlight that encrypted DNS also complicates enterprise monitoring and malware defense, motivating new inference techniques that reason about encrypted-traffic side channels without decrypting payloads~\cite{lyu2023survey}.
-
-In short, current research converges on encrypted DNS by default, with DoQ (UDP+QUIC) offering competitive performance and robust privacy properties, and ODoH extending protection against resolver linkage. The practical payoff depends on deployment breadth, resolver/client optimizations, and operational controls for security monitoring~\cite{rfc9250,kosek2022doq,lyu2023survey,rfc9230}.
+GOOD STATE OF ART~\cite{kurose:2021}.

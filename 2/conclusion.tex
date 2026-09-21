@@ -1,11 +1,7 @@
 
 \section*{Conclusion}
-Across the lab, we validated name resolution end-to-end. Using \texttt{ping} and \texttt{nslookup}, we confirmed that human-readable hostnames must first be mapped to IP addresses by DNS before connectivity occurs. We also observed that a single hostname can resolve to multiple addresses (IPv4/IPv6, CDN edges) and that entering an edge IP directly in the browser may fail when virtual hosting requires the correct \texttt{Host} header. This underscored DNS’s role as an application-layer indirection that enables scale and content distribution.
 
-Inspecting \texttt{ipconfig} provided ground truth for local configuration: interface addresses, default gateway, and crucially the recursive DNS servers in use (assigned via DHCP). Verifying those parameters explained why our lookups were answered by the university resolvers and clarified how MX queries prioritize mail exchangers (lowest preference first), linking protocol theory with observed outputs.
-
-Finally, packet traces in Wireshark tied the concepts to wire format. We identified DNS queries over UDP/53 with transaction IDs, flags, and RR sections, and matched query types (A, NS, MX) to corresponding answers in responses. Observing the UDP source/destination ports and the absence/presence of answer RRs made concrete how stub resolvers issue queries and how responses carry canonical names and addresses back. Overall, the experiments reinforced DNS fundamentals, the client–resolver path, and the practical diagnostics workflow from host tools to packet-level analysis.
-
+GOOD CONCLUSION
 
 % if have a single appendix:
 %\appendix[Proof of the Zonklar Equations]
