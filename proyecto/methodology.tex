@@ -1,0 +1,100 @@
+\subsection{Arquitectura general del sistema}
+El sistema sigue una arquitectura de tres capas con procesamiento previo en el nodo. En la \textbf{capa de percepción}, tres sensores adquieren las variables físicas. En la \textbf{capa de red/proceso}, el ESP32 acondiciona, filtra y procesa las señales, evalúa reglas locales y se comunica por Wi-Fi mediante MQTT. En la \textbf{capa de aplicación}, un dashboard centraliza la visualización y el cálculo de métricas, y un asistente virtual permite el control por lenguaje natural. El SSR actúa sobre la carga (la terma) de forma segura y aislada.
+
+\subsection{Lista de componentes y especificaciones técnicas}
+La Tabla~\ref{tab:componentes} presenta la lista de componentes. Se cumple con el mínimo exigido: \textbf{tres sensores} (temperatura, corriente y flujo), \textbf{un actuador} de potencia (SSR), \textbf{comunicación inalámbrica} (Wi-Fi del ESP32), \textbf{interfaz con procesamiento previo} (dashboard) y \textbf{enclosure} de protección.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Componentes y especificaciones técnicas del prototipo.}
+    \label{tab:componentes}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}P{3.0cm} P{2.8cm} L@{}}
+        \toprule
+        \tblhead{Componente}       & \tblhead{Modelo}                                       & \tblhead{Especificación técnica clave y función}                                                                                                                                \\
+        \midrule
+        Microcontrolador           & ESP32-WROOM-32                                         & Dual-core Xtensa LX6 a 240 MHz, 520 KB SRAM, 4 MB flash, Wi-Fi 802.11 b/g/n (2,4 GHz) y BLE 4.2, ADC de 12 bits. Adquisición, procesamiento previo y comunicación.              \\
+        Sensor de temperatura      & DS18B20 (sonda sumergible)                             & Rango $-55$ a $+125\,^{\circ}\mathrm{C}$, exactitud $\pm 0{,}5\,^{\circ}\mathrm{C}$, resolución 9--12 bits, interfaz 1-Wire, encapsulado estanco. Mide la temperatura del agua. \\
+        Sensor de corriente        & SCT-013 (tipo CT)                                      & No invasivo (pinza), 30/100 A, salida proporcional a la corriente AC. Mide la corriente de la terma para estimar potencia y energía.                                            \\
+        Sensor de flujo            & YF-S201                                                & 1--30 L/min, $\pm 10\%$, 4,5--24 V, salida de pulsos ($\approx 450$ pulsos/L), conexión 1/2''. Detecta el uso real de agua.                                                     \\
+        Actuador                   & SSR 25 A (Fotek SSR-25DA o similar)                    & Optoaislado, control 3--32 V DC, carga 24--380 V AC, conmutación por cruce por cero. Enciende/apaga la terma.                                                                   \\
+        Buzzer (opcional)          & Módulo buzzer activo                                   & 5 V, alerta sonora local.                                                                                                                                                       \\
+        Acondicionamiento y fuente & Divisor de tensión + filtro RC y fuente AC-DC HLK-PM01 & Adapta las señales a 0--3,3 V; entrega 5 V DC a partir de 220 V AC.                                                                                                             \\
+        Enclosure                  & Caja ABS con riel DIN (IP54/IP65)                      & Protección mecánica y eléctrica, separación de la electrónica de baja tensión respecto de la red.                                                                               \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Microcontrolador seleccionado}
+Se selecciona el \textbf{ESP32-WROOM-32}. La justificación técnica es la siguiente:
+
+\begin{itemize}
+    \item \textbf{Conectividad integrada:} Wi-Fi y Bluetooth de forma nativa, lo que elimina módulos externos y reduce costo y complejidad, en línea con las recomendaciones de arquitectura de la literatura~\cite{stojkoska2017,alfuqaha2015}.
+    \item \textbf{Capacidad de cómputo:} doble núcleo a 240 MHz y 520 KB de SRAM, suficientes para el procesamiento previo (RMS, filtrado, conteo de pulsos y evaluación de reglas) en el propio nodo~\cite{shi2016}.
+    \item \textbf{Periféricos adecuados:} ADC de 12 bits para la señal acondicionada del sensor de corriente, temporizadores por hardware para el conteo de pulsos del sensor de flujo, GPIO para el DS18B20 (1-Wire), la salida de control del SSR y el buzzer.
+    \item \textbf{Costo y disponibilidad:} bajo costo y amplia disponibilidad local, requisito explícito del proyecto, en contraste con alternativas más costosas como una computadora de placa única.
+\end{itemize}
+
+Alternativas como el ESP8266 (menos periféricos y un solo núcleo) o una Raspberry Pi (mayor costo y consumo) fueron descartadas por no ofrecer la mejor relación capacidad/costo para este prototipo.
+
+\subsection{Diagrama de bloques del sistema propuesto}
+La Figura~\ref{fig:bloques} muestra el diagrama de bloques. Los tres sensores entregan sus señales al ESP32, que realiza el acondicionamiento y el procesamiento previo. El ESP32 se comunica bidireccionalmente por Wi-Fi (MQTT) con la nube/dashboard y, a través de éste, con el asistente virtual. Como salida, el ESP32 gobierna el SSR, que conmuta la alimentación de la terma, y opcionalmente un buzzer de alerta.
+
+\begin{figure}[htbp]
+    \centering
+    \shorthandoff{<>}
+    \resizebox{0.98\textwidth}{!}{%
+        \begin{tikzpicture}[
+                font=\footnotesize,
+                box/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum height=0.9cm},
+                sens/.style={box, fill=primary!8, draw=primary!60, minimum width=3.7cm},
+                mcu/.style={box, fill=accent!10, draw=accent!70, minimum width=4.6cm, minimum height=3.6cm, very thick},
+                act/.style={box, fill=primary!8, draw=primary!60, minimum width=3.2cm},
+                net/.style={box, fill=green!6, draw=green!45!black, minimum width=3.9cm},
+                lab/.style={font=\scriptsize\itshape, text=black!65}
+            ]
+            % Sensores (capa de percepción)
+            \node[sens] (s1) at (1.9,1.6) {\textbf{Sensor de temperatura}\\ \scriptsize DS18B20 (1-Wire)};
+            \node[sens] (s2) at (1.9,0)   {\textbf{Sensor de corriente}\\ \scriptsize SCT-013 (no invasivo)};
+            \node[sens] (s3) at (1.9,-1.6){\textbf{Sensor de flujo}\\ \scriptsize YF-S201 (pulsos)};
+            % Microcontrolador
+            \node[mcu] (mcu) at (7.6,0) {\textbf{ESP32}\\[3pt] \scriptsize Acondicionamiento y\\ \scriptsize filtrado de señales\\[2pt] \scriptsize Procesamiento previo\\(RMS, media móvil, pulsos)\\[2pt] \scriptsize Wi-Fi + MQTT};
+            % Actuadores y carga
+            \node[act] (ssr) at (13.1,1.7) {\textbf{SSR}\\ \scriptsize (actuador)};
+            \node[act] (ter) at (17.6,1.7) {\textbf{Terma}\\ \scriptsize 220 V AC};
+            \node[act] (buz) at (13.1,-1.7) {\textbf{Buzzer}\\ \scriptsize (opcional)};
+            % Nube y asistente
+            \node[net] (cld) at (7.6,-3.9) {\textbf{Nube / Broker MQTT}\\ \scriptsize Dashboard};
+            \node[net] (voz) at (13.1,-3.9) {\textbf{Asistente virtual}\\ \scriptsize (voz / chat)};
+
+            % Flechas
+            \draw[-{Latex}] (s1.east) -- ([yshift=1.0cm]mcu.west);
+            \draw[-{Latex}] (s2.east) -- (mcu.west);
+            \draw[-{Latex}] (s3.east) -- ([yshift=-1.0cm]mcu.west);
+            \draw[-{Latex}] (mcu.east) -- ([yshift=0.9cm]ssr.west) node[midway,above,lab]{control};
+            \draw[-{Latex}] (ssr.east) -- (ter.west);
+            \draw[-{Latex}] (mcu.east) -- ([yshift=-0.9cm]buz.west);
+            \draw[{Latex}-{Latex}] (mcu.south) -- (cld.north) node[midway,right,lab]{Wi-Fi / MQTT};
+            \draw[{Latex}-{Latex}] (cld.east) -- (voz.west) node[midway,above,lab]{consultas / comandos};
+            \node[lab, align=center] at (1.9,-2.8) {Capa de percepción};
+            \node[lab, align=center] at (7.6,2.7) {Capa de red y procesamiento previo};
+            \node[lab, align=center] at (15.3,3.0) {Capa de actuación};
+        \end{tikzpicture}%
+    }
+    \shorthandon{<>}
+    \caption{Diagrama de bloques del sistema IoT propuesto para la terma doméstica.}
+    \label{fig:bloques}
+\end{figure}
+
+\subsection{Procesamiento previo y flujo de datos}
+El nodo ejecuta el siguiente procesamiento antes de transmitir:
+\begin{enumerate}
+    \item \textbf{Temperatura:} lectura del DS18B20 y suavizado por media móvil para eliminar ruido y reflejar la inercia térmica del agua.
+    \item \textbf{Corriente:} muestreo de la señal acondicionada del SCT-013, cálculo del valor eficaz (RMS) y obtención de la potencia y la energía acumulada.
+    \item \textbf{Flujo:} conteo de pulsos por interrupción de hardware, cálculo del caudal instantáneo y del volumen acumulado.
+    \item \textbf{Reglas locales:} apagado automático al alcanzar la temperatura objetivo, corte tras un tiempo sin flujo (``encendida sin uso'') y protección ante sobretemperatura.
+    \item \textbf{Publicación:} envío de métricas agregadas por MQTT y recepción de comandos de encendido/apagado desde el dashboard o el asistente virtual.
+\end{enumerate}
+
+\subsection{Enclosure y consideraciones de seguridad}
+La electrónica se aloja en una caja aislante con fijación tipo riel DIN, con separación física entre la etapa de baja tensión (ESP32, sensores y fuente) y la de conmutación de 220 V AC (SSR y borneras). El SSR optoaislado y la fuente AC-DC certificada permiten operar la terma sin contacto eléctrico directo del usuario con la red, atendiendo el requisito de seguridad eléctrica planteado en la problemática.
