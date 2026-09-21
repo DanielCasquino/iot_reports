@@ -1,0 +1,35 @@
+\subsection*{Objetivo general}
+Diseñar e implementar un prototipo de sistema IoT inteligente, basado en el microcontrolador ESP32, que permita \textbf{monitorear, controlar de forma remota y gestionar energéticamente una terma eléctrica doméstica}, mediante tres sensores (temperatura, corriente y flujo), un actuador de potencia (SSR), comunicación inalámbrica, un dashboard con procesamiento previo y una interfaz opcional de asistente virtual.
+
+\subsection*{Objetivos específicos}
+\begin{enumerate}[label=OE\arabic*.]
+    \item Leer de forma simultánea y confiable las variables de temperatura del agua, corriente eléctrica y flujo de agua mediante los tres sensores del sistema.
+    \item Acondicionar, filtrar y procesar previamente las señales en el propio nodo (RMS, suavizado, conteo de pulsos) para obtener métricas válidas y reducir el tráfico de red~\cite{shi2016}.
+    \item Transmitir la información mediante comunicación inalámbrica (Wi-Fi/MQTT) y visualizarla en un dashboard accesible de forma remota~\cite{alfuqaha2015,elkhozondar2024}.
+    \item Accionar de forma remota y automática la carga de la terma mediante un SSR, garantizando el aislamiento eléctrico.
+    \item Calcular métricas energéticas (consumo, energía, tiempo de funcionamiento y tiempo de uso) y el estado de calentamiento del agua.
+    \item Implementar reglas automáticas de control: apagado al alcanzar la temperatura objetivo y apagado tras un periodo de inactividad sin uso.
+    \item Habilitar, de forma opcional y en una segunda etapa, el control mediante comandos de un asistente virtual (``enciende la terma'', ``apaga la terma'', ``¿el agua está caliente?'').
+    \item Validar el prototipo experimentalmente, verificando la correspondencia entre las mediciones y el comportamiento real del equipo.
+\end{enumerate}
+
+\subsection*{Alcances}
+\begin{itemize}
+    \item El proyecto entrega un \textbf{prototipo funcional} de terma doméstica inteligente centrado en la terma como caso de uso principal.
+    \item El sistema \textbf{mide} temperatura del agua, corriente eléctrica y flujo de agua; \textbf{monitorea} el consumo eléctrico y \textbf{detecta} el uso del agua.
+    \item El sistema \textbf{controla} remotamente la carga (encendido/apagado) mediante el SSR y ejecuta \textbf{reglas automáticas} (temperatura objetivo y tiempo sin uso).
+    \item El sistema \textbf{transmite} información por comunicación inalámbrica y \textbf{visualiza} el estado en un dashboard, calculando métricas de consumo y funcionamiento.
+    \item Se contempla una \textbf{interfaz opcional} de asistente virtual mediante comandos de voz o chat.
+    \item El alcance incluye el \textbf{procesamiento previo} de los datos en el nodo y el \textbf{enclosure} del prototipo.
+\end{itemize}
+
+\subsection*{Limitaciones}
+\begin{itemize}
+    \item El prototipo se valida en un entorno controlado (banco de pruebas / vivienda piloto), no como producto comercial listo para producción.
+    \item El asistente virtual es una funcionalidad \textbf{opcional y de segunda prioridad}: se avanzará de forma paralela, pero sus entradas sólo se considerarán fiables una vez que el sensado y la actuación estén operativos.
+    \item La interfaz con el asistente virtual depende de servicios de reconocimiento de voz y de conectividad a Internet; su disponibilidad no está garantizada en todos los entornos.
+    \item La medición de corriente con CT es de tipo estimación (no de laboratorio); no se busca una precisión de instrumentación certificada.
+    \item El control es de tipo encendido/apagado (on-off) sobre la carga; no se implementa regulación proporcional de potencia (dimmer/control de fase), por simplicidad y seguridad.
+    \item La solución se restringe a una terma monofásica de 220 V AC; no se contemplan instalaciones trifásicas ni otras cargas.
+    \item No se abordan en esta etapa aspectos avanzados de ciberseguridad (por ejemplo, gestión de certificados), aunque se usan credenciales y red segura.
+\end{itemize}

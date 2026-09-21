@@ -1,0 +1,49 @@
+En esta sección se analizan ocho trabajos científicos directamente vinculados al proyecto. Los primeros cuatro abordan la gestión energética del hogar y la adopción de tecnología por parte del usuario; los siguientes, la medición y desagregación de cargas eléctricas y las implementaciones de bajo costo basadas en ESP32.
+
+\subsection*{A1. Revisión de aplicaciones de hogar inteligente basadas en IoT}
+Alaa y colaboradores~\cite{alaa2017} realizan una revisión sistemática del panorama del hogar inteligente basado en IoT, construyendo una taxonomía de aplicaciones y señalando que la investigación se encuentra dispersa y con desafíos abiertos en interoperabilidad, costo y experiencia de usuario. El trabajo fundamenta la pertinencia de soluciones integradas y de bajo costo como la propuesta, y aporta un marco para clasificar la aplicación (monitoreo + control + gestión).
+
+\subsection*{A2. Revisión de IoT para el hogar inteligente: retos y soluciones}
+Stojkoska y Trivodaliev~\cite{stojkoska2017} revisan las tecnologías habilitantes del hogar inteligente y sus retos ---conectividad, seguridad, consumo energético de los nodos y heterogeneidad de dispositivos---, proponiendo que la arquitectura y la selección de protocolos son decisiones críticas. De este trabajo se desprende la conveniencia de usar un microcontrolador con Wi-Fi integrado y un protocolo ligero como MQTT.
+
+\subsection*{A3. Conservación de energía mediante hogares inteligentes}
+Bhati, Hansen y Chan~\cite{bhati2017} estudian el impacto de las tecnologías de hogar inteligente en la conservación de energía en hogares de Singapur, mostrando que la retroalimentación (\emph{feedback}) y la automatización contribuyen al ahorro, y que el efecto se potencia con la integración entre dispositivos, hogar y red eléctrica. Este antecedente sustenta la hipótesis de ahorro del proyecto y la importancia de visualizar la información al usuario.
+
+\subsection*{A4. Categorías y funcionalidad de la tecnología de hogar inteligente para la gestión energética}
+Ford, Pritoni, Sanguinetti y Karlin~\cite{ford2017} analizan 308 productos comerciales de gestión energética del hogar y clasifican su funcionalidad, evidenciando la brecha entre las capacidades anunciadas y las realmente útiles. El trabajo justifica priorizar un conjunto acotado de funciones bien implementadas (monitoreo, control remoto, reglas automáticas) por encima de la cantidad de prestaciones.
+
+\subsection*{A5. Revisión sistemática de la literatura de hogar inteligente: la perspectiva del usuario}
+Marikyan, Papagiannidis y Alamanos~\cite{marikyan2019} revisan la literatura desde la perspectiva del usuario, identificando factores como utilidad percibida, confianza, privacidad y facilidad de uso como determinantes de la adopción. Este antecedente orienta las decisiones de diseño de la interfaz y del asistente virtual, que deben ofrecer interacción simple y comprensible.
+
+\subsection*{A6. Enfoques de monitoreo no intrusivo de cargas}
+Zoha, Gluhak, Imran y Rajasegarar~\cite{zoha2012} presentan una revisión de las técnicas de monitoreo no intrusivo de cargas (NILM), describiendo cómo la corriente y la potencia permiten identificar el estado y la operación de los equipos. El proyecto aplica esta idea a una carga única y bien caracterizada (la terma), usando su firma electrica para inferir calentamiento y detectar anomalías.
+
+\subsection*{A7. Gestión de energía eléctrica en el hogar inteligente}
+Zipperer y colaboradores~\cite{zipperer2013} analizan las tecnologías habilitantes y el comportamiento del consumidor en la gestión energética del hogar, concluyendo que el éxito depende tanto del componente técnico como de la disposición del usuario a interactuar con la información. Refuerza la necesidad de soluciones que combinen medición, control y una interfaz amigable.
+
+\subsection*{A8. Sistema de monitoreo de energía inteligente basado en ESP32}
+El-Khozondar y colaboradores~\cite{elkhozondar2024} desarrollan un sistema de monitoreo energético de bajo costo basado en el microcontrolador ESP32, integrando sensores de tensión (ZMPT101B) y de corriente (SCT-013), y reportando los datos al usuario a través de la red, demostrando la viabilidad del ESP32 y de los transformadores de corriente para el monitoreo eléctrico doméstico. Este trabajo es el antecedente más cercano al componente de medición eléctrica del proyecto.
+
+\subsection*{Síntesis comparativa y vacío identificado}
+La Tabla~\ref{tab:arte} resume los trabajos analizados. Se observa que la literatura aborda, por un lado, la gestión energética y la adopción del usuario (A1--A5) y, por otro, la medición de cargas y las implementaciones de bajo costo (A6--A8). Sin embargo, existe un vacío en soluciones \emph{específicas para la terma doméstica} que integren simultáneamente: tres variables físicas (temperatura, corriente y flujo), un actuador de potencia seguro (SSR), comunicación inalámbrica con procesamiento previo y una interfaz que combine dashboard y asistente virtual. El presente proyecto se posiciona en ese vacío.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Síntesis comparativa del estado del arte.}
+    \label{tab:arte}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{@{}P{0.7cm} P{3.1cm} L P{2.5cm}@{}}
+        \toprule
+        \tblhead{\#} & \tblhead{Trabajo}              & \tblhead{Aporte principal}                        & \tblhead{Limitación / brecha}          \\
+        \midrule
+        A1           & Alaa et al. (2017)             & Taxonomía de aplicaciones del hogar IoT           & No enfocado en una carga específica    \\
+        A2           & Stojkoska y Trivodaliev (2017) & Retos de conectividad y protocolos                & Sin implementación de control de carga \\
+        A3           & Bhati et al. (2017)            & Evidencia de ahorro por feedback y automatización & Dependiente del contexto del hogar     \\
+        A4           & Ford et al. (2017)             & Categorías funcionales de HEM (308 productos)     & Sin desarrollo de prototipo            \\
+        A5           & Marikyan et al. (2019)         & Factores de adopción desde el usuario             & Revisión, no sistema técnico           \\
+        A6           & Zoha et al. (2012)             & Métodos NILM para identificar cargas              & Alta complejidad de cómputo            \\
+        A7           & Zipperer et al. (2013)         & Tecnologías habilitantes y comportamiento         & Sin prototipo de bajo costo            \\
+        A8           & El-Khozondar et al. (2024)     & Monitoreo eléctrico con ESP32 y SCT-013           & Sólo monitoreo eléctrico               \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
