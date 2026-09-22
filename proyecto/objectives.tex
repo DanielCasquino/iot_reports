@@ -1,35 +1,88 @@
-\subsection*{Objetivo general}
-Diseñar e implementar un prototipo de sistema IoT inteligente, basado en el microcontrolador ESP32, que permita \textbf{monitorear, controlar de forma remota y gestionar energéticamente una terma eléctrica doméstica}, mediante tres sensores (temperatura, corriente y flujo), un actuador de potencia (SSR), comunicación inalámbrica, un dashboard con procesamiento previo y una interfaz opcional de asistente virtual.
+\subsection*{General Objective}
+Design and implement an ESP32-based IoT prototype to monitor, remotely control, and support 
+the energy management of a domestic electric water heater. The system combines water-temperature, 
+electrical-current, and water-flow measurements with an SSR, wireless communication, a dashboard, 
+and a virtual-assistant interface.
 
-\subsection*{Objetivos específicos}
-\begin{enumerate}[label=OE\arabic*.]
-    \item Leer de forma simultánea y confiable las variables de temperatura del agua, corriente eléctrica y flujo de agua mediante los tres sensores del sistema.
-    \item Acondicionar, filtrar y procesar previamente las señales en el propio nodo (RMS, suavizado, conteo de pulsos) para obtener métricas válidas y reducir el tráfico de red~\cite{shi2016}.
-    \item Transmitir la información mediante comunicación inalámbrica (Wi-Fi/MQTT) y visualizarla en un dashboard accesible de forma remota~\cite{alfuqaha2015,elkhozondar2024}.
-    \item Accionar de forma remota y automática la carga de la terma mediante un SSR, garantizando el aislamiento eléctrico.
-    \item Calcular métricas energéticas (consumo, energía, tiempo de funcionamiento y tiempo de uso) y el estado de calentamiento del agua.
-    \item Implementar reglas automáticas de control: apagado al alcanzar la temperatura objetivo y apagado tras un periodo de inactividad sin uso.
-    \item Habilitar, de forma opcional y en una segunda etapa, el control mediante comandos de un asistente virtual (``enciende la terma'', ``apaga la terma'', ``¿el agua está caliente?'').
-    \item Validar el prototipo experimentalmente, verificando la correspondencia entre las mediciones y el comportamiento real del equipo.
+\subsection*{Specific Objectives}
+\begin{enumerate}[label=SO\arabic*.]
+\item Acquire and calibrate water-temperature, electrical-current, and water-flow readings from the 
+three sensors.
+
+\item Process the readings on the ESP32 through temperature smoothing, RMS current calculation, and 
+flow-pulse counting.
+
+\item Transmit processed readings through Wi-Fi/MQTT and display the heater's status and measurements 
+on a remotely accessible dashboard.
+
+\item Test remote and automatic on/off switching through a suitably rated SSR, while keeping the heater's 
+built-in protections in place.
+
+\item Calculate estimated electrical energy, powered time, heating time, water-use time, water volume, 
+and heating status from the measurements.
+
+\item Implement configurable rules for a temperature target and prolonged powered operation without 
+detected water use, with safeguards against unnecessary switching.
+
+\item Implement voice or chat commands such as ``turn on the heater,'' 
+``turn off the heater,'' and ``is the water hot?''
+
+\item Validate sensor readings, dashboard information, and switching against independent measurements 
+and the heater's observed operation.
 \end{enumerate}
 
-\subsection*{Alcances}
+\subsection*{Scope}
 \begin{itemize}
-    \item El proyecto entrega un \textbf{prototipo funcional} de terma doméstica inteligente centrado en la terma como caso de uso principal.
-    \item El sistema \textbf{mide} temperatura del agua, corriente eléctrica y flujo de agua; \textbf{monitorea} el consumo eléctrico y \textbf{detecta} el uso del agua.
-    \item El sistema \textbf{controla} remotamente la carga (encendido/apagado) mediante el SSR y ejecuta \textbf{reglas automáticas} (temperatura objetivo y tiempo sin uso).
-    \item El sistema \textbf{transmite} información por comunicación inalámbrica y \textbf{visualiza} el estado en un dashboard, calculando métricas de consumo y funcionamiento.
-    \item Se contempla una \textbf{interfaz opcional} de asistente virtual mediante comandos de voz o chat.
-    \item El alcance incluye el \textbf{procesamiento previo} de los datos en el nodo y el \textbf{enclosure} del prototipo.
+\item The project will deliver a functional IoT prototype focused on one domestic electric water heater, 
+using the Rheem 50 L AI Smart model as the reference case. It will add an external monitoring and control 
+layer to a heater that already has its own AI Smart functions and temperature display.
+
+\item The ESP32 will read water temperature, alternating current, and water flow. Current will help 
+distinguish a powered heater from one whose heating element is drawing power; flow will indicate water 
+use at the chosen installation point.
+
+\item The system will send processed measurements wirelessly and present temperature, flow, operating 
+status, estimated energy consumption, and operating times in a dashboard.
+
+\item Remote on/off control and local automatic rules will be tested using an SSR and an electrical 
+assembly appropriate for the actual load. The temperature-target rule will use a measured temperature 
+at a specified location, and a no-use timeout will be configurable for a storage heater.
+
+\item The work includes calibration and experimental validation of readings, a protective enclosure 
+for the prototype, and documentation of connections and system behavior.
+
+\item An assistant interface for voice or chat commands and a local buzzer are optional additions. 
+Work on the assistant may proceed in parallel, but integration depends on the three sensors, dashboard, 
+and switching path functioning reliably.
 \end{itemize}
 
-\subsection*{Limitaciones}
+\subsection*{Limitations}
 \begin{itemize}
-    \item El prototipo se valida en un entorno controlado (banco de pruebas / vivienda piloto), no como producto comercial listo para producción.
-    \item El asistente virtual es una funcionalidad \textbf{opcional y de segunda prioridad}: se avanzará de forma paralela, pero sus entradas sólo se considerarán fiables una vez que el sensado y la actuación estén operativos.
-    \item La interfaz con el asistente virtual depende de servicios de reconocimiento de voz y de conectividad a Internet; su disponibilidad no está garantizada en todos los entornos.
-    \item La medición de corriente con CT es de tipo estimación (no de laboratorio); no se busca una precisión de instrumentación certificada.
-    \item El control es de tipo encendido/apagado (on-off) sobre la carga; no se implementa regulación proporcional de potencia (dimmer/control de fase), por simplicidad y seguridad.
-    \item La solución se restringe a una terma monofásica de 220 V AC; no se contemplan instalaciones trifásicas ni otras cargas.
-    \item No se abordan en esta etapa aspectos avanzados de ciberseguridad (por ejemplo, gestión de certificados), aunque se usan credenciales y red segura.
+\item Validation will take place in a controlled test setting or pilot installation. The prototype 
+is not a certified commercial product or a substitute for a qualified electrical installation.
+
+\item The SCT-013 measures current, not active power directly. Energy values will be estimates 
+based on nominal voltage and the assumed behavior of the heater, and will not have billing-grade accuracy.
+
+\item A temperature probe on an accessible pipe or test reservoir may not measure the temperature 
+throughout the 50 L tank. Its mounting point and the meaning of the displayed temperature will be 
+documented.
+
+\item The YF-S201 will initially be tested in a separate water circuit. Installation in a household 
+water line depends on confirming the selected unit's temperature, pressure, fittings, and material 
+suitability.
+
+\item Control is limited to on/off switching; the project does not modify the heater's internal 
+thermostat, thermal protections, AI Smart controller, or proportional heating power. External power 
+switching must be checked against the heater's restart behavior.
+
+\item The reference load is a single-phase 220 V electric heater. Three-phase installations and other 
+household appliances are outside the proposed validation.
+
+\item The virtual assistant is optional and depends on its chosen speech or chat service and internet 
+connection. Local monitoring and protective rules should remain usable if the remote connection fails.
+
+\item The project will use basic access control for remote commands, but a full cybersecurity assessment 
+and long-term reliability certification are outside its scope.
+
 \end{itemize}
