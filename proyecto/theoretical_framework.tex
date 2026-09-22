@@ -1,30 +1,51 @@
-\subsection{Internet de las Cosas y arquitecturas de referencia}
-El IoT se define como la interconexión de objetos físicos dotados de capacidad de sensado, cómputo y comunicación, que intercambian datos a través de redes, frecuentemente inalámbricas, para ofrecer servicios a aplicaciones y usuarios~\cite{alfuqaha2015}. Una arquitectura de referencia organiza el sistema en capas: \textbf{percepción} (sensores y actuadores), \textbf{red} (transporte de datos) y \textbf{aplicación} (almacenamiento, análisis y presentación). El proyecto adopta este modelo de tres capas, con un componente de \emph{procesamiento previo} (\emph{edge preprocessing}) ubicado en el propio nodo, que filtra, calibra y agrega los datos antes de transmitirlos. Esta estrategia reduce el volumen de información enviada y mejora la latencia y la resiliencia de la aplicación~\cite{shi2016}.
+\subsection{Internet of Things and Referential Architectures}
+IoT is defined as the interconnection of physical objects with sensing, compututing, and communication capabilites, which use networks to exchange data and offer services to applications and users~\cite{alfuqaha2015}.
 
-\subsection{Protocolos de comunicación}
-Para el transporte de datos sobre Wi-Fi, el protocolo \emph{Message Queuing Telemetry Transport} (MQTT) es ampliamente utilizado en aplicaciones IoT por su modelo publicador/suscriptor, su bajo consumo de ancho de banda y su tolerancia a enlaces inestables. Frente a alternativas basadas en petición/respuesta (HTTP), MQTT resulta más eficiente para telemetría periódica de muchos dispositivos~\cite{alfuqaha2015}. El sistema propuesto publica las lecturas en tópicos MQTT y recibe comandos de control en tópicos de actuación.
+A referential architecture organizes the system in layers:
+\begin{itemize}
+    \item Perception: Sensors and actuators
+    \item Network: Data transmission
+    \item Application: Storage, analysis, and presentation
+\end{itemize}
 
-\subsection{Medición de corriente y desagregación de cargas}
-La medición de corriente eléctrica puede realizarse de forma invasiva (con derivación o \emph{shunt}) o no invasiva, mediante transformadores de corriente (CT) tipo pinza que se instalan alrededor del conductor sin interrumpir el circuito. Los CT permiten medir corriente alterna de manera segura y económica. La señal alterna obtenida se procesa típicamente calculando su valor eficaz (\emph{RMS}) y, a partir de éste, la potencia aparente o activa. El estudio de la desagregación de cargas no intrusiva (NILM) muestra que la firma eléctrica de un equipo puede caracterizarse a partir de su corriente y potencia para identificar su funcionamiento~\cite{zoha2012}. En este proyecto, la firma de la terma (carga resistiva prácticamente constante mientras calienta) permite inferir su estado de operación a partir de la corriente medida.
+A reference architecture organizes the system into layers: \textbf{perception} (sensors and actuators), \textbf{network} (data transmission), and \textbf{application} (storage, analysis, and presentation). The project adopts this three-layer model, with an \emph{edge preprocessing} component located at the node itself, which filters, calibrates, and aggregates the data before transmitting it. This strategy reduces the volume of information sent and improves the application's latency and resilience~\cite{shi2016}.
 
-Las magnitudes energéticas básicas empleadas son la potencia eléctrica
+\subsection{Communication Protocols}
+
+For data transmission over Wi-Fi, the \emph{Message Queuing Telemetry Transport} (MQTT) protocol is widely used in IoT applications due to its publisher/subscriber model, low bandwidth consumption, and tolerance to unstable links. Compared to request/response-based alternatives such as HTTP, MQTT is more efficient for periodic telemetry from multiple devices~\cite{alfuqaha2015}. The proposed system publishes measurements to MQTT topics and receives control commands through actuation topics.
+
+\subsection{Current Measurement and Load Disaggregation}
+
+Electrical current can be measured either invasively (using a shunt) or non-invasively, through clamp-type current transformers (CTs) installed around the conductor without interrupting the circuit. CTs allow alternating current to be measured safely and economically. The resulting AC signal is typically processed by calculating its root mean square (RMS) value and, from this, the apparent or active power. Studies on non-intrusive load monitoring (NILM) show that the electrical signature of a device can be characterized based on its current and power consumption to identify its operating state~\cite{zoha2012}. In this project, the water heater's electrical signature (a practically constant resistive load while heating) allows its operating state to be inferred from the measured current.
+
+The basic electrical quantities used are the electrical power
+
 \begin{equation}
-    P(t) = V_{\mathrm{rms}}(t)\,\cdot\, I_{\mathrm{rms}}(t)\,\cdot\, \cos\varphi ,
+    P(t) = V_{\mathrm{rms}}(t) \cdot I_{\mathrm{rms}}(t) \cdot \cos\varphi,
 \end{equation}
-y la energía consumida en un intervalo, obtenida por integración:
+
+and the energy consumed over an interval, obtained by integration:
+
 \begin{equation}
-    E = \int_{t_0}^{t_1} P(t)\,\mathrm{d}t \;\;\approx\;\; \sum_{k} P_k \,\Delta t .
+    E = \int_{t_0}^{t_1} P(t),\mathrm{d}t
+    ;\approx;
+    \sum_{k} P_k ,\Delta t.
 \end{equation}
-Para una carga resistiva pura, el factor de potencia $\cos\varphi \approx 1$, lo que simplifica el cálculo de la energía a partir de la corriente y la tensión de red.
 
-\subsection{Sensado de temperatura}
-El termómetro digital DS18B20 es un sensor de temperatura con interfaz digital 1-Wire que entrega la medición en formato digital, con un rango de operación de $-55\,^{\circ}\mathrm{C}$ a $+125\,^{\circ}\mathrm{C}$ y una exactitud de $\pm 0{,}5\,^{\circ}\mathrm{C}$ en el intervalo de $-10\,^{\circ}\mathrm{C}$ a $+85\,^{\circ}\mathrm{C}$, con resolución configurable de 9 a 12 bits~\cite{ds18b20}. Su versión con sonda sumergible y empaque de acero inoxidable es adecuada para medir la temperatura del agua de la terma. La comunicación digital 1-Wire permite conectar varios sensores sobre un mismo bus, lo que facilita la redundancia de medición.
+For a purely resistive load, the power factor $\cos\varphi \approx 1$, which simplifies the calculation of energy from the mains voltage and current.
 
-\subsection{Medición de flujo de agua}
-El caudal puede medirse con sensores de efecto Hall de tipo turbina, como el YF-S201, que genera una señal de pulsos cuya frecuencia es proporcional al flujo volumétrico (típicamente alrededor de 450 pulsos por litro, con un rango de 1 a 30 L/min)~\cite{yfs201201}. Al contar los pulsos por unidad de tiempo se obtiene el caudal instantáneo, y al integrarlo, el volumen consumido. Esta variable permite distinguir entre ``terma encendida sin uso'' y ``terma en uso'', habilitando reglas automáticas basadas en la demanda real de agua.
+\subsection{Temperature Sensing}
 
-\subsection{Actuación de potencia}
-El control de una carga resistiva de alta potencia se realiza mediante un relé de estado sólido (SSR), dispositivo basado en semiconductores (típicamente optoacoplados) que conmuta la carga AC con aislamiento galvánico entre el circuito de control de baja tensión y la red. Frente a los relés electromecánicos, el SSR ofrece mayor vida útil, ausencia de rebote mecánico y conmutación por cruce por cero (\emph{zero-cross}), lo que reduce el ruido electromagnético~\cite{ssr}. El SSR constituye el actuador principal del sistema y es el elemento que permite el encendido y apagado remoto y automático de la terma.
+The DS18B20 digital thermometer is a temperature sensor with a digital 1-Wire interface that provides measurements in digital format, with an operating range of $-55,^{\circ}\mathrm{C}$ to $+125,^{\circ}\mathrm{C}$ and an accuracy of $\pm 0.5,^{\circ}\mathrm{C}$ over the range from $-10,^{\circ}\mathrm{C}$ to $+85,^{\circ}\mathrm{C}$, with a configurable resolution from 9 to 12 bits~\cite{ds18b20}. Its version with a waterproof probe and stainless-steel casing is suitable for measuring the water temperature of the water heater. The digital 1-Wire communication allows multiple sensors to be connected to the same bus, facilitating measurement redundancy.
 
-\subsection{Procesamiento previo y cómputo en el borde}
-El \emph{edge computing} propone procesar los datos cerca de su origen para disminuir el tráfico, la latencia y la dependencia de la nube~\cite{shi2016}. En el proyecto, el procesamiento previo incluye: filtrado digital de la señal de corriente (promediado y cálculo de RMS), calibración de sensores, suavizado de la temperatura (media móvil), conteo e integración de pulsos de flujo, y evaluación local de reglas de seguridad (por ejemplo, corte de potencia ante sobretemperatura). Sólo las métricas agregadas se publican en la nube.
+\subsection{Water Flow Measurement}
+
+Water flow can be measured using Hall-effect turbine sensors, such as the YF-S201, which generates a pulse signal whose frequency is proportional to the volumetric flow rate (typically around 450 pulses per liter, with a range of 1 to 30 L/min)~\cite{yfs201201}. By counting the pulses per unit of time, the instantaneous flow rate can be obtained, and integrating it yields the consumed volume. This variable makes it possible to distinguish between the states `water heater on without water usage'' and `water heater in use,'' enabling automatic rules based on actual water demand.
+
+\subsection{Power Actuation}
+
+The control of a high-power resistive load is performed using a solid-state relay (SSR), a semiconductor-based device (typically optocoupled) that switches an AC load while providing galvanic isolation between the low-voltage control circuit and the mains. Compared to electromechanical relays, the SSR offers a longer service life, no mechanical contact bounce, and zero-cross switching, which reduces electromagnetic interference. The SSR serves as the system's primary actuator and is the component that enables the remote and automatic switching of the water heater.
+
+\subsection{Preprocessing and Edge Computing}
+
+\emph{Edge computing} proposes processing data close to its source in order to reduce traffic, latency, and dependence on the cloud~\cite{shi2016}. In the project, preprocessing includes digital filtering of the current signal (averaging and RMS calculation), sensor calibration, temperature smoothing (moving average), flow pulse counting and integration, and local evaluation of safety rules (for example, cutting power in the event of overheating). Only aggregated metrics are published to the cloud.
