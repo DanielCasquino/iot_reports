@@ -41,13 +41,37 @@
 
 \documentclass[journal]{IEEEtran}
 
-\usepackage{cite}
-\usepackage{hyperref}
 
 \usepackage[pdftex]{graphicx}
 
+\usepackage{cite}
 \usepackage{url}
+\usepackage{hyperref}
 
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{booktabs}
+\usepackage{ragged2e}
+\newcolumntype{L}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{P}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, babel}
+
+\definecolor{primary}{HTML}{0E4C5C}
+\definecolor{accent}{HTML}{C77700}
+\definecolor{softline}{HTML}{B9C6CC}
+\definecolor{codebg}{HTML}{F2F5F6}
+
+\newcommand{\tblhead}[1]{\textbf{#1}}
 
 \hyphenation{op-tical net-works semi-conduc-tor}
 
@@ -73,17 +97,17 @@
 \section{Problem Statement}
 \input{problem_statement.tex}
 
-\section{Theoretical Framework}
-\input{theoretical_framework.tex}
+% \section{Theoretical Framework}
+% \input{theoretical_framework.tex}
 
-\section{State of the Art}
-\input{state_of_the_art.tex}
+% \section{State of the Art}
+% \input{state_of_the_art.tex}
 
-\section{Methodology}
-\input{methodology.tex}
+% \section{Methodology}
+% \input{methodology.tex}
 
-\section{Objectives}
-\input{objectives.tex}
+% \section{Objectives}
+% \input{objectives.tex}
 
 \ifCLASSOPTIONcaptionsoff{}
 \newpage

@@ -1,10 +1,10 @@
-\subsection{Arquitectura general del sistema}
+\subsection{General System Architecture}
 El sistema sigue una arquitectura de tres capas con procesamiento previo en el nodo. En la \textbf{capa de percepción}, tres sensores adquieren las variables físicas. En la \textbf{capa de red/proceso}, el ESP32 acondiciona, filtra y procesa las señales, evalúa reglas locales y se comunica por Wi-Fi mediante MQTT. En la \textbf{capa de aplicación}, un dashboard centraliza la visualización y el cálculo de métricas, y un asistente virtual permite el control por lenguaje natural. El SSR actúa sobre la carga (la terma) de forma segura y aislada.
 
 \subsection{Lista de componentes y especificaciones técnicas}
 La Tabla~\ref{tab:componentes} presenta la lista de componentes. Se cumple con el mínimo exigido: \textbf{tres sensores} (temperatura, corriente y flujo), \textbf{un actuador} de potencia (SSR), \textbf{comunicación inalámbrica} (Wi-Fi del ESP32), \textbf{interfaz con procesamiento previo} (dashboard) y \textbf{enclosure} de protección.
 
-\begin{table}[htbp]
+\begin{table*}[htbp]
     \centering
     \caption{Componentes y especificaciones técnicas del prototipo.}
     \label{tab:componentes}
@@ -23,7 +23,7 @@ La Tabla~\ref{tab:componentes} presenta la lista de componentes. Se cumple con e
         Enclosure                  & Caja ABS con riel DIN (IP54/IP65)                      & Protección mecánica y eléctrica, separación de la electrónica de baja tensión respecto de la red.                                                                               \\
         \bottomrule
     \end{tabularx}
-\end{table}
+\end{table*}
 
 \subsection{Microcontrolador seleccionado}
 Se selecciona el \textbf{ESP32-WROOM-32}. La justificación técnica es la siguiente:
@@ -40,7 +40,7 @@ Alternativas como el ESP8266 (menos periféricos y un solo núcleo) o una Raspbe
 \subsection{Diagrama de bloques del sistema propuesto}
 La Figura~\ref{fig:bloques} muestra el diagrama de bloques. Los tres sensores entregan sus señales al ESP32, que realiza el acondicionamiento y el procesamiento previo. El ESP32 se comunica bidireccionalmente por Wi-Fi (MQTT) con la nube/dashboard y, a través de éste, con el asistente virtual. Como salida, el ESP32 gobierna el SSR, que conmuta la alimentación de la terma, y opcionalmente un buzzer de alerta.
 
-\begin{figure}[htbp]
+\begin{figure*}[htbp]
     \centering
     \shorthandoff{<>}
     \resizebox{0.98\textwidth}{!}{%
@@ -84,7 +84,7 @@ La Figura~\ref{fig:bloques} muestra el diagrama de bloques. Los tres sensores en
     \shorthandon{<>}
     \caption{Diagrama de bloques del sistema IoT propuesto para la terma doméstica.}
     \label{fig:bloques}
-\end{figure}
+\end{figure*}
 
 \subsection{Procesamiento previo y flujo de datos}
 El nodo ejecuta el siguiente procesamiento antes de transmitir:
