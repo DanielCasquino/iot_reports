@@ -1,31 +1,34 @@
 This section analyzes eight scientific works relevant to the project context. Topics include home energy management and technology adoption by users, measurement and disaggregation of electric loads, and low cost implementations with an ESP32 microcontroller.
 
-\subsection*{A1. Revisión de aplicaciones de hogar inteligente basadas en IoT}
-Alaa y colaboradores~\cite{alaa2017} realizan una revisión sistemática del panorama del hogar inteligente basado en IoT, construyendo una taxonomía de aplicaciones y señalando que la investigación se encuentra dispersa y con desafíos abiertos en interoperabilidad, costo y experiencia de usuario. El trabajo fundamenta la pertinencia de soluciones integradas y de bajo costo como la propuesta, y aporta un marco para clasificar la aplicación (monitoreo + control + gestión).
+\subsection*{A1. A Review of Smart Home Applications Based on Internet of Things}
+Alla et al.~\cite{alaa2017} conduct a systematic review about the IoT-based smart home ecosystem, constructing a taxonomy of applications and stating that current research is scattered and presents several challenges in interoperability, costs, and user experience. This work establishes the importance of low cost, integrated solutions, and provides an application classification framework (monitoring + control + management).
 
-\subsection*{A2. Revisión de IoT para el hogar inteligente: retos y soluciones}
-Stojkoska y Trivodaliev~\cite{stojkoska2017} revisan las tecnologías habilitantes del hogar inteligente y sus retos ---conectividad, seguridad, consumo energético de los nodos y heterogeneidad de dispositivos---, proponiendo que la arquitectura y la selección de protocolos son decisiones críticas. De este trabajo se desprende la conveniencia de usar un microcontrolador con Wi-Fi integrado y un protocolo ligero como MQTT.
+\subsection*{A2. A Review of Internet of Things for Smart Home: Challenges and Solutions}
+Stojkoska \& Trivodaliev~\cite{stojkoska2017} review the technologies that enable smart homes, as well as their challenges ---conectivity, security, enegy consumption, and device heterogenuity---, establising architecture and protocol choice as critical decisions. This work inspired the use of low-power, low-cost technologies, such as the ESP32 microcontroller and the MQTT protocol.
 
-\subsection*{A3. Conservación de energía mediante hogares inteligentes}
-Bhati, Hansen y Chan~\cite{bhati2017} estudian el impacto de las tecnologías de hogar inteligente en la conservación de energía en hogares de Singapur, mostrando que la retroalimentación (\emph{feedback}) y la automatización contribuyen al ahorro, y que el efecto se potencia con la integración entre dispositivos, hogar y red eléctrica. Este antecedente sustenta la hipótesis de ahorro del proyecto y la importancia de visualizar la información al usuario.
+\subsection*{A3. Energy Conservation through Smart Homes in a Smart City: A Lesson for Singapore Households}
+Bhati, Hansen \& Chan~\cite{bhati2017} study the impact that smart home technologies have on energy conservation in Singaporean homes, showing that feedback and automation are important contributing factors, and that this impact is strenghtened with the interconnection of devices, homes, and electrical networks. This paper backs up the project proposal by establising precedents on energy management and the importance of user feedback.
 
-\subsection*{A4. Categorías y funcionalidad de la tecnología de hogar inteligente para la gestión energética}
-Ford, Pritoni, Sanguinetti y Karlin~\cite{ford2017} analizan 308 productos comerciales de gestión energética del hogar y clasifican su funcionalidad, evidenciando la brecha entre las capacidades anunciadas y las realmente útiles. El trabajo justifica priorizar un conjunto acotado de funciones bien implementadas (monitoreo, control remoto, reglas automáticas) por encima de la cantidad de prestaciones.
+\subsection*{A4. Categories and Functionality of Smart Home Technology for Energy Management}
+Ford, Pritoni, Sanguinetti \& Karlin~\cite{ford2017} analyze 308 commercial products that target home energy management, classify their functionality, and show the existing gap between product description and their actual capabilities. This work justifies prioritizing feature quality over quantity.
 
-\subsection*{A5. Revisión sistemática de la literatura de hogar inteligente: la perspectiva del usuario}
-Marikyan, Papagiannidis y Alamanos~\cite{marikyan2019} revisan la literatura desde la perspectiva del usuario, identificando factores como utilidad percibida, confianza, privacidad y facilidad de uso como determinantes de la adopción. Este antecedente orienta las decisiones de diseño de la interfaz y del asistente virtual, que deben ofrecer interacción simple y comprensible.
+\subsection*{A5. A Systematic Review of the Smart Home Literature: A User Perspective}
+Marikyan, Papagiannidis \& Alamanos~\cite{marikyan2019} review literature from a user perspective, identifying perceived usefulness, trust, privacy, and ease-of-use as deciding factors for user adoption. This work guides decision regarding UI (user interface) and enables the possibility of integrating a virtual assistant to provide simple and comprehensible interaction.
 
-\subsection*{A6. Enfoques de monitoreo no intrusivo de cargas}
-Zoha, Gluhak, Imran y Rajasegarar~\cite{zoha2012} presentan una revisión de las técnicas de monitoreo no intrusivo de cargas (NILM), describiendo cómo la corriente y la potencia permiten identificar el estado y la operación de los equipos. El proyecto aplica esta idea a una carga única y bien caracterizada (la terma), usando su firma electrica para inferir calentamiento y detectar anomalías.
+\subsection*{A6. Non-Intrusive Load Monitoring Approaches for Disaggregated Energy Sensing: A Survey}
+Zoha, Gluhak, Imran, and Rajasegarar~\cite{zoha2012} present a review of non-intrusive load monitoring (NILM) techniques, describing how current and power enable the identification of the status and operation of equipment. The project applies this idea to a single, well-characterized load (the water heater), using its electrical signature to infer heating and detect anomalies.
 
-\subsection*{A7. Gestión de energía eléctrica en el hogar inteligente}
-Zipperer y colaboradores~\cite{zipperer2013} analizan las tecnologías habilitantes y el comportamiento del consumidor en la gestión energética del hogar, concluyendo que el éxito depende tanto del componente técnico como de la disposición del usuario a interactuar con la información. Refuerza la necesidad de soluciones que combinen medición, control y una interfaz amigable.
+\subsection*{A7. Electric Energy Management in the Smart Home: Perspectives on Enabling Technologies and Consumer Behavior}
+Zipperer and collaborators~\cite{zipperer2013} analyze enabling technologies and consumer behavior in home energy management, concluding that success depends as much on the technical component as on the user's willingness to interact with the information. This reinforces the need for solutions that combine measurement, control, and a user-friendly interface.
 
-\subsection*{A8. Sistema de monitoreo de energía inteligente basado en ESP32}
-El-Khozondar y colaboradores~\cite{elkhozondar2024} desarrollan un sistema de monitoreo energético de bajo costo basado en el microcontrolador ESP32, integrando sensores de tensión (ZMPT101B) y de corriente (SCT-013), y reportando los datos al usuario a través de la red, demostrando la viabilidad del ESP32 y de los transformadores de corriente para el monitoreo eléctrico doméstico. Este trabajo es el antecedente más cercano al componente de medición eléctrica del proyecto.
+\subsection*{A8. A Smart Energy Monitoring System Using ESP32 Microcontroller}
+El-Khozondar and collaborators~\cite{elkhozondar2024} develop a low-cost energy monitoring system based on the ESP32 microcontroller, integrating voltage sensors (ZMPT101B) and current sensors (SCT-013), and reporting data to the user via the network, demonstrating the viability of the ESP32 and current transformers for home electrical monitoring. This work is the closest precedent to the electrical measurement component of the project.
 
-\subsection*{Síntesis comparativa y vacío identificado}
-La Tabla~\ref{tab:arte} resume los trabajos analizados. Se observa que la literatura aborda, por un lado, la gestión energética y la adopción del usuario (A1--A5) y, por otro, la medición de cargas y las implementaciones de bajo costo (A6--A8). Sin embargo, existe un vacío en soluciones \emph{específicas para la terma doméstica} que integren simultáneamente: tres variables físicas (temperatura, corriente y flujo), un actuador de potencia seguro (SSR), comunicación inalámbrica con procesamiento previo y una interfaz que combine dashboard y asistente virtual. El presente proyecto se posiciona en ese vacío.
+\subsection{Study Comparison and Identified Gap}
+
+Table ~\ref{tab:arte} summarizes the analyzed works. Sources (A1--A5) cover energy management and user adoption, while works (A6--A8) study load measurement and low cost implementations.
+
+However, there is space for solutions specifically tailored towards \textbf{domestic water heaters} that simultaneously integrate temperature, curent, and flow measurement, safe power actuators (SSR), wireless communication with preprocessing, and an interface that combines comprehensible dashboards and virtual assistants.
 
 \begin{table*}[htbp]
     \centering
@@ -35,43 +38,43 @@ La Tabla~\ref{tab:arte} resume los trabajos analizados. Se observa que la litera
 
     \begin{tabularx}{\textwidth}{@{}P{0.7cm} P{3.0cm} X P{3.0cm}@{}}
         \toprule
-        \tblhead{\#} &
-        \tblhead{Work} &
+        \tblhead{\#}                &
+        \tblhead{Work}              &
         \tblhead{Main contribution} &
-        \tblhead{Limitation / gap} \\
+        \tblhead{Limitation / gap}                                                               \\
         \midrule
 
-        A1 & Alaa et al. (2017)
-        & Taxonomy of IoT smart home applications
-        & Not focused on a specific load \\
+        A1                          & Alaa et al. (2017)
+                                    & Taxonomy of IoT smart home applications
+                                    & Not focused on a specific load                             \\
 
-        A2 & Stojkoska and Trivodaliev (2017)
-        & Connectivity and protocol challenges
-        & No load control implementation \\
+        A2                          & Stojkoska and Trivodaliev (2017)
+                                    & Connectivity and protocol challenges
+                                    & No load control implementation                             \\
 
-        A3 & Bhati et al. (2017)
-        & Evidence of energy savings through feedback and automation
-        & Dependent on household context \\
+        A3                          & Bhati et al. (2017)
+                                    & Evidence of energy savings through feedback and automation
+                                    & Dependent on household context                             \\
 
-        A4 & Ford et al. (2017)
-        & Functional categories of HEM (308 products)
-        & No prototype development \\
+        A4                          & Ford et al. (2017)
+                                    & Functional categories of HEM (308 products)
+                                    & No prototype development                                   \\
 
-        A5 & Marikyan et al. (2019)
-        & User adoption factors
-        & Review, not a technical system \\
+        A5                          & Marikyan et al. (2019)
+                                    & User adoption factors
+                                    & Review, not a technical system                             \\
 
-        A6 & Zoha et al. (2012)
-        & NILM methods for identifying loads
-        & High computational complexity \\
+        A6                          & Zoha et al. (2012)
+                                    & NILM methods for identifying loads
+                                    & High computational complexity                              \\
 
-        A7 & Zipperer et al. (2013)
-        & Enabling technologies and consumer behavior
-        & No low-cost prototype \\
+        A7                          & Zipperer et al. (2013)
+                                    & Enabling technologies and consumer behavior
+                                    & No low-cost prototype                                      \\
 
-        A8 & El-Khozondar et al. (2024)
-        & ESP32-based electrical monitoring with SCT-013
-        & Electrical monitoring only \\
+        A8                          & El-Khozondar et al. (2024)
+                                    & ESP32-based electrical monitoring with SCT-013
+                                    & Electrical monitoring only                                 \\
 
         \bottomrule
     \end{tabularx}
