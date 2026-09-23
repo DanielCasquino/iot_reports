@@ -2,7 +2,6 @@
 The system follows a three-layer architecture with edge processing at the node, complemented by a dedicated actuation stage. In the \textbf{perception layer}, three sensors acquire the physical variables. In the \textbf{network/processing layer}, the ESP32 acquires, filters, and preprocesses the signals, evaluates local rules, and communicates over Wi-Fi using MQTT. In the \textbf{application layer}, a central dashboard provides visualization and metric calculation, while a virtual assistant enables control through natural language. The SSR operates on the load (the electric water heater) while providing electrical isolation between the low-voltage control circuitry and the AC switching stage.
 
 \subsection{Component List and Technical Specifications}
-Table~\ref{tab:componentes} presents the component list. The minimum requirements are fulfilled: \textbf{three sensors} (temperature, current, and flow), \textbf{one power actuator} (SSR), \textbf{wireless communication} (ESP32 Wi-Fi), \textbf{an interface for processed data} (dashboard), and a protective \textbf{enclosure}.
 
 \begin{table*}[htbp]
     \centering
@@ -25,6 +24,8 @@ Table~\ref{tab:componentes} presents the component list. The minimum requirement
     \end{tabularx}
 \end{table*}
 
+Table~\ref{tab:componentes} presents the component list. The minimum requirements are fulfilled: \textbf{three sensors} (temperature, current, and flow), \textbf{one power actuator} (SSR), \textbf{wireless communication} (ESP32 Wi-Fi), \textbf{an interface for processed data} (dashboard), and a protective \textbf{enclosure}.
+
 \subsection{Selected Microcontroller}
 The \textbf{ESP32-WROOM-32} was selected. The technical justification is as follows:
 
@@ -38,53 +39,14 @@ The \textbf{ESP32-WROOM-32} was selected. The technical justification is as foll
 Alternatives such as the ESP8266, which provides fewer peripherals and a single CPU core, and the Raspberry Pi, which generally has higher cost and power requirements, were not selected because they do not provide the desired balance of capability, cost, and simplicity for this prototype.
 
 \subsection{Block Diagram of the Proposed System}
+
+\begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/diagrama_bloques-proyecto.drawio.png}
+        \caption{Block diagram of the proposed IoT system for a domestic electric water heater.}\label{fig:bloques}
+    \end{figure}
+
 Figure~\ref{fig:bloques} shows the system block diagram. The three sensors provide their signals to the ESP32, while external circuitry performs the required signal conditioning and the ESP32 performs digital filtering and edge processing. The ESP32 communicates bidirectionally over Wi-Fi using MQTT with the cloud/MQTT broker and dashboard and, through the application layer, with the virtual assistant. As outputs, the ESP32 controls the SSR, which switches power to the electric water heater, and optionally activates a local alert buzzer.
-
-\begin{figure*}[htbp]
-    \centering
-    \shorthandoff{<>}
-    \resizebox{0.98\textwidth}{!}{%
-        \begin{tikzpicture}[
-                font=\footnotesize,
-                box/.style={draw, rounded corners=2pt, align=center, inner sep=4pt, minimum height=0.9cm},
-                sens/.style={box, fill=primary!8, draw=primary!60, minimum width=3.7cm},
-                mcu/.style={box, fill=accent!10, draw=accent!70, minimum width=4.6cm, minimum height=3.6cm, very thick},
-                act/.style={box, fill=primary!8, draw=primary!60, minimum width=3.2cm},
-                net/.style={box, fill=green!6, draw=green!45!black, minimum width=3.9cm},
-                lab/.style={font=\scriptsize\itshape, text=black!65}
-            ]
-            % Sensores (capa de percepción)
-            \node[sens] (s1) at (1.9,1.6) {\textbf{Temperature sensor}\\ \scriptsize DS18B20 (1-Wire)};
-            \node[sens] (s2) at (1.9,0)   {\textbf{Current sensor}\\ \scriptsize SCT-013 (non-invasive)};
-            \node[sens] (s3) at (1.9,-1.6){\textbf{Flow sensor}\\ \scriptsize YF-S201 (pulses)};
-            % Microcontrolador
-            \node[mcu] (mcu) at (7.6,0) {\textbf{ESP32}\\[3pt] \scriptsize Signal acquisition and\\ \scriptsize digital filtering\\[2pt] \scriptsize Edge processing\\(RMS, moving average, pulses)\\[2pt] \scriptsize Wi-Fi + MQTT};
-            % Actuadores y carga
-            \node[act] (ssr) at (13.1,1.7) {\textbf{SSR}\\ \scriptsize (actuator)};
-            \node[act] (ter) at (17.6,1.7) {\textbf{Terma}\\ \scriptsize 220 V AC};
-            \node[act] (buz) at (13.1,-1.7) {\textbf{Buzzer}\\ \scriptsize (optional)};
-            % Nube y asistente
-            \node[net] (cld) at (7.6,-3.9) {\textbf{Cloud / MQTT Broker}\\ \scriptsize Dashboard};
-            \node[net] (voz) at (13.1,-3.9) {\textbf{Virtual Assistant}\\ \scriptsize (voice / chat)};
-
-            % Flechas
-            \draw[-{Latex}] (s1.east) -- ([yshift=1.0cm]mcu.west);
-            \draw[-{Latex}] (s2.east) -- (mcu.west);
-            \draw[-{Latex}] (s3.east) -- ([yshift=-1.0cm]mcu.west);
-            \draw[-{Latex}] (mcu.east) -- ([yshift=0.9cm]ssr.west) node[midway,above,lab]{control};
-            \draw[-{Latex}] (ssr.east) -- (ter.west);
-            \draw[-{Latex}] (mcu.east) -- ([yshift=-0.9cm]buz.west);
-            \draw[{Latex}-{Latex}] (mcu.south) -- (cld.north) node[midway,right,lab]{Wi-Fi / MQTT};
-            \draw[{Latex}-{Latex}] (cld.east) -- (voz.west) node[midway,above,lab]{queries / commands};
-            \node[lab, align=center] at (1.9,-2.8) {Perception layer};
-            \node[lab, align=center] at (7.6,2.7) {Network and edge-processing layer};
-            \node[lab, align=center] at (15.3,3.0) {Actuation stage};
-        \end{tikzpicture}%
-    }
-    \shorthandon{<>}
-    \caption{Block diagram of the proposed IoT system for a domestic electric water heater.}
-    \label{fig:bloques}
-\end{figure*}
 
 \subsection{Edge Processing and Data Flow}
 The node performs the following processing before transmitting data:
