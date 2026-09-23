@@ -90,6 +90,7 @@
 %
 \usepackage{cite}
 \usepackage{hyperref}
+\usepackage{balance}
 % cite.sty was written by Donald Arseneau
 % V1.6 and later of IEEEtran pre-defines the format of the cite.sty package
 % \cite{} output to follow that of the IEEE. Loading the cite package will
@@ -446,9 +447,14 @@
 \section{Introduction}
 \input{introduction.tex}
 
+\section{Methodology}
+\input{methodology.tex}
+
 \section{Development}
 \input{development_discussion.tex}
 
+\clearpage
+\balance
 \section{Conclusion}
 \input{conclusion.tex}
 
@@ -539,4 +545,3 @@
 
 % that's all folks
 \end{document}
-
