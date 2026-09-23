@@ -1,18 +1,56 @@
+This laboratory connected sensor readings with decisions and actuator responses
+in eight simulated or physical systems. The experiences show that a circuit
+diagram alone does not establish correct behavior: thresholds, timing,
+priorities, electrical limits and the measurements used to check them also
+matter. The following conclusions address each system and its next check.
 
-\section*{Conclusion}
+The LED-bar experience showed how a potentiometer reading can be converted
+from the ADC range into a percentage and a discrete number of illuminated
+LEDs. Because the display has only ten steps, it is recommended to state the
+rounding rule and compare the serial value with the LED count at the minimum,
+midpoint and maximum input.
 
-GOOD CONCLUSION
+The four-LDR system combined several light readings while treating a failed
+channel and loss of camera supply as separate alarm conditions. A mean is
+useful only when invalid channels are excluded and at least one valid reading
+remains. It is recommended to document the divider orientation and light
+threshold, then test each fault independently from ordinary darkness.
 
-% if have a single appendix:
-%\appendix[Proof of the Zonklar Equations]
-% or
-%\appendix  % for no appendix heading
-% do not use \section anymore after \appendix, only \section*
-% is possibly needed
+The occupancy system used PIR events and an exit button to estimate a count,
+while the gas alarm took priority over the normal LCD message. A missed or
+repeated event can make that estimate differ from the real occupancy. It is
+recommended to check the five-second lockout, the count limits and the gas
+alarm both separately and when the room is full.
 
-% use appendices with more than one appendix
-% then use \section to start each appendix
-% you must declare a \section before using any
-% \subsection or using \label (\appendices by itself
-% starts a section numbered zero.)
-%
+The multiparameter station showed how distance, temperature and humidity can
+share a two-line LCD through alternating views. The warning must remain
+legible whichever view is active. It is recommended to check the three-second
+switching interval and trigger the distance and temperature alerts separately.
+
+The motor simulations showed markedly different speed readings for the three
+connections reported in the development section. These simulation values do
+not establish that an Arduino output can safely power a physical motor. It is
+recommended to verify the instrument units in the screenshots and use a
+suitable driver and external supply in a physical circuit.
+
+The LED-dimming experience distinguished gradual PWM control from the on/off
+response of a pin without PWM support. It is recommended to compare the ADC
+reading, PWM command and visible output at the same potentiometer settings,
+while retaining a current-limiting resistor in the LED circuit.
+
+The relay experience separated the motor supply path from the Arduino control
+signal, but the active input level depends on the particular module. It is
+recommended to verify the COM/NO contacts, supply voltage, active level and
+motor protection before using the demonstration as evidence of correct
+switching.
+
+The irrigation system combined calibrated moisture thresholds with a timed
+pump cycle and a mandatory idle interval. Its decisions depend on the measured
+dry and wet endpoints, so it is recommended to record those readings and check
+the dry, normal and excessive-moisture states as well as the 10-s and 15-s
+transitions. Water savings cannot be quantified without measuring consumption.
+
+Overall, the laboratory illustrates why simulation, physical observation and
+recorded measurements should support one another. Future iterations should
+retain the actual thresholds, calibration values and timing observations with
+each checkpoint so that the reported behavior can be reproduced and checked.

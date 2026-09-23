@@ -1,0 +1,93 @@
+This section specifies the input, processing and output path for each
+experience. Simulated checkpoints use the Arduino UNO available in Tinkercad;
+physical checkpoints use the MEGA2560. The diagrams cited below are included
+with the corresponding development evidence. Pin numbers not fixed by the
+guide must be checked against the actual sketch before they are reported as
+implemented wiring.
+
+\subsection{Sensor Systems}
+
+\subsubsection{System 1: Analog Reading and LED Bar}
+The potentiometer is used as a voltage divider between 5 V and GND, with its
+wiper connected to an analog input. The program converts the 0--1023 ADC
+reading into a percentage and then into 0--10 illuminated LEDs. Each LED is
+placed in series with a 220- or 330-$\Omega$ resistor. The serial monitor
+prints both the raw and percentage values. Tests at the minimum, midpoint
+and maximum input are needed to check the scaling and the LED count. The
+control flow and signal blocks are shown in Figs.~\ref{fig:2} and
+\ref{fig:3}.
+
+\subsubsection{System 2: Light and Supply Monitoring}
+Four LDRs, each paired with a 10-k$\Omega$ fixed resistor, provide separate
+analog light readings. The mean uses only channels that do not remain at 0
+or 1023; such a channel is excluded and triggers a double buzzer warning.
+When no channel remains valid, the algorithm reports a sensor fault instead
+of dividing by zero. The red LED represents the luminaires and switches on
+when the valid mean falls below the chosen threshold. A switch simulates the
+camera supply: a drop to GND makes the blue LED blink and produces a
+continuous audible alarm. The actual LDR divider orientation and threshold
+must be recorded with the observed readings. See Figs.~\ref{fig:5} and
+\ref{fig:6}.
+
+\subsubsection{System 3: Occupancy and Gas Safety}
+A PIR detection increments the occupancy count once, followed by a 5-s
+lockout against duplicate entries. A button decrements the count for an exit;
+the count is bounded below by zero and above by the configured room limit.
+The LCD displays the count and an occupancy-full indication at that limit.
+The MQ2 analog channel has higher priority than occupancy: above the chosen
+gas threshold, the LCD displays the evacuation warning, the buzzer sounds
+and the red LED blinks until the reading returns below the threshold. The
+configured count limit and gas threshold need to be stated with the evidence.
+The two diagrams are Figs.~\ref{fig:8} and \ref{fig:9}.
+
+\subsubsection{System 4: Multiparameter Station}
+The physical station reads distance with an HC-SR04, temperature with an
+LM35, and humidity with a DHT11, then presents the values on a 2-by-16 LCD.
+The normal display alternates every 3 s between distance/LM35 temperature
+and humidity/``Ambiente OK'' without repeatedly clearing the entire LCD.
+Distance below 10 cm or temperature above $30\,{}^{\circ}$C temporarily
+overrides the second LCD line with a blinking alert, regardless of the
+current view. Tests should include both normal views and each alert trigger.
+The flow and blocks are Figs.~\ref{fig:10} and \ref{fig:11}.
+
+\subsection{Actuator Systems}
+
+\subsubsection{System 5: DC Motor in Simulation}
+This exercise is simulation-only. The potentiometer ADC reading is converted
+to $V=5n/1023$ V, and the motor is switched on by a digital output only when
+$3<V<5$ V. Current and speed are compared for three simulated connections:
+directly from the digital pin, from that pin through a 1-k$\Omega$ series
+resistor, and from the 5-V pin. The resulting numbers must be taken from the
+simulation instruments and their units checked. A motor must not be attached
+directly to a physical Arduino output; an inductive load requires a suitable
+driver and supply.
+
+\subsubsection{System 6: PWM LED Dimming}
+The potentiometer endpoints go to 5 V and GND, and its wiper goes to A0.
+PWM pin 9 drives the LED anode through a 220- or 330-$\Omega$ current-limiting
+resistor; the cathode returns to GND. The 10-bit ADC value is mapped to the
+0--255 input of \texttt{analogWrite()}, with checks at both endpoints and an
+intermediate setting. A non-PWM pin is used only for the required comparison
+of its on/off behavior with gradual PWM dimming.
+
+\subsubsection{System 7: Relay-Controlled Motor}
+The relay module's VCC and GND connect to the Arduino control supply and IN
+to a digital output. The external 5-V motor supply connects through COM and
+the normally open (NO) contact to the motor; the motor returns to that
+supply's negative terminal. If fitted, a flyback diode is placed across the
+motor with its cathode on the positive side. The active HIGH/LOW level must
+be checked on the actual relay module. The control and motor-power stages
+are separated in Fig.~\ref{fig:15}; the motor is not powered from an Arduino
+digital output.
+
+\subsubsection{System 8: Moisture-Controlled Irrigation}
+The soil probe is read in dry and wet conditions before mapping its ADC
+values to a bounded 0--100\% moisture estimate. The mapping direction must
+match the probe's measured response. An external supply drives the pump
+through the L9110S; that supply and the Arduino share a logic-ground
+reference. From 20\% to 75\%, pump, LEDs and buzzer remain off. Below 20\%,
+the blue LED marks irrigation and A-IA/A-IB are HIGH/LOW for 10 s; then both
+are LOW during a 15-s IDLE interval without a new measurement. Above 75\%,
+the red LED and buzzer indicate an intermittent manual-attention alarm.
+Calibration values, transitions and elapsed times should be recorded. The
+flow and blocks are Figs.~\ref{fig:16} and \ref{fig:17}.

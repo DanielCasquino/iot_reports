@@ -1,127 +1,72 @@
-% The very first letter is a 2 line initial drop letter followed
-% by the rest of the first word in caps.
-% 
-% form to use if the first word consists of a single letter:
-% \IEEEPARstart{A}{demo} file is ....
-% 
-% form to use if you need the single drop letter followed by
-% normal text (unknown if ever used by the IEEE):
-% \IEEEPARstart{A}{}demo file is ....
-% 
-% Some journals put the first two words in caps:
-% \IEEEPARstart{T}{his demo} file is ....
-% 
-% Here we have the typical use of a "T" for an initial drop letter
-% and "HIS" in caps to complete the first word.
-\IEEEPARstart{G}{ood} INTRO addresses allow us to identify devices on a network,
-and allow us to communicate with the precise device we want to reach.
-However, there's only so many IP addresses that can be assigned and/or remembered, and as such,
-a scalable solution is needed.
-
-% You must have at least 2 lines in the paragraph with the drop letter
-% (should never be an issue)
-
-%\hfill mds
-
-%\hfill August 26, 2015
+\IEEEPARstart{T}{his} laboratory examines how a microcontroller acquires
+physical signals and controls actuators. Systems 1--4 combine potentiometers,
+light, motion, gas, distance, temperature and humidity sensors with visual or
+audible responses. Systems 5--8 study a DC motor in simulation, LED dimming by
+PWM, relay switching and moisture-controlled irrigation. The objective is to
+connect each input and output correctly, convert raw readings to useful units,
+implement the required thresholds and priorities, and compare the behavior
+shown in simulations and physical checkpoints with the laboratory guides.
+Arduino UNO is used for the specified Tinkercad simulations and MEGA2560 for
+physical implementations. System 5's direct motor-to-pin circuit is strictly
+a simulation exercise and is not a physical wiring recommendation.
 
 \subsection{Theoretical Framework}
-% needed in second column of first page if using \IEEEpubid
-%\IEEEpubidadjcol
 
-\subsubsection{TERM1}
-GOOD DEFINITION FOR TERM 1 ~\cite{kurose:2021}.
+\subsubsection{Analog acquisition and scaling}
+The MEGA2560 provides analog inputs and PWM-capable digital outputs
+\cite{arduinoMega}. Under the 10-bit ADC and a 5-V reference specified in the
+laboratory guide, a raw reading $n$ lies between 0 and 1023; the nominal
+input voltage is $V\simeq 5n/1023$ V and the corresponding percentage is
+$100n/1023$. A potentiometer connected as a voltage divider varies the
+voltage at its center terminal. An LDR in a divider similarly converts a
+change in illumination into a voltage. Its orientation in the divider must
+be established before interpreting whether higher ADC counts mean more or
+less light. For the four-LDR monitor, only valid channels contribute to the
+mean, and a zero valid-channel count is handled as a fault rather than divided
+by zero.
 
-% An example of a floating figure using the graphicx package.
-% Note that \label must occur AFTER (or within) \caption.
-% For figures, \caption should occur after the \includegraphics.
-% Note that IEEEtran v1.7 and later has special internal code that
-% is designed to preserve the operation of \label within \caption
-% even when the captionsoff option is in effect. However, because
-% of issues like this, it may be the safest practice to put all your
-% \label just after \caption rather than within \caption{}.
-%
-% Reminder: the "draftcls" or "draftclsnofoot", not "draft", class
-% option should be used if it is desired that the figures are to be
-% displayed while in draft mode.
-%
-%\begin{figure}[!t]
-%\centering
-%\includegraphics[width=2.5in]{myfigure}
-% where an .eps filename suffix will be assumed under latex, 
-% and a .pdf suffix will be assumed for pdflatex; or what has been declared
-% via \DeclareGraphicsExtensions.
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure}
+\subsubsection{Event sensing and priority}
+A PIR sensor signals motion but does not itself identify a person; the
+occupancy counter therefore uses a five-second lockout and a separate exit
+button as required by System 3. An MQ2 analog reading is compared with an
+established alarm threshold, with evacuation taking priority over normal
+occupancy display. System 4 combines the HC-SR04 distance measurement with
+temperature and humidity readings. The LM35 produces a nominal
+$10\,\mathrm{mV}/{}^{\circ}\mathrm{C}$ analog output \cite{tiLM35}; the
+DHT11 supplies digital environmental readings. Alternating LCD views should
+be scheduled without unnecessarily clearing the display, while the alarm
+temporarily overrides the second line.
 
-% Note that the IEEE typically puts floats only at the top, even when this
-% results in a large percentage of a column being occupied by floats.
-
-% An example of a double column floating figure using two subfigures.
-% (The subfig.sty package must be loaded for this to work.)
-% The subfigure \label commands are set within each subfloat command,
-% and the \label for the overall figure must come after \caption.
-% \hfil is used as a separator to get equal spacing.
-% Watch out that the combined width of all the subfigures on a 
-% line do not exceed the text width or a line break will occur.
-%
-%\begin{figure*}[!t]
-%\centering
-%\subfloat[Case I]{\includegraphics[width=2.5in]{box}%
-%\label{fig_first_case}}
-%\hfil
-%\subfloat[Case II]{\includegraphics[width=2.5in]{box}%
-%\label{fig_second_case}}
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure*}
-%
-% Note that often IEEE papers with subfigures do not employ subfigure
-% captions (using the optional argument to \subfloat[]), but instead will
-% reference/describe all of them (a), (b), etc., within the main caption.
-% Be aware that for subfig.sty to generate the (a), (b), etc., subfigure
-% labels, the optional argument to \subfloat must be present. If a
-% subcaption is not desired, just leave its contents blank,
-% e.g., \subfloat[].
-
-% An example of a floating table. Note that, for IEEE style tables, the
-% \caption command should come BEFORE the table and, given that table
-% captions serve much like titles, are usually capitalized except for words
-% such as a, an, and, as, at, but, by, for, in, nor, of, on, or, the, to
-% and up, which are usually not capitalized unless they are the first or
-% last word of the caption. Table text will default to \footnotesize as
-% the IEEE normally uses this smaller font for tables.
-% The \label must come after \caption as always.
-%
-%\begin{table}[!t]
-%% increase table row spacing, adjust to taste
-%\renewcommand{\arraystretch}{1.3}
-% if using array.sty, it might be a good idea to tweak the value of
-% \extrarowheight as needed to properly center the text within the cells
-%\caption{An Example of a Table}
-%\label{table_example}
-%\centering
-%% Some packages, such as MDW tools, offer better commands for making tables
-%% than the plain LaTeX2e tabular which is used here.
-%\begin{tabular}{|c||c|}
-%\hline
-%One & Two\\
-%\hline
-%Three & Four\\
-%\hline
-%\end{tabular}
-%\end{table}
-
-% Note that the IEEE does not put floats in the very first column
-% - or typically anywhere on the first page for that matter. Also,
-% in-text middle ("here") positioning is typically not used, but it
-% is allowed and encouraged for Computer Society conferences (but
-% not Computer Society journals). Most IEEE journals/conferences use
-% top floats exclusively. 
-% Note that, LaTeX2e, unlike IEEE journals/conferences, places
-% footnotes above bottom floats. This can be corrected via the
-% \fnbelowfloat command of the stfloats package.
+\subsubsection{Actuation and electrical separation}
+PWM controls the fraction of each cycle that a digital output is high. In
+System 6 the 0--1023 potentiometer reading is mapped to the 0--255 input of
+\texttt{analogWrite()}, and the LED requires a series current-limiting
+resistor. A digital pin without PWM capability cannot provide gradual duty
+cycle control. A motor draws more current than a microcontroller output is
+designed to supply, so Systems 7 and 8 use an external supply and an
+appropriate switching stage. The relay in System 7 separates the control
+signal from the motor supply; the L9110S in System 8 drives the pump from
+an external supply with a common ground for the logic signals. Irrigation
+decisions depend on the measured dry and wet calibration endpoints, then on
+the prescribed 20\% and 75\% thresholds and the 10-s/15-s actuation and
+idle intervals.
 
 \subsection{State of the Art}
-GOOD STATE OF ART~\cite{kurose:2021}.
+
+Research on indoor occupancy sensing emphasizes that a PIR event is an
+observation of motion, not a complete occupancy estimate. Emad-Ud-Din and
+Wang review networked sensing methods and compare them by accuracy, failure
+tolerance and observation rate \cite{emad2023}. System 3 is a simpler local
+counter with one PIR and a manual exit input; its occupancy estimate can drift
+if an entrance is missed or a button press does not match a real departure.
+This motivates reporting the tested conditions and the limits of the count.
+
+For irrigation, Garcia et al. survey sensor-based systems and identify soil
+moisture as a common measurement used to make watering decisions
+\cite{garcia2020}. A later systematic review by Abdelmoneim et al. discusses
+the role of soil-moisture sensing and the risk of irrigating when sufficient
+water is already present \cite{abdelmoneim2025}. System 8 demonstrates a
+smaller, local threshold controller: it does not implement the network,
+weather integration or crop-specific planning found in broader IoT systems.
+Its evidence should therefore focus on sensor calibration, state transitions
+and pump timing rather than claims of water savings that were not measured.
