@@ -1,25 +1,16 @@
-\subsection{Problem Description}
+\subsection{Problem Description and Justification}
 
 Electric water heaters generally operate under manual control only: users must physically turn these appliances on/off. This interaction dependency introduces two main problems:
 
 \begin{itemize}
     \item Users may forget to turn the water heater off
-    \item Users might not be present when they need hot water, requiring to turn the heater on in advance
+    \item Users might not be present when they need to turn the heater on, requiring them to do so in advance, extending the heater's uptime unnecessarily
 \end{itemize}
 
-Both of these issues increase energy consumption without direct benefits, increasing costs and environmental impact~\cite{bhati2017}.
+Both of these issues can increase energy consumption by keeping water hot longer than needed, increasing standing heat losses~\cite{booysen2019}.
 
 Lack of real-time monitoring and feedback is also a relevant problem. Users cannot easily check the current temperature of the water or the power status of the heater without being physically present.
 
+Bhati et al. highlight the importance of considering user behaviour in the design of smart-home energy management systems~\cite{bhati2017}.
+
 Meanwhile, the heater's electric configuration introduces a different set of implementation problems. For instance, the activation of submerged high-power resistors requires proper insulation. A robust IoT system that can handle these requirements must guarantee the separation between low and high voltage circuits.
-
-\subsection{Justification}
-
-The project's justification can be divided into three complementary fields:
-
-\begin{itemize}
-    \item \textbf{Economics}: Remote control and monitoring enables smarter planning, which can potentially decrease energy consumption of a high-voltage appliance and reduce operation costs.
-    \item \textbf{Technology}: fdgfdg
-    \item \textbf{Social }:: estos puntos parecen objetivos?????
-    \item todo
-\end{itemize}
