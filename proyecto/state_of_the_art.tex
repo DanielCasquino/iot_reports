@@ -1,81 +1,28 @@
-This section analyzes eight scientific works relevant to the project context. Topics include home energy management and technology adoption by users, measurement and disaggregation of electric loads, and low cost implementations with an ESP32 microcontroller.
+Eight studies guide the scope of this proposal. Each supports a particular design choice; none alone validates the complete Rheem retrofit.
 
-\subsection*{A1. A Review of Smart Home Applications Based on Internet of Things}
-Alla et al.~\cite{alaa2017} conduct a systematic review about the IoT-based smart home ecosystem, constructing a taxonomy of applications and stating that current research is scattered and presents several challenges in interoperability, costs, and user experience. This work establishes the importance of low cost, integrated solutions, and provides an application classification framework (monitoring + control + management).
+\subsection*{A1. Smart-home energy conservation}
+Bhati et al.~\cite{bhati2017} examine household attitudes and behavior in a smart-city energy context. We take the need for useful feedback and simple interaction. Their study does not measure this heater or demonstrate savings from this prototype.
 
-\subsection*{A2. A Review of Internet of Things for Smart Home: Challenges and Solutions}
-Stojkoska \& Trivodaliev~\cite{stojkoska2017} review the technologies that enable smart homes, as well as their challenges ---conectivity, security, enegy consumption, and device heterogenuity---, establising architecture and protocol choice as critical decisions. This work inspired the use of low-power, low-cost technologies, such as the ESP32 microcontroller and the MQTT protocol.
+\subsection*{A2. Control of domestic water heating}
+Booysen et al.~\cite{booysen2019} examine how optimal control can reduce energy for domestic water heating under modeled or studied conditions. This motivates remote access to the heater's on/off function. We do not transfer their savings figures to the EW1-50RP.
 
-\subsection*{A3. Energy Conservation through Smart Homes in a Smart City: A Lesson for Singapore Households}
-Bhati, Hansen \& Chan~\cite{bhati2017} study the impact that smart home technologies have on energy conservation in Singaporean homes, showing that feedback and automation are important contributing factors, and that this impact is strenghtened with the interconnection of devices, homes, and electrical networks. This paper backs up the project proposal by establising precedents on energy management and the importance of user feedback.
+\subsection*{A3. Water-use detection without internal access}
+Singer et al.~\cite{singer2017} investigate external flow sensing for a smart water-heater controller. It supports the value of water-use information in this application. Our proposed Hall meter instead requires a removable external plumbing union.
 
-\subsection*{A4. Categories and Functionality of Smart Home Technology for Energy Management}
-Ford, Pritoni, Sanguinetti \& Karlin~\cite{ford2017} analyze 308 commercial products that target home energy management, classify their functionality, and show the existing gap between product description and their actual capabilities. This work justifies prioritizing feature quality over quantity.
+\subsection*{A4. Flow measurements around domestic heaters}
+Pirow et al.~\cite{pirow2018} estimate domestic hot-water usage from temperature and vibration sensors outside a pipe. Their proof of concept shows that water-use monitoring can be separated from the heater electronics. It does not validate our Hall sensor or its installation.
 
-\subsection*{A5. A Systematic Review of the Smart Home Literature: A User Perspective}
-Marikyan, Papagiannidis \& Alamanos~\cite{marikyan2019} review literature from a user perspective, identifying perceived usefulness, trust, privacy, and ease-of-use as deciding factors for user adoption. This work guides decision regarding UI (user interface) and enables the possibility of integrating a virtual assistant to provide simple and comprehensible interaction.
+\subsection*{A5. Demand and flow data}
+Lee and Yim~\cite{lee2021} analyze domestic hot-water energy and flow demand using smart-meter data. This supports measuring use rather than treating powered time as water consumption. Their apartment-complex results are not a prediction for one household.
 
-\subsection*{A6. Non-Intrusive Load Monitoring Approaches for Disaggregated Energy Sensing: A Survey}
-Zoha, Gluhak, Imran, and Rajasegarar~\cite{zoha2012} present a review of non-intrusive load monitoring (NILM) techniques, describing how current and power enable the identification of the status and operation of equipment. The project applies this idea to a single, well-characterized load (the water heater), using its electrical signature to infer heating and detect anomalies.
+\subsection*{A6. Optical reading of a display}
+Tongbai~\cite{tongbai2024} uses an ESP32-CAM to capture a digital instrument display without a communication port and recognizes the digits on a web server. We apply the same capture-and-recognize approach to the Rheem visor, subject to testing its geometry and lighting.
 
-\subsection*{A7. Electric Energy Management in the Smart Home: Perspectives on Enabling Technologies and Consumer Behavior}
-Zipperer and collaborators~\cite{zipperer2013} analyze enabling technologies and consumer behavior in home energy management, concluding that success depends as much on the technical component as on the user's willingness to interact with the information. This reinforces the need for solutions that combine measurement, control, and a user-friendly interface.
+\subsection*{A7. Advanced scheduling as a boundary}
+Shen et al.~\cite{shen2021} study data-driven electric water-heater scheduling and control. Their work explains why demand information may be useful later. Predictive scheduling is not part of this first prototype.
 
-\subsection*{A8. A Smart Energy Monitoring System Using ESP32 Microcontroller}
-El-Khozondar and collaborators~\cite{elkhozondar2024} develop a low-cost energy monitoring system based on the ESP32 microcontroller, integrating voltage sensors (ZMPT101B) and current sensors (SCT-013), and reporting data to the user via the network, demonstrating the viability of the ESP32 and current transformers for home electrical monitoring. This work is the closest precedent to the electrical measurement component of the project.
+\subsection*{A8. Usability of smart-home systems}
+Marikyan et al.~\cite{marikyan2019} review smart-home literature from the user's perspective. This supports a legible status interface and a small voice-command vocabulary. It does not prove that a voice assistant improves energy efficiency.
 
-\subsection{Study Comparison and Identified Gap}
-
-Table ~\ref{tab:arte} summarizes the analyzed works. Sources (A1--A5) cover energy management and user adoption, while works (A6--A8) study load measurement and low cost implementations.
-
-However, there is space for solutions specifically tailored towards \textbf{domestic water heaters} that simultaneously integrate temperature, curent, and flow measurement, safe power actuators (SSR), wireless communication with preprocessing, and an interface that combines comprehensible dashboards and virtual assistants.
-
-\begin{table*}[htbp]
-    \centering
-    \caption{Comparative synthesis of the state of the art.}
-    \label{tab:arte}
-    \footnotesize
-
-    \begin{tabularx}{\textwidth}{@{}P{0.7cm} P{3.0cm} X P{3.0cm}@{}}
-        \toprule
-        \tblhead{\#}                &
-        \tblhead{Work}              &
-        \tblhead{Main contribution} &
-        \tblhead{Limitation / gap}                                                               \\
-        \midrule
-
-        A1                          & Alaa et al. (2017)
-                                    & Taxonomy of IoT smart home applications
-                                    & Not focused on a specific load                             \\
-
-        A2                          & Stojkoska and Trivodaliev (2017)
-                                    & Connectivity and protocol challenges
-                                    & No load control implementation                             \\
-
-        A3                          & Bhati et al. (2017)
-                                    & Evidence of energy savings through feedback and automation
-                                    & Dependent on household context                             \\
-
-        A4                          & Ford et al. (2017)
-                                    & Functional categories of HEM (308 products)
-                                    & No prototype development                                   \\
-
-        A5                          & Marikyan et al. (2019)
-                                    & User adoption factors
-                                    & Review, not a technical system                             \\
-
-        A6                          & Zoha et al. (2012)
-                                    & NILM methods for identifying loads
-                                    & High computational complexity                              \\
-
-        A7                          & Zipperer et al. (2013)
-                                    & Enabling technologies and consumer behavior
-                                    & No low-cost prototype                                      \\
-
-        A8                          & El-Khozondar et al. (2024)
-                                    & ESP32-based electrical monitoring with SCT-013
-                                    & Electrical monitoring only                                 \\
-
-        \bottomrule
-    \end{tabularx}
-\end{table*}
+\subsection{Proposed Contribution}
+These sources separately address hot-water control, flow data, optical readout, and user interaction. Our contribution is to combine three external observations with a removable button pusher on the specific EW1-50RP, while keeping the heater's original temperature and electrical controls.

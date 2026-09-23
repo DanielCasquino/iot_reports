@@ -1,88 +1,15 @@
 \subsection*{General Objective}
-Design and implement an ESP32-based IoT prototype to monitor, remotely control, and support 
-the energy management of a domestic electric water heater. The system combines water-temperature, 
-electrical-current, and water-flow measurements with an SSR, wireless communication, a dashboard, 
-and a virtual-assistant interface.
+Develop and evaluate a removable external IoT prototype for remote monitoring and on/off control of a Rheem EW1-50RP water heater, while leaving its internal controller and mains connection untouched.
 
 \subsection*{Specific Objectives}
 \begin{enumerate}[label=SO\arabic*.]
-\item Acquire and calibrate water-temperature, electrical-current, and water-flow readings from the 
-three sensors.
-
-\item Process the readings on the ESP32 through temperature smoothing, RMS current calculation, and 
-flow-pulse counting.
-
-\item Transmit processed readings through Wi-Fi/MQTT and display the heater's status and measurements 
-on a remotely accessible dashboard.
-
-\item Test remote and automatic on/off switching through a suitably rated SSR, while keeping the heater's 
-built-in protections in place.
-
-\item Calculate estimated electrical energy, powered time, heating time, water-use time, water volume, 
-and heating status from the measurements.
-
-\item Implement configurable rules for a temperature target and prolonged powered operation without 
-detected water use, with safeguards against unnecessary switching.
-
-\item Implement voice or chat commands such as ``turn on the heater,'' 
-``turn off the heater,'' and ``is the water hot?''
-
-\item Validate sensor readings, dashboard information, and switching against independent measurements 
-and the heater's observed operation.
+\item Read the temperature shown on the heater's original display with a camera and classify the heating pilot with an RGB sensor.
+\item Measure water flow and accumulated volume at an accessible external pipe connection with a Hall-effect flow sensor.
+\item Preprocess the three sensor outputs and present temperature, observed heating state, and water use in a wireless application.
+\item Press the heater's original on/off button with one removable servo mechanism after a validated user request, then check the observed result.
+\item Provide a basic voice interface that converts on/off requests and status questions into the same application actions.
+\item Compare the reported data and button response with direct observation during prototype tests.
 \end{enumerate}
 
-\subsection*{Scope}
-\begin{itemize}
-\item The project will deliver a functional IoT prototype focused on one domestic electric water heater, 
-using the Rheem 50 L AI Smart model as the reference case. It will add an external monitoring and control 
-layer to a heater that already has its own AI Smart functions and temperature display.
-
-\item The ESP32 will read water temperature, alternating current, and water flow. Current will help 
-distinguish a powered heater from one whose heating element is drawing power; flow will indicate water 
-use at the chosen installation point.
-
-\item The system will send processed measurements wirelessly and present temperature, flow, operating 
-status, estimated energy consumption, and operating times in a dashboard.
-
-\item Remote on/off control and local automatic rules will be tested using an SSR and an electrical 
-assembly appropriate for the actual load. The temperature-target rule will use a measured temperature 
-at a specified location, and a no-use timeout will be configurable for a storage heater.
-
-\item The work includes calibration and experimental validation of readings, a protective enclosure 
-for the prototype, and documentation of connections and system behavior.
-
-\item An assistant interface for voice or chat commands and a local buzzer are optional additions. 
-Work on the assistant may proceed in parallel, but integration depends on the three sensors, dashboard, 
-and switching path functioning reliably.
-\end{itemize}
-
-\subsection*{Limitations}
-\begin{itemize}
-\item Validation will take place in a controlled test setting or pilot installation. The prototype 
-is not a certified commercial product or a substitute for a qualified electrical installation.
-
-\item The SCT-013 measures current, not active power directly. Energy values will be estimates 
-based on nominal voltage and the assumed behavior of the heater, and will not have billing-grade accuracy.
-
-\item A temperature probe on an accessible pipe or test reservoir may not measure the temperature 
-throughout the 50 L tank. Its mounting point and the meaning of the displayed temperature will be 
-documented.
-
-\item The YF-S201 will initially be tested in a separate water circuit. Installation in a household 
-water line depends on confirming the selected unit's temperature, pressure, fittings, and material 
-suitability.
-
-\item Control is limited to on/off switching; the project does not modify the heater's internal 
-thermostat, thermal protections, AI Smart controller, or proportional heating power. External power 
-switching must be checked against the heater's restart behavior.
-
-\item The reference load is a single-phase 220 V electric heater. Three-phase installations and other 
-household appliances are outside the proposed validation.
-
-\item The virtual assistant is optional and depends on its chosen speech or chat service and internet 
-connection. Local monitoring and protective rules should remain usable if the remote connection fails.
-
-\item The project will use basic access control for remote commands, but a full cybersecurity assessment 
-and long-term reliability certification are outside its scope.
-
-\end{itemize}
+\subsection*{Scope and Limits}
+The implementation targets one EW1-50RP. Its temperature setpoint is configured on the original panel; remote setpoint adjustment is outside this prototype. The camera reads the value displayed by the heater, not an independent measurement of tank or outlet temperature. The RGB sensor reports the visible pilot state, not electrical current or energy consumption. The flow meter reports water passing its installation point, not total household use. The prototype does not claim energy savings or calculate kWh. The servo uses low-voltage power and does not switch the 220--240 V supply. Plumbing installation and final sensor calibration are part of validation.
