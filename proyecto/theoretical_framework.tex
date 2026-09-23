@@ -1,51 +1,12 @@
-\subsection{Internet of Things and Referential Architectures}
-IoT is defined as the interconnection of physical objects with sensing, compututing, and communication capabilites, which use networks to exchange data and offer services to applications and users~\cite{alfuqaha2015}.
+\subsection{Panel Readout and Heater Operation}
+The EW1-50RP's own controller displays a temperature measured at the center of its tank. The panel includes an on/off button, temperature adjustment buttons, and a heating indicator; red denotes heating and green denotes temperature preservation~\cite{rheemmanual}. Reading this display avoids estimating the tank temperature from an external pipe, which can be misleading when no water flows.
 
-A referential architecture organizes the system in layers:
-\begin{itemize}
-    \item Perception: Sensors and actuators
-    \item Network: Data transmission
-    \item Application: Storage, analysis, and presentation
-\end{itemize}
+A camera facing the numeric display can capture the digits without accessing the heater's electronics. Tongbai demonstrated optical reading of a seven-segment instrument using an ESP32-CAM for image capture and server-side recognition~\cite{tongbai2024}. The present design adopts the readout principle, but its accuracy on the Rheem panel must be tested. An RGB light sensor with a small ambient-light shield reads the pilot independently~\cite{adafruitcolor}.
 
-A reference architecture organizes the system into layers: \textbf{perception} (sensors and actuators), \textbf{network} (data transmission), and \textbf{application} (storage, analysis, and presentation). The project adopts this three-layer model, with an \emph{edge preprocessing} component located at the node itself, which filters, calibrates, and aggregates the data before transmitting it. This strategy reduces the volume of information sent and improves the application's latency and resilience~\cite{shi2016}.
+\subsection{Water Flow and External Actuation}
+The YF-S201 turbine flow sensor produces Hall-effect pulses as water turns its rotor. Its nominal calibration is approximately 450 pulses per liter; actual volume is obtained by counting pulses and calibrating the installed assembly~\cite{seeedflow}. The sensor is inserted in a removable external pipe union. This requires work on the plumbing connection, although it does not require opening the heater.
 
-\subsection{Communication Protocols}
+The single actuator is a low-voltage servo that briefly presses and releases the existing momentary on/off button. Mechanical button pushers are a commercial precedent for external appliance control~\cite{switchbot}. The servo does not replace the heater's thermostat or thermal protections. Because the on/off button toggles state, a command must be based on a fresh panel observation; an unconfirmed command must not be repeated blindly.
 
-For data transmission over Wi-Fi, the \emph{Message Queuing Telemetry Transport} (MQTT) protocol is widely used in IoT applications due to its publisher/subscriber model, low bandwidth consumption, and tolerance to unstable links. Compared to request/response-based alternatives such as HTTP, MQTT is more efficient for periodic telemetry from multiple devices~\cite{alfuqaha2015}. The proposed system publishes measurements to MQTT topics and receives control commands through actuation topics.
-
-\subsection{Current Measurement and Load Disaggregation}
-
-Electrical current can be measured either invasively (using a shunt) or non-invasively, through clamp-type current transformers (CTs) installed around the conductor without interrupting the circuit. CTs allow alternating current to be measured safely and economically. The resulting AC signal is typically processed by calculating its root mean square (RMS) value and, from this, the apparent or active power. Studies on non-intrusive load monitoring (NILM) show that the electrical signature of a device can be characterized based on its current and power consumption to identify its operating state~\cite{zoha2012}. In this project, the water heater's electrical signature (a practically constant resistive load while heating) allows its operating state to be inferred from the measured current.
-
-The basic electrical quantities used are the electrical power
-
-\begin{equation}
-    P(t) = V_{\mathrm{rms}}(t) \cdot I_{\mathrm{rms}}(t) \cdot \cos\varphi,
-\end{equation}
-
-and the energy consumed over an interval, obtained by integration:
-
-\begin{equation}
-    E = \int_{t_0}^{t_1} P(t),\mathrm{d}t
-    ;\approx;
-    \sum_{k} P_k ,\Delta t.
-\end{equation}
-
-For a purely resistive load, the power factor $\cos\varphi \approx 1$, which simplifies the calculation of energy from the mains voltage and current.
-
-\subsection{Temperature Sensing}
-
-The DS18B20 digital thermometer is a temperature sensor with a digital 1-Wire interface that provides measurements in digital format, with an operating range of $-55,^{\circ}\mathrm{C}$ to $+125,^{\circ}\mathrm{C}$ and an accuracy of $\pm 0.5,^{\circ}\mathrm{C}$ over the range from $-10,^{\circ}\mathrm{C}$ to $+85,^{\circ}\mathrm{C}$, with a configurable resolution from 9 to 12 bits~\cite{ds18b20}. Its version with a waterproof probe and stainless-steel casing is suitable for measuring the water temperature of the water heater. The digital 1-Wire communication allows multiple sensors to be connected to the same bus, facilitating measurement redundancy.
-
-\subsection{Water Flow Measurement}
-
-Water flow can be measured using Hall-effect turbine sensors, such as the YF-S201, which generates a pulse signal whose frequency is proportional to the volumetric flow rate (typically around 450 pulses per liter, with a range of 1 to 30 L/min)~\cite{yfs201201}. By counting the pulses per unit of time, the instantaneous flow rate can be obtained, and integrating it yields the consumed volume. This variable makes it possible to distinguish between the states `water heater on without water usage'' and `water heater in use,'' enabling automatic rules based on actual water demand.
-
-\subsection{Power Actuation}
-
-The control of a high-power resistive load is performed using a solid-state relay (SSR), a semiconductor-based device (typically optocoupled) that switches an AC load while providing galvanic isolation between the low-voltage control circuit and the mains. Compared to electromechanical relays, the SSR offers a longer service life, no mechanical contact bounce, and zero-cross switching, which reduces electromagnetic interference. The SSR serves as the system's primary actuator and is the component that enables the remote and automatic switching of the water heater.
-
-\subsection{Preprocessing and Edge Computing}
-
-\emph{Edge computing} proposes processing data close to its source in order to reduce traffic, latency, and dependence on the cloud~\cite{shi2016}. In the project, preprocessing includes digital filtering of the current signal (averaging and RMS calculation), sensor calibration, temperature smoothing (moving average), flow pulse counting and integration, and local evaluation of safety rules (for example, cutting power in the event of overheating). Only aggregated metrics are published to the cloud.
+\subsection{Communication and Preprocessing}
+An ESP32 controller counts flow pulses and classifies the shielded RGB signal. A separate ESP32-CAM captures the visor; numeric recognition runs in the application service, keeping image processing off the control loop. Wi-Fi carries measurements and commands between the nodes and the application. The application accepts explicit on/off requests and simple spoken commands through the same validated route. It displays unavailable or uncertain readings as such instead of guessing a value.

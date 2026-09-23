@@ -1,62 +1,50 @@
-\subsection{General System Architecture}
-The system follows a three-layer architecture with edge processing at the node, complemented by a dedicated actuation stage. In the \textbf{perception layer}, three sensors acquire the physical variables. In the \textbf{network/processing layer}, the ESP32 acquires, filters, and preprocesses the signals, evaluates local rules, and communicates over Wi-Fi using MQTT. In the \textbf{application layer}, a central dashboard provides visualization and metric calculation, while a virtual assistant enables control through natural language. The SSR operates on the load (the electric water heater) while providing electrical isolation between the low-voltage control circuitry and the AC switching stage.
-
-\subsection{Component List and Technical Specifications}
+\subsection{Reference Appliance and Components}
+The reference is the Rheem EW1-50RP, a 50 L, 1500 W, 220--240 V storage heater. Its panel already shows tank-center temperature and controls heating~\cite{rheemmanual}. The proposed add-on uses exactly three sensors and one actuator, listed in Table~\ref{tab:components}. The ESP32-WROOM controller and ESP32-CAM camera node are development boards, not additional sensors or actuators.
 
 \begin{table*}[htbp]
-    \centering
-    \caption{Components and technical specifications of the prototype.}
-    \label{tab:componentes}
-    \footnotesize
-    \begin{tabularx}{\textwidth}{@{}P{3.0cm} P{2.8cm} L@{}}
-        \toprule
-        \tblhead{Component} & \tblhead{Model} & \tblhead{Key technical specification and function} \\
-        \midrule
-        Microcontroller     & ESP32-WROOM-32 & Dual-core Xtensa LX6 at up to 240 MHz, 520 KB SRAM, 4 MB flash, 12-bit ADC, Wi-Fi 802.11 b/g/n (2.4 GHz), and Bluetooth/BLE 4.2. Data acquisition, edge processing, and communication. \\
-        Temperature sensor  & DS18B20 (submersible probe) & Measurement range $-55$ to $+125\,^{\circ}\mathrm{C}$, $\pm 0{,}5\,^{\circ}\mathrm{C}$ accuracy over the specified range, 9--12-bit resolution, 1-Wire interface, and waterproof probe encapsulation. Measures water temperature. \\
-        Current sensor      & SCT-013 (CT; exact variant to be specified) & Non-invasive split-core current transformer. The current rating and output depend on the selected SCT-013 variant. Measures AC current from the water heater for electrical power and energy estimation. \\
-        Flow sensor         & YF-S201 & 1--30 L/min, approximately $\pm 10\%$ accuracy, 5--18 V DC supply, pulse output ($\approx 450$ pulses/L), 1/2'' connection. Detects actual water usage. \\
-        Actuator            & SSR-25DA or equivalent & Optoisolated solid-state relay, 3--32 V DC control input, 24--380 V AC load range, zero-cross switching. Switches the water heater. An appropriate heatsink must be provided according to the load current. \\
-        Buzzer (optional)   & Active buzzer module & 5 V, local audible alert. \\
-        Signal conditioning and power supply & Voltage divider + RC filter and HLK-PM01 AC-DC supply & Conditions the current-sensor signal to the ESP32 ADC range and provides isolated low-voltage DC power from the 220 V AC supply. \\
-        Enclosure           & ABS enclosure with DIN rail mounting (IP54/IP65) & Mechanical and electrical protection, with physical separation between the low-voltage electronics and the 220 V AC switching components. \\
-        \bottomrule
-    \end{tabularx}
+\centering
+\caption{Proposed external prototype components.}
+\label{tab:components}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}P{2.7cm} P{2.8cm} L@{}}
+\toprule
+\tblhead{Role} & \tblhead{Part} & \tblhead{Location and output} \\
+\midrule
+Sensor 1: temperature readout & ESP32-CAM / OV2640 & Camera fixed in front of the existing numeric visor; image sent for digit recognition. \\
+Sensor 2: pilot state & TCS34725 RGB sensor & Shielded optical view of the pilot; red, green, and uncertain/dark categories. \\
+Sensor 3: water use & YF-S201 Hall flow meter & Removable external pipe union; pulse count for flow rate and volume. \\
+Actuator: on/off & Low-voltage servo with external pusher & Briefly presses the heater's original on/off button and retracts. \\
+Controller and link & ESP32-WROOM-32, Wi-Fi & Counts pulses, classifies light, validates commands, drives servo, and exchanges data with the application. \\
+Interface & Application with voice input & Displays readings; converts explicit or spoken requests into the same on/off command. \\
+\bottomrule
+\end{tabularx}
 \end{table*}
 
-Table~\ref{tab:componentes} presents the component list. The minimum requirements are fulfilled: \textbf{three sensors} (temperature, current, and flow), \textbf{one power actuator} (SSR), \textbf{wireless communication} (ESP32 Wi-Fi), \textbf{an interface for processed data} (dashboard), and a protective \textbf{enclosure}.
+\subsection{Architecture and Operating Sequence}
+Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from the heater's existing mains supply. The camera node transfers a cropped image of the visor to the application service for digit recognition. The controller counts Hall pulses, derives flow and volume, and classifies RGB readings under a light shield. The application shows the latest valid temperature, pilot state, and water use.
 
-\subsection{Selected Microcontroller}
-The \textbf{ESP32-WROOM-32} was selected. The technical justification is as follows:
+\begin{figure*}[htbp]
+\centering
+\begin{tikzpicture}[>=Latex, node distance=8mm and 12mm,
+ box/.style={draw=primary, rounded corners, align=center, minimum height=8mm, text width=30mm, font=\footnotesize},
+ flow/.style={->, thick, draw=primary}]
+\node[box] (visor) {Rheem visor\\camera / ESP32-CAM};
+\node[box, below=of visor] (pilot) {Heating pilot\\TCS34725 RGB};
+\node[box, below=of pilot] (water) {External pipe\\YF-S201 pulses};
+\node[box, right=22mm of pilot] (ctrl) {ESP32 controller\\filter / count / validate};
+\node[box, right=23mm of ctrl] (app) {Wi-Fi application\\display / voice / OCR};
+\node[box, below=of ctrl] (servo) {Servo pusher\\original on/off button};
+\draw[flow] (visor.east) -- ++(8mm,0) |- (app.north west);
+\draw[flow] (pilot.east) -- (ctrl.west);
+\draw[flow] (water.east) -- ++(8mm,0) |- (ctrl.south west);
+\draw[<->, thick, draw=primary] (ctrl.east) -- (app.west);
+\draw[flow] (ctrl.south) -- (servo.north);
+\end{tikzpicture}
+\caption{External sensing and button actuation. The Rheem 220--240 V supply remains under its original control.}
+\label{fig:architecture}
+\end{figure*}
 
-\begin{itemize}
-    \item \textbf{Integrated connectivity:} Wi-Fi and Bluetooth are integrated natively, eliminating the need for external communication modules and reducing cost and complexity, in line with the architectural recommendations in the literature~\cite{stojkoska2017,alfuqaha2015}.
-    \item \textbf{Computational capability:} the dual-core processor operating at up to 240 MHz and 520 KB of SRAM provide sufficient resources for edge processing tasks such as RMS calculation, digital filtering, pulse counting, and local rule evaluation~\cite{shi2016}.
-    \item \textbf{Suitable peripherals:} the 12-bit ADC supports acquisition of the conditioned current-sensor signal; the hardware pulse counter and GPIO peripherals can be used for flow-pulse acquisition; the DS18B20 uses a 1-Wire interface; and GPIOs control the SSR and optional buzzer.
-    \item \textbf{Cost and availability:} the ESP32 is a low-cost and widely available platform, satisfying the project's explicit cost constraints and avoiding the higher cost and power consumption associated with single-board computers.
-\end{itemize}
+For a requested state change, the controller first checks a recent panel observation. It issues one short servo press only when the observed state differs from the requested state, then retracts and waits for a new observation. If the visor or pilot is unreadable, the application reports an uncertain state and asks for manual verification; it does not keep toggling. A local manual press remains possible after removing the pusher, and loss of Wi-Fi does not alter the heater's original operation.
 
-Alternatives such as the ESP8266, which provides fewer peripherals and a single CPU core, and the Raspberry Pi, which generally has higher cost and power requirements, were not selected because they do not provide the desired balance of capability, cost, and simplicity for this prototype.
-
-\subsection{Block Diagram of the Proposed System}
-
-\begin{figure}[htbp]
-        \centering
-        \includegraphics[width=1\linewidth]{img/diagrama_bloques-proyecto.drawio.png}
-        \caption{Block diagram of the proposed IoT system for a domestic electric water heater.}\label{fig:bloques}
-    \end{figure}
-
-Figure~\ref{fig:bloques} shows the system block diagram. The three sensors provide their signals to the ESP32, while external circuitry performs the required signal conditioning and the ESP32 performs digital filtering and edge processing. The ESP32 communicates bidirectionally over Wi-Fi using MQTT with the cloud/MQTT broker and dashboard and, through the application layer, with the virtual assistant. As outputs, the ESP32 controls the SSR, which switches power to the electric water heater, and optionally activates a local alert buzzer.
-
-\subsection{Edge Processing and Data Flow}
-The node performs the following processing before transmitting data:
-\begin{enumerate}
-    \item \textbf{Temperature:} the DS18B20 is read and the measurements are smoothed using a moving-average filter to reduce noise and better represent the thermal inertia of the water.
-    \item \textbf{Current:} the conditioned SCT-013 signal is sampled and its RMS value is calculated. Electrical power and cumulative energy are then estimated using the nominal AC supply voltage and an assumed power factor. For the resistive heating load, a power factor close to unity can be assumed; alternatively, voltage and power factor measurements can be added in a future version for direct real-power measurement.
-    \item \textbf{Flow:} pulses are counted using hardware interrupts or the ESP32 pulse counter peripheral, and the instantaneous flow rate and accumulated water volume are calculated.
-    \item \textbf{Local rules:} the system automatically switches the water heater off when the target temperature is reached, disconnects the heater after a configurable period with no detected flow (``on without use''), and activates protection in the event of an overtemperature condition.
-    \item \textbf{Publication:} aggregated metrics are transmitted through MQTT, while on/off commands are received from the dashboard or virtual assistant.
-\end{enumerate}
-
-\subsection{Enclosure and Safety Considerations}
-The electronics are housed in an insulated enclosure with DIN-rail mounting, with physical separation between the low-voltage section (ESP32, sensors, and power supply) and the 220 V AC switching section (SSR and terminal blocks). The optoisolated SSR separates the low-voltage control signal from the AC switching circuit, while the enclosure prevents user access to live conductors during normal operation. The AC-DC power supply should be an appropriately certified and isolated unit suitable for the local mains voltage. The SSR and associated wiring must also be rated for the water heater's actual voltage and current, with appropriate thermal management. These measures are intended to reduce the risk of accidental contact with mains voltage and address the electrical safety requirements identified in the problem statement.
+\subsection{Calibration and Validation}
+The camera is aligned and shielded against glare. Recognized digits are compared with the visible panel over several temperatures; blank images and heater error codes are marked unavailable. The RGB classifier is checked under red, green, and ambient-light conditions. The flow meter is calibrated with a measured water volume; pulses per liter and the installation point are recorded. Finally, the servo stroke and return are tested on the momentary button, and on/off requests are compared with the observed panel response. The electronics use a separate low-voltage supply. Installation of the external water union must be checked for pressure, temperature, fittings, and leaks before household use.

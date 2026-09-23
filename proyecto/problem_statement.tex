@@ -1,16 +1,5 @@
 \subsection{Problem Description and Justification}
 
-Electric water heaters generally operate under manual control only: users must physically turn these appliances on/off. This interaction dependency introduces two main problems:
+For the selected Rheem heater, the user must approach the panel to read the tank-center temperature or press its on/off button~\cite{rheemmanual}. This limits remote preparation of hot water and makes it difficult to check the heater's observed state when away from the appliance. The original proposal also considered electrical and water consumption. The revised prototype retains water-use measurement, but it does not infer electrical energy from a light indicator or a nominal power rating.
 
-\begin{itemize}
-    \item Users may forget to turn the water heater off
-    \item Users might not be present when they need to turn the heater on, requiring them to do so in advance, extending the heater's uptime unnecessarily
-\end{itemize}
-
-Both of these issues can increase energy consumption by keeping water hot longer than needed, increasing standing heat losses~\cite{booysen2019}.
-
-Lack of real-time monitoring and feedback is also a relevant problem. Users cannot easily check the current temperature of the water or the power status of the heater without being physically present.
-
-Bhati et al. highlight the importance of considering user behaviour in the design of smart-home energy management systems~\cite{bhati2017}.
-
-Meanwhile, the heater's electric configuration introduces a different set of implementation problems. For instance, the activation of submerged high-power resistors requires proper insulation. A robust IoT system that can handle these requirements must guarantee the separation between low and high voltage circuits.
+Research on domestic water heating shows that scheduling and control can reduce energy use under studied conditions~\cite{booysen2019}; those results do not establish savings for this heater or this prototype. The immediate, testable problem is remote visibility and control without opening the heater or switching its mains supply. Flow data add a record of when and how much water passes the selected external point, which can help distinguish heating from actual water use~\cite{lee2021,pirow2018}.
