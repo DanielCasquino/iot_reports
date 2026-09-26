@@ -1,0 +1,21 @@
+\begin{tikzpicture}[>=Latex,
+box/.style={draw=primary,rounded corners,align=center,font=\footnotesize,text width=30mm,minimum height=12mm},
+label/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+flow/.style={->,thick,draw=primary}]
+\node[box] (flow) at (0,0) {YF-S201\\External water union};
+\node[box] (color) at (0,-2) {TCS34725\\Pilot color};
+\node[box] (ctrl) at (5,-1) {ESP32 controller\\Count, classify,\\validate requests};
+\node[box] (cam) at (0,-4) {ESP32-CAM / OV2640\\Numeric visor image};
+\node[box] (app) at (10,-4) {Application service\\OCR, GUI, voice\\Flow and volume};
+\node[box] (servo) at (10,-1) {Low-voltage servo\\External button pusher};
+\node[box] (heater) at (10,1.4) {Rheem EW1-50RP\\Original controller};
+\node[box] (mains) at (5,1.4) {Existing supply\\220--240 V AC};
+\draw[flow] (flow.east) -- node[label,above,sloped] {Hall pulses via\\3.3 V level adaptation} (ctrl.north west);
+\draw[flow] (color.east) -- node[label,below,sloped] {I\textsuperscript{2}C: SDA / SCL} (ctrl.south west);
+\draw[flow] (ctrl.east) -- node[label,above] {Servo control pulses} (servo.west);
+\draw[flow] (servo.north) -- node[label,right] {Mechanical press\\and release} (heater.south);
+\draw[flow] (mains.east) -- (heater.west);
+\draw[<->,thick,draw=primary] (ctrl.south) |- node[label,pos=.75,above] {Wi-Fi / MQTT: telemetry and requests} (app.west);
+\draw[flow] (cam.south) -- ++(0,-.9) -| node[label,pos=.25,above] {Wi-Fi image transfer to OCR service} (app.south);
+\node[align=center,font=\scriptsize,text width=145mm] at (5,-5.8) {Separate low-voltage supply for the add-on; logic-compatible interfaces and servo supply sized for load.\\Removable panel support and optical shield; manual access preserved. No relay in the heater mains circuit.};
+\end{tikzpicture}
