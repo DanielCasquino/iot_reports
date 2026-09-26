@@ -23,27 +23,16 @@ Interface and enclosure & Application; removable low-voltage case & Displays pre
 \subsection{Architecture and Operating Sequence}
 Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from the heater's existing mains supply. The camera node transfers a cropped image of the visor to the application service for digit recognition. The controller counts Hall pulses, derives flow and accumulated volume, and classifies color readings under a light shield. MQTT over Wi-Fi carries telemetry and on/off requests between the ESP32 controller and application service; the camera sends images over Wi-Fi for recognition. The application shows the latest valid temperature, pilot state, and water use, marking stale or unreadable data instead of treating it as current.
 
-\begin{figure}[!htbp]
-\centering
-\begin{tikzpicture}[>=Latex, node distance=3mm and 6mm,
- input/.style={draw=primary, rounded corners, align=center, minimum height=7mm, text width=24mm, font=\scriptsize},
- output/.style={draw=primary, rounded corners, align=center, minimum height=7mm, text width=33mm, font=\scriptsize},
- flow/.style={->, thick, draw=primary}]
-\node[input] (visor) {Visor / camera};
-\node[input, below=of visor] (pilot) {Pilot / RGB};
-\node[input, below=of pilot] (water) {Pipe / Hall flow};
-\node[output, right=of pilot] (ctrl) {ESP32: count, classify, validate};
-\node[output, above=of ctrl] (app) {Wi-Fi app: display, voice, OCR};
-\node[output, below=of ctrl] (servo) {Servo: original on/off button};
-\draw[flow] (visor.east) -- (app.west);
-\draw[flow] (pilot.east) -- (ctrl.west);
-\draw[flow] (water.east) -- ++(2mm,0) |- (ctrl.south west);
-\draw[<->, thick, draw=primary] (ctrl.north) -- (app.south);
-\draw[flow] (ctrl.south) -- (servo.north);
-\end{tikzpicture}
-\caption{External sensing and button actuation. The Rheem 220--240 V supply remains under its original control.}
-\label{fig:architecture}
-\end{figure}
+\begin{figure*}[t]
+    \centering
+    \includegraphics[
+        width=\textwidth,
+        height=0.35\textheight,
+        keepaspectratio
+    ]{diagrama_bloques-proyecto.drawio.png}
+    \caption{External sensing and button actuation. The Rheem 220--240 V supply remains under its original control.}
+    \label{fig:architecture}
+\end{figure*}
 
 For a requested state change, the controller first checks a recent pilot observation. It issues one short servo press only when the observed state differs from the requested state, then retracts and waits for a new observation. A dark or ambiguous pilot does not by itself prove that the heater is off. If the state cannot be confirmed, the application reports uncertainty and asks for manual verification; it does not keep toggling. Reading the numeric visor may require waking the panel, but the button's wake-versus-toggle behavior is not documented and will be tested before any automated wake press is enabled. A local manual press remains possible after removing the pusher, and loss of Wi-Fi does not alter the heater's original operation.
 
