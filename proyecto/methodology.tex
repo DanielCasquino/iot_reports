@@ -10,18 +10,18 @@ The reference is the Rheem EW1-50RP, a 50 L, 1500 W, 220--240 V storage heater. 
 \toprule
 \tblhead{Role} & \tblhead{Part} & \tblhead{Location and output} \\
 \midrule
-Sensor 1: temperature readout & ESP32-CAM / OV2640 & Camera fixed in front of the existing numeric visor; image sent for digit recognition. \\
-Sensor 2: pilot state & TCS34725 RGB sensor & Shielded optical view of the pilot; red, green, and uncertain/dark categories. \\
-Sensor 3: water use & YF-S201 Hall flow meter & Removable external pipe union; pulse count for flow rate and volume. \\
-Actuator: on/off & Low-voltage servo with external pusher & Briefly presses the heater's original on/off button and retracts. \\
-Controller and link & ESP32-WROOM-32, Wi-Fi & Counts pulses, classifies light, validates commands, drives servo, and exchanges data with the application. \\
-Interface & Application with voice input & Displays readings; converts explicit or spoken requests into the same on/off command. \\
+Sensor 1: temperature readout & ESP32-CAM / OV2640 & Camera facing the numeric visor; captures images for digit recognition. \\
+Sensor 2: pilot state & TCS34725 color sensor (I\textsuperscript{2}C) & Shielded optical view of the pilot; classifies red, green, or unreadable light. \\
+Sensor 3: water use & YF-S201 Hall flow meter (5 V, G1/2 nominal) & Pulse output for flow rate and volume at a compatible external pipe union~\cite{seeedflow}; level shifting protects the ESP32's 3.3 V input. \\
+Actuator: on/off & Low-voltage servo with external pusher & One brief press of the original on/off button followed by retraction; torque and stroke chosen after a button test. \\
+Controller and link & ESP32-WROOM-32; Wi-Fi/MQTT & Counts pulses, classifies light, validates commands, and drives the servo. \\
+Interface and enclosure & Application; removable low-voltage case & Displays preprocessed readings; shields optics and houses the electronics without blocking the original panel. \\
 \bottomrule
 \end{tabularx}
 \end{table*}
 
 \subsection{Architecture and Operating Sequence}
-Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from the heater's existing mains supply. The camera node transfers a cropped image of the visor to the application service for digit recognition. The controller counts Hall pulses, derives flow and volume, and classifies RGB readings under a light shield. The application shows the latest valid temperature, pilot state, and water use.
+Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from the heater's existing mains supply. The camera node transfers a cropped image of the visor to the application service for digit recognition. The controller counts Hall pulses, derives flow and accumulated volume, and classifies color readings under a light shield. MQTT over Wi-Fi carries telemetry and on/off requests between the ESP32 controller and application service; the camera sends images over Wi-Fi for recognition. The application shows the latest valid temperature, pilot state, and water use, marking stale or unreadable data instead of treating it as current.
 
 \begin{figure}[!htbp]
 \centering
@@ -45,7 +45,7 @@ Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from t
 \label{fig:architecture}
 \end{figure}
 
-For a requested state change, the controller first checks a recent panel observation. It issues one short servo press only when the observed state differs from the requested state, then retracts and waits for a new observation. If the visor or pilot is unreadable, the application reports an uncertain state and asks for manual verification; it does not keep toggling. A local manual press remains possible after removing the pusher, and loss of Wi-Fi does not alter the heater's original operation.
+For a requested state change, the controller first checks a recent pilot observation. It issues one short servo press only when the observed state differs from the requested state, then retracts and waits for a new observation. A dark or ambiguous pilot does not by itself prove that the heater is off. If the state cannot be confirmed, the application reports uncertainty and asks for manual verification; it does not keep toggling. Reading the numeric visor may require waking the panel, but the button's wake-versus-toggle behavior is not documented and will be tested before any automated wake press is enabled. A local manual press remains possible after removing the pusher, and loss of Wi-Fi does not alter the heater's original operation.
 
 \subsection{Calibration and Validation}
-The camera is aligned and shielded against glare. Recognized digits are compared with the visible panel over several temperatures; blank images and heater error codes are marked unavailable. The RGB classifier is checked under red, green, and ambient-light conditions. The flow meter is calibrated with a measured water volume; pulses per liter and the installation point are recorded. Finally, the servo stroke and return are tested on the momentary button, and on/off requests are compared with the observed panel response. The electronics use a separate low-voltage supply. Installation of the external water union must be checked for pressure, temperature, fittings, and leaks before household use.
+The camera is aligned and shielded against glare. Recognized digits are compared with the visible panel over several temperatures; blank images and heater error codes are marked unavailable. The color classifier is checked under red, green, dark, and ambient-light conditions. The flow meter is calibrated with a measured water volume; pulses per liter and the installation point are recorded. Finally, the servo stroke and return are tested on the momentary button, and on/off requests are compared with the observed panel response. The electronics use a separate low-voltage supply inside a removable case. The case design leaves the heater's ventilation, safety discharge, and ordinary access unobstructed. The external water union must be checked for fitting size, rated pressure and temperature, leaks, and its position relative to the relief valve before installation.
