@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net" scale="1" border="0">
+  <diagram name="Page-1" id="XleaVYn9EXomzpQ-KUYC">
+    <mxGraphModel dx="922" dy="631" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0" background="#ffffff">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-20" edge="1" parent="1" source="AOGFjGg1Z1YeF3-bNhdM-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;startArrow=classic;startFill=1;endArrow=classic;endFill=1;" target="XYUKIWS2pkucQNbWqxjO-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="550" y="280" />
+              <mxPoint x="550" y="342.56" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-9" edge="1" parent="1" source="AOGFjGg1Z1YeF3-bNhdM-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="vEZ9_dgkqnEVaW_Cwci2-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="AOGFjGg1Z1YeF3-bNhdM-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Microcontroller&lt;div&gt;(ESP32)&lt;/div&gt;" vertex="1">
+          <mxGeometry height="180" width="140" x="340" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-23" edge="1" parent="1" source="XYUKIWS2pkucQNbWqxjO-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" target="XYUKIWS2pkucQNbWqxjO-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="Existing 220–240 V AC&lt;div&gt;Heater power supply&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="397.5" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="Rheem EW1-50RP&lt;div&gt;50 L water heater&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="190" x="702.5" y="65" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Application service / GUI&lt;/b&gt;&lt;div&gt;OCR, flow and volume&lt;/div&gt;&lt;div&gt;State, commands and voice&lt;/div&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="630" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-15" edge="1" parent="1" source="XYUKIWS2pkucQNbWqxjO-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=-0.011;entryY=0.341;entryDx=0;entryDy=0;entryPerimeter=0;" target="AOGFjGg1Z1YeF3-bNhdM-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="180" y="251.38" />
+              <mxPoint x="180" y="251.38" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;YF-S201 Sensor&lt;/b&gt;&lt;div&gt;External pipe connection&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="20" y="219" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-1" edge="1" parent="1" source="XYUKIWS2pkucQNbWqxjO-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="XYUKIWS2pkucQNbWqxjO-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;div&gt;&lt;b&gt;ESP32-CAM&lt;/b&gt;&lt;/div&gt;&lt;div&gt;Camera facing numeric display&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="403" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-30" edge="1" parent="1" source="XYUKIWS2pkucQNbWqxjO-11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="AOGFjGg1Z1YeF3-bNhdM-1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="325" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;TCS34725&lt;/b&gt;&lt;div&gt;Heating pilot: red/green&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="20" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-28" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="WiFi: display image (OCR)" vertex="1">
+          <mxGeometry height="30" width="80" x="553" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-31" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Hall pulses&lt;br&gt;Level adaptation to 3.3 V" vertex="1">
+          <mxGeometry height="42" width="170" x="165" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-33" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="I²C (SDA / SCL)" vertex="1">
+          <mxGeometry height="30" width="120" x="160" y="297" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-34" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="3.3V" vertex="1">
+          <mxGeometry height="30" width="120" x="165" y="327" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-35" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="Wi-Fi / MQTT&lt;br&gt;Telemetry and requests" vertex="1">
+          <mxGeometry height="40" width="165" x="520" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="XYUKIWS2pkucQNbWqxjO-37" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="220–240 V AC" vertex="1">
+          <mxGeometry height="30" width="120" x="550.5" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-6" edge="1" parent="1" source="vEZ9_dgkqnEVaW_Cwci2-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="XYUKIWS2pkucQNbWqxjO-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;div&gt;&lt;b&gt;Low-voltage servo&lt;/b&gt;&lt;/div&gt;&lt;div&gt;Button pusher&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="727.5" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-5" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="PWM control" vertex="1">
+          <mxGeometry height="30" width="120" x="550.5" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="mechanical press" vertex="1">
+          <mxGeometry height="30" width="120" x="680" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-11" edge="1" parent="1" source="vEZ9_dgkqnEVaW_Cwci2-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="vEZ9_dgkqnEVaW_Cwci2-3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;div&gt;Isolated 5V DC supply&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="960" y="205" as="geometry" />
+        </mxCell>
+        <mxCell id="vEZ9_dgkqnEVaW_Cwci2-12" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="5V DC" vertex="1">
+          <mxGeometry height="30" width="120" x="860" y="205" as="geometry" />
+        </mxCell>
+      <mxCell id="iot-removable-note" value="Removable panel support: camera, color sensor and servo aligned; manual access preserved.&lt;br&gt;Separate low-voltage supply for the add-on. Flow meter requires an external plumbing union." vertex="1" parent="1" style="text;html=1;whiteSpace=wrap;align=center;verticalAlign=middle;fontSize=12;strokeColor=none;fillColor=none;"><mxGeometry x="80" y="525" width="950" height="40" as="geometry" /></mxCell></root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
