@@ -1,47 +1,141 @@
-\subsection{Estado de las evidencias}
-José declaró completados los dos checkpoints de la semana anterior y,
-el 14 de octubre, declaró CP3 presentado y grabado. Estas declaraciones
-se conservan como tales; las imágenes y el vídeo no están incorporados
-en este borrador. No se afirma aprobación docente ni finalización de CP4.
 
-\subsection{CP1 y CP2: datos por incorporar}
-\pendiente{Describir instalación y carga reales de CP1; relacionar cada
-paso con E1. Incorporar incidencias sólo si el equipo las confirma.}
-\pendiente{CP2: incluir lecturas reales, condiciones de iluminación,
-tópico y recepción en otra computadora, como exige la guía. No sustituir
-esa prueba por publicación y suscripción en la misma laptop.}
+The purpose of this section is to answer both the checkpoint and report questions of the lab, as well as discuss any relevant results obtained during the experiences.
 
-\evidencia{E1}{Insertar capturas seleccionadas de instalación y carga de
-prueba, con versión y placa legibles.}{Entorno y carga de prueba de CP1
-(evidencias pendientes).}
-\evidencia{E2}{Insertar foto del circuito real de CP2; identificar GPIO35,
-divisor y alimentación confirmados.}{Montaje empleado para adquirir la
-señal del LDR (fotografía pendiente).}
-\evidencia{E3}{Insertar salida serial real y terminal MQTT del segundo
-equipo. Relacionar mensajes y condiciones sin exponer configuración privada.}
-{Adquisición y recepción remota de CP2 (capturas pendientes).}
-\evidencia{G1}{Sólo si existen datos: graficar código ADC frente a tiempo
-registrado; indicar unidades, condiciones y origen de los datos.
-Sin tiempos registrados, usar índice de muestra y declararlo. No trazar
-curvas de ejemplo ni expresar lux sin calibración.}
-{Variación de la lectura ADC durante las condiciones documentadas de CP2
-(gráfico pendiente de datos).}
+\subsection{CHECKPOINT 1: Previous Installations}
 
-\subsection{CP3 y CP4: integración del equipo pendiente}
-\pendiente{CP3: seleccionar fotogramas del vídeo declarado, añadir su
-referencia y los diagramas requeridos. Describir únicamente lo visible
-y confirmado. La guía titula el apartado como ventilación/temperatura,
-pero sus requisitos detallados describen LDR y persiana con servo. Validar
-la denominación con el equipo; no inventar un ensayo de temperatura.}
-\evidencia{E4}{Reservado para evidencia seleccionada por el equipo desde
-la grabación de CP3; pendiente de revisión.}{Sistema integrado de CP3
-(evidencia audiovisual por incorporar).}
-\pendiente{CP4: su sesión responsable aportará estado, conexiones,
-código final y evidencias. Este borrador no declara su ejecución.}
+\begin{enumerate}
 
-\subsection{Discusión por completar}
-\pendiente{Relacionar las lecturas con el montaje observado, explicar
-problemas realmente encontrados y distinguir pruebas locales sintéticas
-de recepción física remota. No calcular latencia, exactitud o tasa de
-pérdida sin registros adecuados. Incorporar la crítica docente sólo
-cuando el equipo proporcione su texto o evidencia.}
+    \item \textbf{Arduino Installation and ESP32 Setup}
+
+    First, we downloaded and installed the Arduino IDE for our computer's operating system, which in this case was Windows 11, as shown in Figure~\ref{fig:1}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/1.png}
+        \caption{Arduino IDE installation for Windows 11.}
+        \label{fig:1}
+    \end{figure}
+
+    Once installed and opened, we needed to add support for the ESP32 board. To do this, we went to File > Preferences.
+    There, we added the URL \url{https://dl.espressif.com/dl/package_esp32_index.json} in the ``Additional Boards Manager URLs'' field and clicked ``OK'', as shown in Figure~\ref{fig:2}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/2.png}
+        \caption{Arduino IDE preferences with the ESP32 board manager URL added.}
+        \label{fig:2}
+    \end{figure}
+
+    Then, we needed to install the board support package for the ESP32. To do this, we went to Tools > Board > Boards Manager.
+    There, we searched for ``esp32'' and installed the package provided by Espressif Systems, as shown in Figure~\ref{fig:3}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/3.png}
+        \caption{Installation of the ESP32 board support package by Espressif Systems.}
+        \label{fig:3}
+    \end{figure}
+
+    To finish the initial setup, we went to Select Board > Select Other Board and Port.
+    There, we searched for ``NodeMCU-32S'' in the board selection section and selected ``COM5 Serial Port'' in the ports section, as shown in Figure~\ref{fig:4}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/4.png}
+        \caption{Initial selection of the NodeMCU-32S board and COM5 serial port in Arduino IDE.}
+        \label{fig:4}
+    \end{figure}
+
+
+    \item \textbf{Test Code Upload}
+
+    We tested a very simple code and actually ran into a small problem during the upload process. As shown in Figure~\ref{fig:5}, there was an issue with the selected serial port.
+    We solved this by changing ``COM5 Serial Port'' to ``COM3 Serial Port (USB)'', which corresponded to the connected ESP32, as shown in Figure~\ref{fig:6}.
+    After fixing this issue, we successfully uploaded and ran the test code on the ESP32, as shown in Figures~\ref{fig:7} and~\ref{fig:8}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/5.png}
+        \caption{Error encountered during the initial code upload due to the incorrect serial port selection.}
+        \label{fig:5}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/6.png}
+        \caption{Correction of the serial port selection from COM5 to COM3 (USB).}
+        \label{fig:6}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/7.png}
+        \caption{Successful compilation and upload of the test code to the ESP32.}
+        \label{fig:7}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/8.jpeg}
+        \caption{Arduino IDE Serial Monitor displaying the messages generated by the ESP32 test code.}
+        \label{fig:8}
+    \end{figure}
+
+
+    \item \textbf{Mosquitto Installation}
+
+    First, we downloaded the Mosquitto executable installer for Windows, as shown in Figure~\ref{fig:9}.
+    As instructed, Mosquitto was installed outside the Program Files directory. We also needed to add its installation path to the system environment variables in order to execute Mosquitto commands directly from the terminal.
+    We then confirmed that Mosquitto could be executed successfully, as shown in Figure~\ref{fig:10}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/9.png}
+        \caption{Download of the Mosquitto installer for Windows from its official website.}
+        \label{fig:9}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/10.png}
+        \caption{Verification of the Mosquitto installation through the Windows terminal.}
+        \label{fig:10}
+    \end{figure}
+
+    Then, we modified the Mosquitto configuration file, as shown in Figure~\ref{fig:11}, and successfully ran the broker using the updated configuration, as shown in Figure~\ref{fig:12}.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/11.png}
+        \caption{Modification of the Mosquitto configuration file to enable connections on port 1883 and allow anonymous clients.}
+        \label{fig:11}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/12.png}
+        \caption{Successful execution of the Mosquitto MQTT broker using the updated configuration file.}
+        \label{fig:12}
+    \end{figure}
+
+    Finally, we tested MQTT communication by subscribing to the topic ``test/topic'' and publishing a test message to the same topic. 
+    As shown in Figure~\ref{fig:14}, we published a message, and as shown in Figure~\ref{fig:13}, we were able to receive it successfully through the subscribed client.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/13.png}
+        \caption{MQTT subscriber receiving the test message through the Mosquitto broker.}
+        \label{fig:13}
+    \end{figure}
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk1/14.png}
+        \caption{Publication of a test message to the MQTT topic using the Mosquitto command-line client.}
+        \label{fig:14}
+    \end{figure}
+
+\end{enumerate}
+
+\subsection{CHECKPOINT 2: Basic Implementation with Reading }
+
