@@ -1,0 +1,36 @@
+% Borrador parcial colaborativo. Estilo de 2/main.tex (IEEEtran);
+% contenido propio LAB3. No reutilizar resultados ni conclusiones del LAB2.
+\documentclass[journal]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{url}
+\usepackage{hyperref}
+\newcommand{\pendiente}[1]{\par\noindent\textbf{PENDIENTE: }#1\par}
+\newcommand{\evidencia}[3]{%
+  \begin{figure}[htbp]\centering
+  \fbox{\parbox{0.88\linewidth}{\textbf{#1 --- espacio reservado.} #2}}
+  \caption{#3}\label{fig:#1}\end{figure}}
+\begin{document}
+\title{LAB 3: MQTT y ESP32\\Borrador parcial colaborativo}
+\author{\textit{PENDIENTE: confirmar nombres de todos los integrantes}}
+\markboth{Internet of Things (CS5055), octubre de 2026}{}
+\maketitle
+\noindent\textbf{Estado:} preparación editorial del 14 de octubre.
+Este documento conserva campos abiertos para las evidencias y la redacción
+del equipo. No es una entrega final ni acredita aprobación docente.
+
+\section{Introducción}
+\input{introduction.tex}
+\section{Metodología}
+\input{methodology.tex}
+\section{Desarrollo de la experiencia y discusión}
+\input{development_discussion.tex}
+\section{Conclusiones y recomendaciones}
+\input{conclusion.tex}
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}
