@@ -1,0 +1,26 @@
+\subsection{Componentes y configuración de CP2}
+La copia de código preparada en \texttt{checkpoint2/Checkpoint2\_LDR/}
+usa ESP32, WiFi y PubSubClient; lee GPIO35, imprime a 115200 baudios y
+publica el valor crudo como texto en \texttt{lab/ldr}. El bucle contiene
+una espera de 1000~ms: no representa una medición de período exacto,
+pues las operaciones de red también consumen tiempo. La configuración
+local se mantiene separada del código versionado.
+
+\pendiente{Confirmar modelo de placa, versiones efectivamente usadas,
+resistor, orientación del divisor y alimentación. Describir montaje real
+y pasos ejecutados, con fotografías, sin completar valores por suposición.}
+\pendiente{CP1: completar guía breve de instalación y carga de prueba
+con los pasos realmente seguidos, incidencias y sus capturas.}
+
+\evidencia{B1}{Insertar diagrama de bloques del montaje real de CP2.
+Propuesta a validar: LDR/divisor, ADC ESP32, broker y receptor en otro equipo.}
+{Arquitectura de adquisición y distribución MQTT de CP2 (diagrama pendiente).}
+\evidencia{F1}{Insertar flujo correspondiente al código final confirmado:
+conexión WiFi, lectura, conexión MQTT, servicio del cliente y publicación;
+incluir la rama de reconexión fallida.}
+{Flujo del programa de telemetría de CP2 (diagrama pendiente).}
+
+\subsection{Resto de experiencias}
+\pendiente{Integrar materiales y procedimiento de CP3/CP4 desde el registro
+del equipo y su sesión responsable. No reconstruir una ejecución a partir
+de los resultados esperados de la guía.}
