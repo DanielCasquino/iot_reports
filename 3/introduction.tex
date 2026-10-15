@@ -1,215 +1,35 @@
-% The very first letter is a 2 line initial drop letter followed
-% by the rest of the first word in caps.
-% 
-% form to use if the first word consists of a single letter:
-% \IEEEPARstart{A}{demo} file is ....
-% 
-% form to use if you need the single drop letter followed by
-% normal text (unknown if ever used by the IEEE):
-% \IEEEPARstart{A}{}demo file is ....
-% 
-% Some journals put the first two words in caps:
-% \IEEEPARstart{T}{his demo} file is ....
-% 
-% Here we have the typical use of a "T" for an initial drop letter
-% and "HIS" in caps to complete the first word.
-\IEEEPARstart{T}{ransport} Layer protocols are a fundamental part of the network communication
-stack. They are in charge of providing end-to-end communication between computers, providing either
-speed, reliability, or a mix of both when needed.
+El laboratorio estudia la conexión entre adquisición de datos en un ESP32
+y distribución de mensajes mediante MQTT. La guía organiza experiencias
+de conectividad, telemetría, control e integración serial
+\cite{guia}. Este borrador desarrolla únicamente la base conceptual y
+organiza los espacios que el equipo completará con su experiencia real.
 
-In these lab sessions, we experimented with Wireshark and transport layer
-protocols. We first analyzed the structure and behaviour of UDP, then moved on
-to TCP, and finally implemented the theoretical protocol RDT using Python. This
-report aims to summarize our lab experiences and findings. \\
+\subsection{Marco teórico}
+MQTT utiliza el modelo publicador--suscriptor: un cliente publica en un
+tópico y el servidor distribuye mensajes según las suscripciones.
+MQTT 3.1.1 requiere un transporte ordenado y bidireccional, como TCP.
+Su nivel QoS~0 ofrece entrega como máximo una vez; no garantiza que cada
+mensaje alcance al receptor \cite{mqtt311}. Por ello, observar una conexión
+no basta para cuantificar pérdidas o recepción de lecturas.
 
-For the RDT2 Python implementation (sender and receiver), see our repository at
-\url{https://github.com/DanielCasquino/cn-reports/tree/main/3/rdt_implementation}.
+En la API Arduino-ESP32, \texttt{analogRead} devuelve un código ADC crudo
+sin calibrar, mientras \texttt{analogReadMilliVolts} proporciona un resultado
+calibrado en milivoltios \cite{esp32adc}. Un código ADC obtenido de un
+divisor con LDR no equivale directamente a iluminancia en lux. La relación
+con iluminación requiere caracterizar sensor, circuito y condiciones de
+referencia; aquí no se realiza esa conversión.
 
-% You must have at least 2 lines in the paragraph with the drop letter
-% (should never be an issue)
+PubSubClient 2.8 selecciona MQTT 3.1.1 por defecto. Su sobrecarga
+\texttt{publish(topic,payload)} construye un mensaje sin retención y sin
+bits QoS~1/2; \texttt{loop()} atiende la comunicación del cliente
+\cite{pubsub28}. Estas propiedades describen la biblioteca y permiten
+interpretar el sketch de CP2; no sustituyen una captura del receptor.
 
-%\hfill mds
-
-%\hfill August 26, 2015
-
-\section{Theoretical Framework}
-
-\subsection{User Datagram Protocol (UDP)}
-UDP provides a connectionless, best-effort datagram service over IP: no
-delivery, ordering, or duplication guarantees, and no built-in congestion
-control. Its minimal header and lack of handshakes yield low latency and
-overhead, which suits interactive or real-time apps (VoIP, streaming, games)
-and DNS queries where timeliness outweighs perfect reliability
-\cite{rfc768,kurose:topdown8e}. Any reliability, pacing, or congestion response
-must be implemented by the application layer.
-
-\subsection{ARQ (Automatic Repeat Request)}
-ARQ refers to an error handling strategy in the transport layer. It uses
-ACK/NAK to detect if the receiver got data correctly. If the sender does not
-receive confirmation (via ACK) within a certain timeout, the data is
-retransmitted.
-
-\subsection{FEC (Forward Error Correction)}
-FEC is a way of adding redundancy to sent data so that the receiver can recover
-lost or corrupted information without resorting to retransmissions. This is
-useful in high-latency or lossy networks, where retransmitting a packet would
-be too expensive (e.g, Hamming codes).
-
-\subsection{BDP (Bandwidth-Delay Product)}
-BDP is a metric that defines the amount of data that is ``in transit'' at any
-given time, i.e. unacknowledged packets. This is specially important when
-working with TCP, as it defines how much data can be sent before an ACK.
-
-\subsection{Reliable Data Transfer (RDT)}
-RDT is a design pattern for building reliability on top of an unreliable
-channel using sequence numbers, ACK/NAK, timeouts and retransmissions (ARQ).
-Stop-and-Wait is simplest; pipelined variants (Go-Back-N, Selective Repeat)
-improve utilization. In high BDP paths, a combination of ARQ and FEC can
-preserve throughput while lowering delay and receiver buffering compared to
-pure ARQ at large windows~\cite{kurose:topdown8e,ghaderi2013scalablerdt}.
-
-\subsection{Transmission Control Protocol (TCP)}
-TCP offers a reliable, in-order byte stream with flow control (rwnd) and
-congestion control. It tracks bytes with sequence/ACK numbers, retransmits
-losses, and uses handshakes and options (e.g., MSS, SACK)
-\cite{rfc793,kurose:topdown8e}. Classic loss-based control (Reno/CUBIC) can
-induce bufferbloat or underuse lossy links; newer approaches (e.g., BBR) model
-bottleneck bandwidth and RTT to operate with high throughput and low queueing
-delay \cite{cardwell2017bbr}.
-
-\subsection{Port Scanning}
-Port scanning probes TCP/UDP ports to infer open/closed/filtered services by
-analyzing protocol-specific responses (e.g., SYN$\rightarrow$SYN-ACK vs. RST,
-ICMP Port Unreachable for UDP). It is essential for asset discovery and
-security auditing, yet aggressive scans are detectable; defenders counter with
-filtering, rate-limits and tarpits \cite{lyon:nmap}.
-
-\subsection{Distributed Denial-of-Service (DDoS)}
-DDoS floods exhaust bandwidth, state or CPU by coordinating many sources.
-Variants include SYN floods, UDP floods, application-layer floods, and
-reflection/amplification via open UDP services. Mitigation blends network
-filtering, rate-limiting, anycast/CDN scrubbing, and disabling misconfigured
-amplifiers \cite{mirkovic2004taxonomy}.
-
-% An example of a floating figure using the graphicx package.
-% Note that \label must occur AFTER (or within) \caption.
-% For figures, \caption should occur after the \includegraphics.
-% Note that IEEEtran v1.7 and later has special internal code that
-% is designed to preserve the operation of \label within \caption
-% even when the captionsoff option is in effect. However, because
-% of issues like this, it may be the safest practice to put all your
-% \label just after \caption rather than within \caption{}.
-%
-% Reminder: the "draftcls" or "draftclsnofoot", not "draft", class
-% option should be used if it is desired that the figures are to be
-% displayed while in draft mode.
-%
-%\begin{figure}[!t]
-%\centering
-%\includegraphics[width=2.5in]{myfigure}
-% where an .eps filename suffix will be assumed under latex, 
-% and a .pdf suffix will be assumed for pdflatex; or what has been declared
-% via \DeclareGraphicsExtensions.
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure}
-
-% Note that the IEEE typically puts floats only at the top, even when this
-% results in a large percentage of a column being occupied by floats.
-
-% An example of a double column floating figure using two subfigures.
-% (The subfig.sty package must be loaded for this to work.)
-% The subfigure \label commands are set within each subfloat command,
-% and the \label for the overall figure must come after \caption.
-% \hfil is used as a separator to get equal spacing.
-% Watch out that the combined width of all the subfigures on a 
-% line do not exceed the text width or a line break will occur.
-%
-%\begin{figure*}[!t]
-%\centering
-%\subfloat[Case I]{\includegraphics[width=2.5in]{box}%
-%\label{fig_first_case}}
-%\hfil
-%\subfloat[Case II]{\includegraphics[width=2.5in]{box}%
-%\label{fig_second_case}}
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure*}
-%
-% Note that often IEEE papers with subfigures do not employ subfigure
-% captions (using the optional argument to \subfloat[]), but instead will
-% reference/describe all of them (a), (b), etc., within the main caption.
-% Be aware that for subfig.sty to generate the (a), (b), etc., subfigure
-% labels, the optional argument to \subfloat must be present. If a
-% subcaption is not desired, just leave its contents blank,
-% e.g., \subfloat[].
-
-% An example of a floating table. Note that, for IEEE style tables, the
-% \caption command should come BEFORE the table and, given that table
-% captions serve much like titles, are usually capitalized except for words
-% such as a, an, and, as, at, but, by, for, in, nor, of, on, or, the, to
-% and up, which are usually not capitalized unless they are the first or
-% last word of the caption. Table text will default to \footnotesize as
-% the IEEE normally uses this smaller font for tables.
-% The \label must come after \caption as always.
-%
-%\begin{table}[!t]
-%% increase table row spacing, adjust to taste
-%\renewcommand{\arraystretch}{1.3}
-% if using array.sty, it might be a good idea to tweak the value of
-% \extrarowheight as needed to properly center the text within the cells
-%\caption{An Example of a Table}
-%\label{table_example}
-%\centering
-%% Some packages, such as MDW tools, offer better commands for making tables
-%% than the plain LaTeX2e tabular which is used here.
-%\begin{tabular}{|c||c|}
-%\hline
-%One & Two\\
-%\hline
-%Three & Four\\
-%\hline
-%\end{tabular}
-%\end{table}
-
-% Note that the IEEE does not put floats in the very first column
-% - or typically anywhere on the first page for that matter. Also,
-% in-text middle ("here") positioning is typically not used, but it
-% is allowed and encouraged for Computer Society conferences (but
-% not Computer Society journals). Most IEEE journals/conferences use
-% top floats exclusively. 
-% Note that, LaTeX2e, unlike IEEE journals/conferences, places
-% footnotes above bottom floats. This can be corrected via the
-% \fnbelowfloat command of the stfloats package.
-
-\section{State of the Art}
-
-\subsection{RDT Beyond ARQ}
-For high-speed or lossy environments, coding augments ARQ to cut delay and
-receiver buffering while sustaining full throughput; analytical results show
-FEC+ARQ can be asymptotically more delay- and buffer-efficient than selective
-repeat under large windows \cite{ghaderi2013scalablerdt}.
-
-\subsection{UDP in Modern Stacks}
-UDP underpins classic real-time media and DNS, and now serves as substrate for
-QUIC/HTTP-3. QUIC brings reliable, encrypted, multiplexed streams in user
-space, avoiding TCP’s head-of-line blocking and reducing handshake costs; it is
-standardized by the IETF \cite{rfc9000}.
-
-\subsection{TCP Evolution}
-Beyond SACK/PRR/CUBIC, \textit{BBR} shifts from loss-driven to model-based
-control, probing for bottleneck bandwidth and min-RTT to keep queues shallow
-and goodput high; deployments report lower latency and higher throughput across
-diverse paths \cite{cardwell2017bbr}.
-
-\section{Methodology}
-We used a capture–execute–analyze loop: (1) configure the scenario
-(client–server scripts or tool-driven probes), (2) generate traffic, capturing
-with Wireshark, and (3) analyze traces with display filters and flow/sequence
-graphs. Python sockets produced UDP/TCP traffic (and controlled loss/bursts);
-standard tools (\texttt{nslookup}, \texttt{ping}, \texttt{nmap}) exercised name
-resolution and scanning. For transport behavior we inspected 3-way handshakes,
-seq/ack dynamics, SACK/dupACKs, windows, RTTs and retransmissions; for UDP we
-verified ports, checksums, and server/client behavior. We documented steps and
-sketched simple block/flow diagrams to keep experiments repeatable.
-
+\subsection{Antecedente de investigación y ubicación del trabajo}
+Hunkeler, Truong y Stanford-Clark propusieron MQTT-S para extender la
+comunicación publicador--suscriptor a redes de sensores con restricciones
+de energía y ancho de banda \cite{mqtts}. El antecedente muestra la
+adaptación del modelo a otros transportes. El presente laboratorio usa
+MQTT sobre una conexión WiFi/TCP; no implementa MQTT-S ni reproduce sus
+evaluaciones. Esta revisión breve aporta un antecedente pertinente y una
+norma de referencia; no pretende una revisión exhaustiva del estado del arte.
