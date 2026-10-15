@@ -1,34 +1,13 @@
-El laboratorio estudia la conexión entre adquisición de datos en un ESP32
-y distribución de mensajes mediante MQTT. La guía organiza experiencias
-de conectividad, telemetría, control e integración serial
-\cite{guia}.
+\IEEEPARstart{T}{his} laboratory approaches the connection between data acquisition on an ESP32 and message distribution using MQTT. The guide organizes experiments in connectivity, telemetry, control and serial integration \cite{guia}.
 
-\subsection{Marco teórico}
-MQTT utiliza el modelo publicador--suscriptor: un cliente publica en un
-tópico y el servidor distribuye mensajes según las suscripciones.
-MQTT 3.1.1 requiere un transporte ordenado y bidireccional, como TCP.
-Su nivel QoS~0 ofrece entrega como máximo una vez; no garantiza que cada
-mensaje alcance al receptor \cite{mqtt311}. Por ello, observar una conexión
-no basta para cuantificar pérdidas o recepción de lecturas.
+\subsection{Theoretical Framework}
+MQTT uses the publisher--subscriber model: a client publishes to a topic, and the server distributes messages according to subscriptions.
+MQTT 3.1.1 requires an ordered, bidirectional transport, like TCP. Its QoS level~0 offers delivery at most once; it does not guarantee that every message will reach the receiver \cite{mqtt311}. Therefore, simply observing a connection is not enough to quantify message loss or receipt of sensor readings.
 
-En la API Arduino-ESP32, \texttt{analogRead} devuelve un código ADC crudo
-sin calibrar, mientras \texttt{analogReadMilliVolts} proporciona un resultado
-calibrado en milivoltios \cite{esp32adc}. Un código ADC obtenido de un
-divisor con LDR no equivale directamente a iluminancia en lux. La relación
-con iluminación requiere caracterizar sensor, circuito y condiciones de
-referencia; aquí no se realiza esa conversión.
+In the Arduino-ESP32 API, \texttt{analogRead} returns a raw, uncalibrated ADC code, while \texttt{analogReadMilliVolts} provides a calibrated result in millivolts \cite{esp32adc}. An ADC code obtained from a divider with an LDR does not directly equate to illuminance in lux. The relation
+with illumination requires characterizing the sensor, circuit, and reference conditions; this conversion is not performed here.
 
-PubSubClient 2.8 selecciona MQTT 3.1.1 por defecto. Su sobrecarga
-\texttt{publish(topic,payload)} construye un mensaje sin retención y sin
-bits QoS~1/2; \texttt{loop()} atiende la comunicación del cliente
-\cite{pubsub28}. Estas propiedades describen la biblioteca y permiten
-interpretar el sketch de CP2; no sustituyen una captura del receptor.
+PubSubClient 2.8 selects MQTT 3.1.1 by default. Its overload \texttt{publish(topic,payload)} constructs a message without retention and without QoS bits~1/2; \texttt{loop()} handles client communication \cite{pubsub28}. These properties describe the library and allow interpretation of the CP2 sketch; they do not replace a receiver capture.
 
-\subsection{Antecedente de investigación y ubicación del trabajo}
-Hunkeler, Truong y Stanford-Clark propusieron MQTT-S para extender la
-comunicación publicador--suscriptor a redes de sensores con restricciones
-de energía y ancho de banda \cite{mqtts}. El antecedente muestra la
-adaptación del modelo a otros transportes. El presente laboratorio usa
-MQTT sobre una conexión WiFi/TCP; no implementa MQTT-S ni reproduce sus
-evaluaciones. Esta revisión breve aporta un antecedente pertinente y una
-norma de referencia; no pretende una revisión exhaustiva del estado del arte.
+\subsection{Research Background and Positioning of This Work}
+Hunkeler, Truong, and Stanford-Clark proposed MQTT-S to extend publisher--subscriber communication to sensor networks with energy and bandwidth constraints \cite{mqtts}. The prior work shows the adaptation of the model to other transport mechanisms. The present lab uses MQTT over a WiFi/TCP connection; it does not implement MQTT-S or reproduce its evaluations. This brief review provides relevant background and a reference standard; it is not intended to be a comprehensive review of the state of the art.
