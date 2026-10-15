@@ -1,5 +1,3 @@
-% Borrador parcial colaborativo. Estilo de 2/main.tex (IEEEtran);
-% contenido propio LAB3. No reutilizar resultados ni conclusiones del LAB2.
 \documentclass[journal]{IEEEtran}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -9,37 +7,30 @@
 \usepackage{array}
 \usepackage{url}
 \usepackage{hyperref}
-\newcommand{\pendiente}[1]{\par\noindent\textbf{PENDIENTE: }#1\par}
+\newcommand{\labpath}{}
+\IfFileExists{3/introduction.tex}{\renewcommand{\labpath}{3/}}{}
+\graphicspath{{\labpath}}
 \newcommand{\evidencia}[3]{%
   \begin{figure}[htbp]\centering
-  \fbox{\parbox{0.88\linewidth}{\textbf{#1 --- espacio reservado.} #2}}
+  \fbox{\parbox{0.88\linewidth}{\textbf{#1.} #2}}
   \caption{#3}\label{fig:#1}\end{figure}}
 \begin{document}
 \title{LAB 3: MQTT y ESP32}
 \author{José~Paca,~\IEEEmembership{UTEC,}
   Daniel~Casquino,~\IEEEmembership{UTEC,}
   Nicolas~Stigler,~\IEEEmembership{UTEC,}
-  Sofia~Ku,~\IEEEmembership{UTEC}% <-this % stops a space
-  % \thanks{M. Shell was with the Department
-  %   of Electrical and Computer Engineering, Georgia Institute of Technology, Atlanta,
-  %   GA, 30332 USA e-mail: (see http://www.michaelshell.org/contact.html).}% <-this % stops a space
-  % \thanks{J. Doe and J. Doe are with Anonymous University.}% <-this % stops a space
-  % \thanks{Manuscript received April 19, 2005; revised August 26, 2015.}
+  Sofia~Ku,~\IEEEmembership{UTEC}%
 }
 \markboth{Internet of Things (CS5055), Octubre de 2026}{}
 \maketitle
-\noindent\textbf{Estado:} preparación editorial del 14 de octubre.
-Este documento conserva campos abiertos para las evidencias y la redacción
-del equipo. No es una entrega final ni acredita aprobación docente.
-
 \section{Introduction}
-\input{introduction.tex}
+\input{\labpath introduction.tex}
 \section{Methodology}
-\input{methodology.tex}
+\input{\labpath methodology.tex}
 \section{Development}
-\input{development_discussion.tex}
-\section{CConclusion}
-\input{conclusion.tex}
+\input{\labpath development_discussion.tex}
+\section{Conclusion}
+\input{\labpath conclusion.tex}
 \bibliographystyle{IEEEtran}
-\bibliography{references}
+\bibliography{\labpath references}
 \end{document}
