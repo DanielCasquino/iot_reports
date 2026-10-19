@@ -250,4 +250,21 @@ After the setup, the ESP32 reads a string from RX2 and, if valid, publishes it t
 
 \subsubsection{MQTT Monitoring}
 
-After flashing both the Arduino and ESP, and succesfully setting up the config file in checkpoint 1, we ran the Mosquitto broker and, on a separate terminal session, subscribed to the MQTT topic.
+After flashing both the Arduino and ESP, and succesfully setting up the config file in checkpoint 1, we ran the Mosquitto broker and, on a separate terminal session, subscribed to the MQTT topic with the following commands:
+
+\begin{itemize}
+    \item \texttt{./mosquitto -c ./mosquitto.conf -v}
+    \item \texttt{./mosquitto\_sub h localhost -p 1883 -t hey/guys}
+\end{itemize}
+
+Then, we powered on both microcontrollers, and watched how the laptop received the messages sent by the ESP32.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk4/laptop_mqtt.jpg}
+        \caption{Messages sent by ESP32 shown on the Mosquitto client}
+        \label{fig:laptop_mqtt}
+    \end{figure}
+
+\subsubsection{Checkpoint Discussion idk}
+67777
