@@ -199,3 +199,55 @@ subscriber, and assembled-circuit captures next to this discussion. These
 captures should show the actual broker address and readings used during the
 demonstration, while omitting Wi-Fi passwords and other private
 credentials.
+
+\subsection{CHECKPOINT 4: Arduino Mega + ESP32 Communication}
+
+In this checkpoint, we implemented a small system for simulating microcontroller communication and data transmission via UART and MQTT.
+
+After connecting the Arduino MEGA and ESP32 communication pins, we were able to transmit mock sensor data from the Arduino, receive it successfully on the ESP32, and publish to an MQTT topic, which we subscribed to from a laptop running a Mosquitto client. A voltage divider was required to avoid damaging the ESP, which runs at $3.3V$.
+
+\subsubsection{Physical Implementation}
+
+To enable communication between these two microcontrollers, their serial communication pins must be connected to each other. As their GND reference must also be the same, we connected their ground pins as well.
+
+\begin{itemize}
+    \item Arduino RX1: connected to ESP32 TX2
+    \item Arduino TX1: connected to ESP32 RX2 (with v.divider)
+    \item Arduino GND: connected to ESP32 GND
+\end{itemize}
+
+For the voltage divider, we used three $10k\Omega$ resistors to get $3.33V$ and $1.67V$. We used the first output node, as the ESP32 expects approximately $3.3V$.
+
+The $R$ and $T$ used to name the pins stand for \textbf{receive} and \textbf{transmit}, which, despite being apparent, took us a minute to notice (sorry).
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk4/arduino_esp_uart.jpg}
+        \caption{Physical system with a voltage divider to avoid frying the ESP.}
+        \label{fig:uart_proto}
+    \end{figure}
+
+\subsubsection{Arduino Code Upload}
+
+The Arduino Mega must mock sensor data (or simple messages) and send them via UART to the ESP32. After physically connecting the pins, we can use \textit{Serial.println()} to send a string to the ESP32. However, as the \textit{Serial} object is usually reserved for the USB connection, we used \textit{Serial1} instead. We do this on a loop with a $1000ms$ delay.
+
+\subsubsection{ESP32 Code Upload}
+
+The ESP32 has a more complex task. It must first connect to a WiFi network, set up an MQTT server, receive messages via UART, and publish them to an MQTT topic.
+
+To make sure we didn't run into any issues with the WiFi network, we set up a mobile hotspot using cellular data. The SSID used was \textbf{quaso}.
+
+In the setup function, besides initializing both the \textit{Serial} and \textit{Serial2} objects, we connect to the mobile hotspot, set up an MQTT server on port 1883 and then attempt to connect to the MQTT broker.
+
+    \begin{figure}[htbp]
+        \centering
+        \includegraphics[width=1\linewidth]{img/chk4/esp_setup.png}
+        \caption{ESP32 code setup}
+        \label{fig:esp_setup}
+    \end{figure}
+
+After the setup, the ESP32 reads a string from RX2 and, if valid, publishes it to the MQTT topic. It does this in a loop, while also attempting to reconnect if case the connection with the broker fails.
+
+\subsubsection{MQTT Monitoring}
+
+After flashing both the Arduino and ESP, and succesfully setting up the config file in checkpoint 1, we ran the Mosquitto broker and, on a separate terminal session, subscribed to the MQTT topic.
