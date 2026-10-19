@@ -140,16 +140,13 @@ The purpose of this section is to answer both the checkpoint and report question
 \subsection{CHECKPOINT 2: Basic Implementation with Reading}
 
 The second checkpoint implemented a complete telemetry path from an LDR
-connected to the ESP32 ADC to an MQTT subscriber. The circuit was assembled
-as a voltage divider and its output was connected to GPIO35. The ESP32 was
-programmed with the sketch stored in
-\texttt{checkpoint2/Checkpoint2\_LDR/Checkpoint2\_LDR.ino}. The credentials
-were kept in the local file \texttt{secrets\_local.h}; no credentials were
-included in the shared source code.
+connected to the ESP32 ADC to an MQTT subscriber on another computer. The circuit was assembled
+as a voltage divider, and its output was connected to GPIO35.
 
-\subsubsection{Implementation procedure}
+\subsubsection{Implementation Procedure}
 The implementation followed these steps:
 \begin{enumerate}
+
     \item The LDR voltage-divider output was connected to GPIO35, while the
     circuit was supplied from the ESP32-compatible voltage rail and ground.
     The fixed-resistor value and the physical orientation were recorded from
@@ -157,8 +154,7 @@ The implementation followed these steps:
     \item The ESP32 board support package and the PubSubClient library were
     enabled in Arduino IDE. The board and the serial port corresponding to
     the connected ESP32 were selected.
-    \item The local Wi-Fi SSID, password, and broker address were entered in
-    \texttt{secrets\_local.h}. The broker was configured on port 1883 and the
+    \item The broker was configured on port 1883 and the
     subscriber was configured to listen to \texttt{lab/ldr}.
     \item The sketch was compiled and uploaded to the ESP32. The serial
     monitor was opened at 115200~baud to verify Wi-Fi association, display the
@@ -172,33 +168,105 @@ The implementation followed these steps:
     stimulus.
 \end{enumerate}
 
-\subsubsection{Checkpoint validation and technical discussion}
-The implementation is considered functionally validated when three
-observations occur together: the serial monitor displays changing ADC
-codes,
-the broker accepts the ESP32 MQTT client, and the subscriber receives
-payloads on \texttt{lab/ldr}. The expected payload is an integer represented
-as text, because the sketch publishes
-\texttt{String(valor).c\_str()}. The publication interval is approximately
-one second plus the time required by ADC, Wi-Fi, and MQTT operations; it
-should therefore not be reported as an exact one-second sampling period.
 
-The reading is a raw ADC code and cannot be reported as illuminance in lux
-without a sensor calibration procedure. Increasing or decreasing the code
-with illumination also depends on which side of the divider contains the
-LDR. This is why the circuit orientation and the observed trend must be
-reported together. The implementation uses the default publish behavior of
-PubSubClient, namely MQTT 3.1.1 with QoS~0. Consequently, reception of a
-sample demonstrates successful best-effort delivery, but it is not a
-measurement of packet-loss rate or end-to-end reliability.
+Figure~\ref{fig:2-1} shows the ESP32 program used for the implementation.
+The code integrates the analog reading of the LDR with the Wi-Fi and MQTT communication functions.
+In this way, the ESP32 is responsible for both acquiring the sensor data and publishing it to the broker,
+without requiring an additional microcontroller.
 
-The block and flow diagrams in Figs.~\ref{fig:cp2-block-diagram} and
-\ref{fig:cp2-flowchart} describe the same sequence that was tested in this
-checkpoint. The final report must include the corresponding serial-monitor,
-subscriber, and assembled-circuit captures next to this discussion. These
-captures should show the actual broker address and readings used during the
-demonstration, while omitting Wi-Fi passwords and other private
-credentials.
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/1.jpg}
+    \caption{ESP32 program for LDR data acquisition and MQTT communication in Arduino IDE.}
+    \label{fig:2-1}
+\end{figure}
+
+The physical implementation is shown in Figures~\ref{fig:2-2} and~\ref{fig:2-3}.
+The LDR and fixed resistor form a voltage divider, allowing variations in light intensity to be represented
+as changes in voltage at the ESP32 analog input. This is necessary because the ESP32 measures voltage rather
+than light intensity directly. The breadboard was used to assemble the circuit and connect the sensor to the development board.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/2.jpg}
+    \caption{LDR voltage-divider circuit assembled on a breadboard for analog light sensing.}
+    \label{fig:2-2}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/3.jpg}
+    \caption{Physical implementation of the LDR sensing circuit connected to the ESP32 development board.}
+    \label{fig:2-3}
+\end{figure}
+
+
+\subsubsection{Checkpoint Validation and Technical Discussion}
+The implementation was functionally validated through three
+main observations: the ESP32 acquired changing ADC readings,
+the broker received the published messages, and the MQTT subscriber
+displayed the transmitted values on the receiving computer.
+
+As shown in Figure~\ref{fig:2-4}, the terminal displayed a continuous sequence of readings generated by the ESP32.
+This indicates that the program was repeatedly acquiring and transmitting sensor data rather than sending only a single measurement.
+The publication interval was approximately one second plus the time required by ADC acquisition, Wi-Fi processing, and MQTT operations,
+so it should not be considered an exact one-second sampling period.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/4.jpg}
+    \caption{Terminal output displaying the periodic LDR readings transmitted through MQTT.}
+    \label{fig:2-4}
+\end{figure}
+
+Figure~\ref{fig:2-5} shows the MQTT subscriber receiving messages under the topic \texttt{lab/ldr}.
+The displayed values changed as the LDR was covered and uncovered, showing that variations in the physical
+input were reflected in the received data. This is important because it verifies not only that the devices were
+connected, but also that the information acquired by the sensor reached the other computer through the broker.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/5.png}
+    \caption{MQTT subscriber displaying changing LDR readings received under the lab/ldr topic.}
+    \label{fig:2-5}
+\end{figure}
+
+The complete demonstration can also be observed in the following video:
+\href{https://drive.google.com/file/d/1-x3w-T5K0Flm9DxGWJdGVaL3fpFiPTup/view?usp=sharing}{Checkpoint 2 demonstration video}.
+
+In the video, the two-computer communication is demonstrated while the illumination reaching the LDR is manually modified.
+By covering and uncovering the sensor, the received values change accordingly, providing visual evidence that the system responds
+to changes in the environment and communicates the updated information remotely.
+This confirms the basic functionality of the MQTT publisher-subscriber architecture.
+The readings from the LDR respond to changes in illumination.
+The implementation uses the default publication behavior of PubSubClient, MQTT 3.1.1 with QoS~0.
+Consequently, receiving the messages demonstrates successful communication during the test, but does not guarantee that every published
+message was delivered or provide a measurement of packet loss.
+Overall, this checkpoint demonstrated that an ESP32 can acquire analog sensor readings and transmit them to another computer through a local MQTT broker.
+
+\subsubsection{Block Diagram and Flowchart}
+The system architecture and the program execution sequence are represented in Figures~\ref{fig:chk2-block-diagram} and~\ref{fig:chk2-flowchart}, respectively.
+
+The block diagram identifies the main components involved in data acquisition and transmission.
+The LDR provides the analog input to the ESP32, which processes the reading and publishes it through Wi-Fi to the Mosquitto broker.
+The broker then forwards the message to the subscribed client on the second computer.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/diagrama-bloques.png}
+    \caption{Block diagram of the LDR sensing and MQTT communication system using an ESP32.}
+    \label{fig:chk2-block-diagram}
+\end{figure}
+
+The flowchart describes the internal execution of the ESP32 program, including initialization, sensor acquisition, MQTT connection verification, and periodic publication.
+The connection decision is relevant because the ESP32 must establish communication with the broker before it can successfully publish the acquired data.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\linewidth]{img/chk2/diagrama-flujo.png}
+    \caption{Flowchart of the ESP32 program for periodic LDR readings and MQTT publication.}
+    \label{fig:chk2-flowchart}
+\end{figure}
 
 \subsection{CHECKPOINT 4: Arduino Mega + ESP32 Communication}
 
