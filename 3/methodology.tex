@@ -1,15 +1,78 @@
-\subsection{Componentes y configuración de CP2}
-La copia de código preparada en \texttt{checkpoint2/Checkpoint2\_LDR/}
-usa ESP32, WiFi y PubSubClient; lee GPIO35, imprime a 115200 baudios y
-publica el valor crudo como texto en \texttt{lab/ldr}. El bucle contiene
-una espera de 1000~ms: no representa una medición de período exacto,
-pues las operaciones de red también consumen tiempo. La configuración
-local se mantiene separada del código versionado.
+\subsection{Components and CP2 configuration}
+The CP2 implementation uses an ESP32 development board, an LDR, a fixed
+resistor, a breadboard, jumper wires, and a USB cable. The LDR and the
+fixed resistor form a voltage divider. The divider output is connected to
+GPIO35, which is used as an ADC input by the ESP32. The exact resistance
+value and the orientation of the divider must match the physical circuit
+demonstrated during the checkpoint; changing either one changes the
+direction and scale of the ADC response.
 
-\par\noindent\textit{Modelo de placa, versiones de software, resistencia,
-orientación del divisor y alimentación: por documentar.}
+The ESP32 is programmed with the Arduino IDE and the ESP32 board support
+package. The sketch uses the \texttt{WiFi.h} library for network
+connectivity and PubSubClient 2.8 for MQTT communication. The serial
+monitor is configured for 115200~baud. Network credentials are stored in
+\texttt{secrets\_local.h}, which is intentionally excluded from the
+repository. The broker address is supplied through \texttt{mqtt\_broker}
+and the broker listens on the standard non-TLS MQTT port, 1883. The
+client publishes the raw ADC value as a text payload to the
+\texttt{lab/ldr} topic.
 
-\evidencia{B1}{Diagrama de bloques de CP2: por documentar.}
-{Arquitectura de adquisición y distribución MQTT de CP2 (diagrama pendiente).}
-\evidencia{F1}{Diagrama de flujo de CP2: por documentar.}
-{Flujo del programa de telemetría de CP2 (diagrama pendiente).}
+The program first waits until the ESP32 is associated with the configured
+Wi-Fi network. It then configures the broker address and port. During each
+iteration, \texttt{analogRead(35)} acquires the raw ADC code, the value is
+printed to the serial monitor, and the MQTT connection is established if
+necessary. After \texttt{mqtt.loop()} services the client, the value is
+published and the program waits 1000~ms before the next iteration. The
+1000~ms delay is a minimum application delay rather than an exact sampling
+period because ADC acquisition, Wi-Fi processing, and MQTT operations add
+execution time.
+
+\subsection{Hardware and communication sequence}
+The complete data path is shown in Fig.~\ref{fig:cp2-block-diagram}.
+The sensor circuit produces an analog voltage, the ESP32 samples it,
+and the MQTT broker forwards the resulting payload to a subscribed
+client. Because \texttt{analogRead} returns an ADC code rather than a
+calibrated illuminance value, the reported payload is intentionally
+described as a raw LDR reading.
+
+\begin{figure}[htbp]
+    \centering
+    \fbox{\parbox{0.88\linewidth}{
+    \centering
+    LDR--resistor voltage divider\\
+    $\downarrow$\\
+    ESP32 ADC input (GPIO35)\\
+    $\downarrow$\\
+    Wi-Fi/TCP connection\\
+    $\downarrow$\\
+    Mosquitto MQTT broker (port 1883)\\
+    $\downarrow$\\
+    MQTT subscriber (\texttt{lab/ldr})
+    }}
+    \caption{CP2 block diagram for LDR acquisition and MQTT telemetry.}
+    \label{fig:cp2-block-diagram}
+\end{figure}
+
+Fig.~\ref{fig:cp2-flowchart} summarizes the execution sequence. A failed
+MQTT connection is reported through the serial monitor and causes the
+current iteration to return before the next attempt.
+
+\begin{figure}[htbp]
+    \centering
+    \fbox{\parbox{0.88\linewidth}{
+    \centering
+    Start $\rightarrow$ initialize serial and Wi-Fi $\rightarrow$ wait for
+    Wi-Fi\\
+    $\downarrow$\\
+    Configure MQTT broker $\rightarrow$ read GPIO35 $\rightarrow$ print ADC
+    value\\
+    $\downarrow$\\
+    MQTT connected?\\
+    Yes: service client and publish to \texttt{lab/ldr}\\
+    No: report connection state and retry on the next iteration\\
+    $\downarrow$\\
+    Wait 1000~ms $\rightarrow$ repeat
+    }}
+    \caption{CP2 program flow for acquisition and MQTT publication.}
+    \label{fig:cp2-flowchart}
+\end{figure}

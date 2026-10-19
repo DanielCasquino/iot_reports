@@ -137,5 +137,65 @@ The purpose of this section is to answer both the checkpoint and report question
 
 \end{enumerate}
 
-\subsection{CHECKPOINT 2: Basic Implementation with Reading }
+\subsection{CHECKPOINT 2: Basic Implementation with Reading}
 
+The second checkpoint implemented a complete telemetry path from an LDR
+connected to the ESP32 ADC to an MQTT subscriber. The circuit was assembled
+as a voltage divider and its output was connected to GPIO35. The ESP32 was
+programmed with the sketch stored in
+\texttt{checkpoint2/Checkpoint2\_LDR/Checkpoint2\_LDR.ino}. The credentials
+were kept in the local file \texttt{secrets\_local.h}; no credentials were
+included in the shared source code.
+
+\subsubsection{Implementation procedure}
+The implementation followed these steps:
+\begin{enumerate}
+    \item The LDR voltage-divider output was connected to GPIO35, while the
+    circuit was supplied from the ESP32-compatible voltage rail and ground.
+    The fixed-resistor value and the physical orientation were recorded from
+    the assembled circuit because they determine the ADC response.
+    \item The ESP32 board support package and the PubSubClient library were
+    enabled in Arduino IDE. The board and the serial port corresponding to
+    the connected ESP32 were selected.
+    \item The local Wi-Fi SSID, password, and broker address were entered in
+    \texttt{secrets\_local.h}. The broker was configured on port 1883 and the
+    subscriber was configured to listen to \texttt{lab/ldr}.
+    \item The sketch was compiled and uploaded to the ESP32. The serial
+    monitor was opened at 115200~baud to verify Wi-Fi association, display the
+    assigned IP address, and observe the ADC readings.
+    \item A Mosquitto subscriber was started before or during the test. The
+    ESP32 then read the ADC, connected to the broker when necessary, and
+    published each reading as a text payload.
+    \item The illumination over the LDR was changed while the serial output
+    and the MQTT subscriber were observed. This test verifies that the
+    acquisition path and the publication path respond to the same physical
+    stimulus.
+\end{enumerate}
+
+\subsubsection{Checkpoint validation and technical discussion}
+The implementation is considered functionally validated when three
+observations occur together: the serial monitor displays changing ADC
+codes,
+the broker accepts the ESP32 MQTT client, and the subscriber receives
+payloads on \texttt{lab/ldr}. The expected payload is an integer represented
+as text, because the sketch publishes
+\texttt{String(valor).c\_str()}. The publication interval is approximately
+one second plus the time required by ADC, Wi-Fi, and MQTT operations; it
+should therefore not be reported as an exact one-second sampling period.
+
+The reading is a raw ADC code and cannot be reported as illuminance in lux
+without a sensor calibration procedure. Increasing or decreasing the code
+with illumination also depends on which side of the divider contains the
+LDR. This is why the circuit orientation and the observed trend must be
+reported together. The implementation uses the default publish behavior of
+PubSubClient, namely MQTT 3.1.1 with QoS~0. Consequently, reception of a
+sample demonstrates successful best-effort delivery, but it is not a
+measurement of packet-loss rate or end-to-end reliability.
+
+The block and flow diagrams in Figs.~\ref{fig:cp2-block-diagram} and
+\ref{fig:cp2-flowchart} describe the same sequence that was tested in this
+checkpoint. The final report must include the corresponding serial-monitor,
+subscriber, and assembled-circuit captures next to this discussion. These
+captures should show the actual broker address and readings used during the
+demonstration, while omitting Wi-Fi passwords and other private
+credentials.

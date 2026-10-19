@@ -9,5 +9,43 @@ with illumination requires characterizing the sensor, circuit, and reference con
 
 PubSubClient 2.8 selects MQTT 3.1.1 by default. Its overload \texttt{publish(topic,payload)} constructs a message without retention and without QoS bits~1/2; \texttt{loop()} handles client communication \cite{pubsub28}. These properties describe the library and allow interpretation of the CP2 sketch; they do not replace a receiver capture.
 
-\subsection{Research Background and Positioning of This Work}
-Hunkeler, Truong, and Stanford-Clark proposed MQTT-S to extend publisher--subscriber communication to sensor networks with energy and bandwidth constraints \cite{mqtts}. The prior work shows the adaptation of the model to other transport mechanisms. The present lab uses MQTT over a WiFi/TCP connection; it does not implement MQTT-S or reproduce its evaluations. This brief review provides relevant background and a reference standard; it is not intended to be a comprehensive review of the state of the art.
+\subsection{State of the Art}
+MQTT is commonly studied as a lightweight application-layer protocol for
+resource-constrained IoT devices. Al-Fuqaha \emph{et al.} identify
+publish--subscribe protocols, including MQTT, as an important part of the
+IoT protocol stack and relate protocol selection to device constraints,
+network conditions, and application requirements \cite{alfuqaha2015}.
+This perspective is relevant to the present experiment because the ESP32
+acts as a constrained sensing client while the broker separates the
+publisher from the monitoring application.
+
+Several studies compare MQTT with alternatives rather than evaluating it
+in isolation. Thangavel \emph{et al.} evaluated MQTT and CoAP through a
+common middleware and showed that their behavior depends on the
+communication pattern and transport assumptions \cite{thangavel2014}.
+Similarly, the experimental study by Georgiou and Karapantelakis
+examined MQTT performance in IoT-to-cloud communication and reported that
+the selected QoS level affects latency and application behavior
+\cite{georgiou2020}. These results support documenting the protocol
+parameters instead of treating a successful connection as a complete
+performance evaluation.
+
+For low-power wireless sensor networks, Hunkeler, Truong, and
+Stanford-Clark proposed MQTT-S as an adaptation of the MQTT model to
+networks where conventional TCP connectivity is not always available
+\cite{mqtts}. More recent work by Palmese, Redondi, and Cesana proposed
+adaptive QoS control for MQTT-S and evaluated its effect on delay and
+packet errors \cite{palmese2022}. In contrast, this laboratory uses
+standard MQTT over Wi-Fi/TCP and QoS~0 through PubSubClient; therefore,
+the experiment demonstrates basic telemetry but does not claim the
+reliability or energy behavior of MQTT-S.
+
+Recent measurements also investigate alternatives to TCP. Pacheco and
+Santos characterized delay and energy consumption for MQTT over TCP and
+QUIC using commercial off-the-shelf devices \cite{pacheco2022}. Their
+results reinforce that latency and energy depend on the complete
+transport stack and hardware, not only on the MQTT message format. The
+present work is consequently positioned as an implementation and
+functional validation of an ESP32--MQTT telemetry path. It provides
+evidence of acquisition and delivery, but it does not estimate lux,
+compare protocols statistically, or measure energy consumption.
