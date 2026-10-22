@@ -391,7 +391,7 @@ This separation allows remote control while maintaining the option to return to 
 
 In this checkpoint, we implemented a small system for simulating microcontroller communication and data transmission via UART and MQTT.
 
-After connecting the Arduino MEGA and ESP32 communication pins, we were able to transmit mock sensor data from the Arduino, receive it successfully on the ESP32, and publish to an MQTT topic, which we subscribed to from a laptop running both the broker and a Mosquitto client. A voltage divider was required to avoid damaging the ESP32, which runs at $3.3V$.
+After connecting the Arduino MEGA and ESP32 communication pins, we were able to transmit a fixed test message from the Arduino, receive it on the ESP32, and publish it to an MQTT topic, which we subscribed to from a laptop running both the broker and a Mosquitto client. A voltage divider adapts the Mega's $5\,\mathrm{V}$ TX signal to the ESP32's $3.3\,\mathrm{V}$ logic level.
 
 \subsubsection{Physical Implementation}
 
@@ -403,12 +403,12 @@ To enable communication between these two microcontrollers, their serial communi
     \item Arduino GND: connected to ESP32 GND
 \end{itemize}
 
-For the voltage divider, we used three $10k\Omega$ resistors to get $3.33V$ and $1.67V$. We used the first output node, as the ESP32 expects approximately $3.3V$.
+For the voltage divider, we used three $10\,\mathrm{k}\Omega$ resistors in series. With a $5\,\mathrm{V}$ input, the ideal node voltages relative to GND are $3.33\,\mathrm{V}$ between the first and second resistors and $1.67\,\mathrm{V}$ between the second and third resistors. In the schematic, the ESP32 RX input is connected to the first of these nodes, so the divider ratio is $20/(10+20)=2/3$. These are calculated values, not measured voltages.
 
     \begin{figure}[htbp]
         \centering
         \includegraphics[width=1\linewidth]{img/chk4/kicad.png}
-        \caption{Simple schematic showing necessary connections.}
+        \caption{UART connection and voltage-divider schematic. The UART labels in this drawing do not match the included sketches: the Mega uses Serial1 and the ESP32 uses Serial2.}
         \label{fig:kicad}
     \end{figure}
 
@@ -423,15 +423,15 @@ The $R$ and $T$ used to name the pins stand for \textbf{receive} and \textbf{tra
 
 \subsubsection{Arduino Code Upload}
 
-The Arduino Mega must mock sensor data (or simple messages) and send them via UART to the ESP32. After physically connecting the pins, we can use \textit{Serial.println()} to send a string to the ESP32. However, as the \textit{Serial} object is usually reserved for the USB connection, we used \textit{Serial1} instead. We do this on a loop with a $1000ms$ delay.
+The Arduino Mega sketch included in \texttt{code/arduino.ino} sends a fixed test string via UART using \texttt{Serial1.println()} at 9600~baud. It uses \texttt{Serial1} rather than the USB serial interface, \texttt{Serial}. Each loop includes a 1000~ms delay; this is an application delay, not a measured transmission period. This sketch tests message transport and does not acquire a real sensor reading.
 
 \subsubsection{ESP32 Code Upload}
 
-The ESP32 has a more complex task. It must first connect to a WiFi network, set up an MQTT server, receive messages via UART, and publish them to an MQTT topic.
+The ESP32 connects to a WiFi network, receives messages via UART, and publishes them as an MQTT client to the Mosquitto broker running on the laptop.
 
 To make sure we didn't run into any issues with the WiFi network, we set up a mobile hotspot using cellular data. The SSID used was \textbf{quaso}.
 
-In the setup function, besides initializing both the \textit{Serial} and \textit{Serial2} objects, we connect to the mobile hotspot, set up an MQTT server on port 1883 and then attempt to connect to the MQTT broker.
+In the setup function, besides initializing both the \textit{Serial} and \textit{Serial2} objects, we connect to the mobile hotspot, configure the destination broker address and port 1883 using \texttt{mqtt.setServer(...)} and then attempt to connect to that broker. This call configures the MQTT client; it does not start an MQTT server on the ESP32.
 
     \begin{figure}[htbp]
         \centering
@@ -440,16 +440,18 @@ In the setup function, besides initializing both the \textit{Serial} and \textit
         \label{fig:esp_setup}
     \end{figure}
 
-After the setup, the ESP32 reads a string from RX2 and, if valid, publishes it to the MQTT topic. It does this in a loop, while also attempting to reconnect if case the connection with the broker fails.
+After the setup, the ESP32 reads a newline-terminated string from \texttt{Serial2} and publishes non-empty messages to \texttt{hey/guys}. If the broker connection fails, the sketch retries in a blocking loop before servicing UART reception; continuous acquisition during a broker outage is therefore not demonstrated by this code.
 
 \subsubsection{MQTT Monitoring}
 
-After flashing both the Arduino and ESP, and succesfully setting up the config file in checkpoint 1, we ran the Mosquitto broker and, on a separate terminal session, subscribed to the MQTT topic with the following commands:
+After flashing both the Arduino and ESP, and successfully setting up the config file in checkpoint 1, we ran the Mosquitto broker and, on a separate terminal session, subscribed to the MQTT topic with the following commands:
 
 \begin{itemize}
     \item \texttt{./mosquitto -c ./mosquitto.conf -v}
-    \item \texttt{./mosquitto\_sub h localhost -p 1883 -t hey/guys}
+    \item \texttt{./mosquitto\_sub -h localhost -p 1883 -t hey/guys}
 \end{itemize}
+
+Here, \texttt{-h} selects the broker host, \texttt{-p} its port, and \texttt{-t} the subscription topic. The use of \texttt{localhost} is appropriate because this subscriber runs on the same laptop as the broker; a subscriber on another computer must use the broker's reachable address instead.
 
 Then, we powered on both microcontrollers, and watched how the laptop received the messages sent by the ESP32.
 
