@@ -1,5 +1,9 @@
 The purpose of this section is to answer both the checkpoint and report questions of the lab, as well as discuss any relevant results obtained during the experiences.
 
+The shared folder for checkpoint videos and code is available at
+\href{https://drive.google.com/drive/folders/10Wqq5XE4xTt64iD323mGCfLAEink5xgA}{LAB3 checkpoint materials}.
+Individual demonstration videos are linked in the corresponding checkpoint sections.
+
 \subsection{CHECKPOINT 1: Previous Installations}
 
 \begin{enumerate}
@@ -168,15 +172,36 @@ The implementation followed these steps:
 \end{enumerate}
 
 
-Figure~\ref{fig:2-1} shows the ESP32 program used for the implementation.
+Figure~\ref{fig:2-1} shows an excerpt of the ESP32 program used for the implementation.
 The code integrates the analog reading of the LDR with the Wi-Fi and MQTT communication functions.
 In this way, the ESP32 is responsible for both acquiring the sensor data and publishing it to the broker,
 without requiring an additional microcontroller.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=1\linewidth]{img/chk2/1.jpg}
-    \caption{ESP32 program for LDR data acquisition and MQTT communication in Arduino IDE.}
+    \begin{minipage}{0.94\linewidth}
+    \scriptsize
+\begin{verbatim}
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include "secrets_local.h"
+
+WiFiClient cliente;
+PubSubClient mqtt(cliente);
+
+// Wi-Fi and broker configuration in setup():
+WiFi.begin(ssid, password);
+mqtt.setServer(mqtt_broker, 1883);
+
+// Acquisition and publication in loop():
+int valor = analogRead(35);
+Serial.println(valor);
+mqtt.loop();
+mqtt.publish("lab/ldr", String(valor).c_str());
+delay(1000);
+\end{verbatim}
+    \end{minipage}
+    \caption{CP2 code excerpt for LDR acquisition and MQTT publication. Network configuration is kept in a separate local header; the complete sketch also includes connection handling.}
     \label{fig:2-1}
 \end{figure}
 
@@ -230,17 +255,16 @@ connected, but also that the information acquired by the sensor reached the othe
     \label{fig:2-5}
 \end{figure}
 
-The complete demonstration can also be observed in the following video:
-\href{https://drive.google.com/file/d/1-x3w-T5K0Flm9DxGWJdGVaL3fpFiPTup/view?usp=sharing}{Checkpoint 2 demonstration video}.
-
-In the video, the two-computer communication is demonstrated while the illumination reaching the LDR is manually modified.
+The two-computer communication was tested while the illumination reaching the LDR was manually modified.
 By covering and uncovering the sensor, the received values change accordingly, providing visual evidence that the system responds
-to changes in the environment and communicates the updated information remotely.
+to changes in the environment and communicates the updated information remotely. The variation in the readings can be followed in greater detail in the CP2 demonstration video.
 This confirms the basic functionality of the MQTT publisher-subscriber architecture.
 The readings from the LDR respond to changes in illumination.
 The implementation uses the default publication behavior of PubSubClient, MQTT 3.1.1 with QoS~0.
 Consequently, receiving the messages demonstrates successful communication during the test, but does not guarantee that every published
 message was delivered or provide a measurement of packet loss.
+
+\noindent\href{https://drive.google.com/file/d/1-x3w-T5K0Flm9DxGWJdGVaL3fpFiPTup/view?usp=sharing}{Checkpoint 2 demonstration video}.
 
 \subsubsection{Block Diagram and Flowchart}
 The system architecture and the program execution sequence are represented in Figures~\ref{fig:chk2-block} and~\ref{fig:chk2-flujo}, respectively.
@@ -310,39 +334,35 @@ Comparing both photographs shows how the LED indicators distinguish between the 
 
 To test the automatic mode, we modified the threshold using the potentiometer, covered the LDR to change the light input and observed how the system responded to the LDR reading.
 
-The automatic operation can be observed in the following demonstrations:
-\noindent\href{https://drive.google.com/file/d/1Fo2ku1vdbQFYs4EZz9sEBstU8vg2jju6/view?usp=sharing}{Automatic control demonstration 1}
-\noindent\href{https://drive.google.com/file/d/1JmdXH3TzdTDXyQSVV4dvja3kAVcBlvsM/view?usp=sharing}{Automatic control demonstration 2}
-
-
 As shown in the demonstrations, the system responds correctly when the potentiometer is adjusted.
 When the light reading exceeds the selected threshold, the red LED turns on, the servomotor moves to the closed position, and the buzzer is expected to activate.
 When the light reading is below the threshold, the green LED turns on and the servomotor returns to the open position.
-This shows that the automatic control works as expected and responds to changes in the selected threshold.
+This shows that the automatic control works as expected and responds to changes in the selected threshold. The sequence of sensor adjustments and actuator responses can be seen in greater detail in the automatic-control videos.
 
 However, we noticed that the buzzer did not always sound immediately when activated.
 Sometimes it started working after a while, possibly due to a loose connection, although we could not confirm this since we did not have the opportunity to test another buzzer or replace the wires.
+
+\noindent\href{https://drive.google.com/file/d/1Fo2ku1vdbQFYs4EZz9sEBstU8vg2jju6/view?usp=sharing}{Automatic control demonstration 1}\par
+\noindent\href{https://drive.google.com/file/d/1JmdXH3TzdTDXyQSVV4dvja3kAVcBlvsM/view?usp=sharing}{Automatic control demonstration 2}
 
 \subsubsection{Manual Control through MQTT}
 
 Besides automatic operation, the system also supports remote control through MQTT commands.
 For this test, commands were manually published from a terminal connected to the MQTT broker, allowing us to change the servomotor position without depending on the current LDR reading.
 
-The manual operation is shown in the following video:
-\noindent\href{https://drive.google.com/file/d/1AAehRpttC3Np4-mODWpd2J6F3R6N3KV2/view?usp=sharing}{Manual MQTT control demonstration}
-
-
 During this demonstration, the command \texttt{cerrar} was sent to move the servomotor to the closing position, while \texttt{abrir} moved it back to the open position.
-The command \texttt{auto} was then used to return the system to automatic operation, allowing the servomotor to respond again to the comparison between the LDR reading and the potentiometer threshold.
+The command \texttt{auto} was then used to return the system to automatic operation, allowing the servomotor to respond again to the comparison between the LDR reading and the potentiometer threshold. These transitions can be followed in greater detail in the manual-control video.
 
 This test is relevant because it demonstrates that the ESP32 can operate as both an MQTT publisher and subscriber. 
 While the sensor measurements and system status can be published to the broker, the ESP32 can also receive commands to modify the behavior of an actuator.
+
+\noindent\href{https://drive.google.com/file/d/1AAehRpttC3Np4-mODWpd2J6F3R6N3KV2/view?usp=sharing}{Manual MQTT control demonstration}
 
 
 Figures~\ref{fig:chk3-3} and~\ref{fig:chk3-4} show the MQTT communication during the demonstration. 
 In Figure~\ref{fig:chk3-3}, the commands \texttt{abrir} and \texttt{cerrar} were published to the \texttt{iluminacion/control} topic to control the servomotor remotely.
 Figure~\ref{fig:chk3-4} also shows the Mosquitto broker receiving PUBLISH messages on the \texttt{iluminacion/datos} topic, indicating that the ESP32 was transmitting telemetry while the system was operating.
-Together with the manual control video, these results show that MQTT communication was used for both monitoring and remote control.
+Together with the manual control video, these results show that MQTT communication was used for both monitoring and remote control. The live telemetry and its changes during operation can be seen in greater detail in the CP3 demonstration videos.
 
 \begin{figure}[htbp]
     \centering
