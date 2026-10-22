@@ -1,4 +1,3 @@
-
 The purpose of this section is to answer both the checkpoint and report questions of the lab, as well as discuss any relevant results obtained during the experiences.
 
 \subsection{CHECKPOINT 1: Previous Installations}
@@ -392,7 +391,7 @@ This separation allows remote control while maintaining the option to return to 
 
 In this checkpoint, we implemented a small system for simulating microcontroller communication and data transmission via UART and MQTT.
 
-After connecting the Arduino MEGA and ESP32 communication pins, we were able to transmit mock sensor data from the Arduino, receive it successfully on the ESP32, and publish to an MQTT topic, which we subscribed to from a laptop running a Mosquitto client. A voltage divider was required to avoid damaging the ESP, which runs at $3.3V$.
+After connecting the Arduino MEGA and ESP32 communication pins, we were able to transmit mock sensor data from the Arduino, receive it successfully on the ESP32, and publish to an MQTT topic, which we subscribed to from a laptop running both the broker and a Mosquitto client. A voltage divider was required to avoid damaging the ESP32, which runs at $3.3V$.
 
 \subsubsection{Physical Implementation}
 
