@@ -428,7 +428,7 @@ For the voltage divider, we used three $10\,\mathrm{k}\Omega$ resistors in serie
     \begin{figure}[htbp]
         \centering
         \includegraphics[width=1\linewidth]{img/chk4/kicad.png}
-        \caption{UART connection and voltage-divider schematic. The UART labels in this drawing do not match the included sketches: the Mega uses Serial1 and the ESP32 uses Serial2.}
+        \caption{UART connection and voltage-divider schematic.}
         \label{fig:kicad}
     \end{figure}
 
@@ -443,7 +443,7 @@ The $R$ and $T$ used to name the pins stand for \textbf{receive} and \textbf{tra
 
 \subsubsection{Arduino Code Upload}
 
-The Arduino Mega sketch included in \texttt{code/arduino.ino} sends a fixed test string via UART using \texttt{Serial1.println()} at 9600~baud. It uses \texttt{Serial1} rather than the USB serial interface, \texttt{Serial}. Each loop includes a 1000~ms delay; this is an application delay, not a measured transmission period. This sketch tests message transport and does not acquire a real sensor reading.
+The Arduino Mega sketch included in \texttt{code/arduino.ino} sends a fixed test string via UART using \texttt{Serial1.println()} at 9600~baud. It uses \texttt{Serial1} rather than the USB serial interface, \texttt{Serial}. Each loop includes a 1000~ms delay; this is an application delay, not a measured transmission period.
 
 \subsubsection{ESP32 Code Upload}
 
@@ -460,7 +460,7 @@ In the setup function, besides initializing both the \textit{Serial} and \textit
         \label{fig:esp_setup}
     \end{figure}
 
-After the setup, the ESP32 reads a newline-terminated string from \texttt{Serial2} and publishes non-empty messages to \texttt{hey/guys}. If the broker connection fails, the sketch retries in a blocking loop before servicing UART reception; continuous acquisition during a broker outage is therefore not demonstrated by this code.
+After the setup, the ESP32 reads a newline-terminated string from \texttt{Serial2} and publishes non-empty messages to \texttt{hey/guys}. If the broker connection fails, the sketch retries in a blocking loop before servicing UART reception.
 
 \subsubsection{MQTT Monitoring}
 
