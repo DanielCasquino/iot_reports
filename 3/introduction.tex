@@ -23,10 +23,10 @@ Several studies compare MQTT with alternatives rather than evaluating it
 in isolation. Thangavel \emph{et al.} evaluated MQTT and CoAP through a
 common middleware and showed that their behavior depends on the
 communication pattern and transport assumptions \cite{thangavel2014}.
-Similarly, the experimental study by Georgiou and Karapantelakis
+Similarly, the experimental study by Borsatti \emph{et al.}
 examined MQTT performance in IoT-to-cloud communication and reported that
 the selected QoS level affects latency and application behavior
-\cite{georgiou2020}. These results support documenting the protocol
+\cite{borsatti2020}. These results support documenting the protocol
 parameters instead of treating a successful connection as a complete
 performance evaluation.
 
@@ -40,9 +40,9 @@ standard MQTT over Wi-Fi/TCP and QoS~0 through PubSubClient; therefore,
 the experiment demonstrates basic telemetry but does not claim the
 reliability or energy behavior of MQTT-S.
 
-Recent measurements also investigate alternatives to TCP. Pacheco and
-Santos characterized delay and energy consumption for MQTT over TCP and
-QUIC using commercial off-the-shelf devices \cite{pacheco2022}. Their
+Recent measurements also investigate alternatives to TCP. Jeddou \emph{et al.}
+characterized delay and energy consumption for MQTT over TCP and
+QUIC using commercial off-the-shelf devices \cite{jeddou2022}. Their
 results reinforce that latency and energy depend on the complete
 transport stack and hardware, not only on the MQTT message format. The
 present work is consequently positioned as an implementation and
