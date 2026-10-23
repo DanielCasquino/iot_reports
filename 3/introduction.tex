@@ -2,12 +2,12 @@
 
 \subsection{Theoretical Framework}
 MQTT uses the publisher--subscriber model: a client publishes to a topic, and the server distributes messages according to subscriptions.
-MQTT 3.1.1 requires an ordered, bidirectional transport, like TCP. Its QoS level~0 offers delivery at most once; it does not guarantee that every message will reach the receiver \cite{mqtt311}. Therefore, simply observing a connection is not enough to quantify message loss or receipt of sensor readings.
+MQTT 3.1.1 requires an ordered, bidirectional transport, like TCP. Its QoS level~0 offers delivery at most once; it does not guarantee that every message will reach the receiver \cite{mqtt311}.
 
 In the Arduino-ESP32 API, \texttt{analogRead} returns a raw, uncalibrated ADC code, while \texttt{analogReadMilliVolts} provides a calibrated result in millivolts \cite{esp32adc}. An ADC code obtained from a divider with an LDR does not directly equate to illuminance in lux. The relation
-with illumination requires characterizing the sensor, circuit, and reference conditions; this conversion is not performed here.
+with illumination requires characterizing the sensor, circuit, and reference conditions. We used the raw ADC readings in this lab.
 
-PubSubClient 2.8 selects MQTT 3.1.1 by default. Its overload \texttt{publish(topic,payload)} constructs a message without retention and without QoS bits~1/2; \texttt{loop()} handles client communication \cite{pubsub28}. These properties describe the library and allow interpretation of the CP2 sketch; they do not replace a receiver capture.
+PubSubClient 2.8 selects MQTT 3.1.1 by default. Its overload \texttt{publish(topic,payload)} constructs a message without retention and without QoS bits~1/2; \texttt{loop()} handles client communication \cite{pubsub28}.
 
 \subsection{State of the Art}
 MQTT is commonly studied as a lightweight application-layer protocol for
