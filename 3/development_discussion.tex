@@ -212,7 +212,7 @@ the broker received the published messages, and the MQTT subscriber
 displayed the transmitted values on the receiving computer.
 
 Figure~\ref{fig:2-4} shows the Mosquitto broker receiving successive PUBLISH messages from the ESP32 on \texttt{lab/ldr}.
-These logs demonstrate message reception at the broker, while the MQTT subscriber shown in Figure~\ref{fig:2-5} displays the received LDR values on the other computer.
+Figure~\ref{fig:2-5} shows the LDR values received on the other computer.
 The publication interval was approximately one second, although the actual time between messages also depends on the ADC, Wi-Fi, and MQTT operations.
 
 
@@ -423,7 +423,7 @@ The $R$ and $T$ used to name the pins stand for \textbf{receive} and \textbf{tra
 
 \subsubsection{Arduino Code Upload}
 
-The Arduino Mega sketch included in \texttt{code/arduino.ino} sends a fixed test string via UART using \texttt{Serial1.println()} at 9600~baud. It uses \texttt{Serial1} rather than the USB serial interface, \texttt{Serial}. Each loop includes a 1000~ms delay; this is an application delay, not a measured transmission period.
+The Arduino Mega sketch included in \texttt{code/arduino.ino} sends a fixed test string via UART using \texttt{Serial1.println()} at 9600~baud. It uses \texttt{Serial1} rather than the USB serial interface, \texttt{Serial}. We added a 1000~ms delay at the end of each loop.
 
 \subsubsection{ESP32 Code Upload}
 
@@ -431,7 +431,7 @@ The ESP32 connects to a WiFi network, receives messages via UART, and publishes 
 
 To make sure we didn't run into any issues with the WiFi network, we set up a mobile hotspot using cellular data. The SSID used was \textbf{quaso}.
 
-In the setup function, besides initializing both the \textit{Serial} and \textit{Serial2} objects, we connect to the mobile hotspot, configure the destination broker address and port 1883 using \texttt{mqtt.setServer(...)} and then attempt to connect to that broker. This call configures the MQTT client; it does not start an MQTT server on the ESP32.
+In the setup function, besides initializing both the \textit{Serial} and \textit{Serial2} objects, we connect to the mobile hotspot, configure the destination broker address and port 1883 using \texttt{mqtt.setServer(...)} and then attempt to connect to that broker.
 
     \begin{figure}[htbp]
         \centering
