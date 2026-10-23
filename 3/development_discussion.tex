@@ -179,29 +179,8 @@ without requiring an additional microcontroller.
 
 \begin{figure}[htbp]
     \centering
-    \begin{minipage}{0.94\linewidth}
-    \scriptsize
-\begin{verbatim}
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include "secrets_local.h"
-
-WiFiClient cliente;
-PubSubClient mqtt(cliente);
-
-// Wi-Fi and broker configuration in setup():
-WiFi.begin(ssid, password);
-mqtt.setServer(mqtt_broker, 1883);
-
-// Acquisition and publication in loop():
-int valor = analogRead(35);
-Serial.println(valor);
-mqtt.loop();
-mqtt.publish("lab/ldr", String(valor).c_str());
-delay(1000);
-\end{verbatim}
-    \end{minipage}
-    \caption{CP2 code excerpt for LDR acquisition and MQTT publication. Network configuration is kept in a separate local header; the complete sketch also includes connection handling.}
+    \includegraphics[width=1\linewidth]{img/chk2/1.jpg}
+    \caption{ESP32 program for LDR acquisition and MQTT publication.}
     \label{fig:2-1}
 \end{figure}
 
