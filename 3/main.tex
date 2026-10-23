@@ -4,6 +4,9 @@
 \usepackage[]{babel}
 \usepackage{cite}
 \usepackage{graphicx}
+\usepackage{float}
+\usepackage{needspace}
+\usepackage{placeins}
 \usepackage{array}
 \usepackage{url}
 \usepackage{hyperref}
@@ -15,6 +18,7 @@
   \fbox{\parbox{0.88\linewidth}{\textbf{#1.} #2}}
   \caption{#3}\label{fig:#1}\end{figure}}
 \begin{document}
+\raggedbottom
 \title{LAB 3: MQTT \& ESP32}
 \author{José~Paca,~\IEEEmembership{UTEC,}
   Daniel~Casquino,~\IEEEmembership{UTEC,}
