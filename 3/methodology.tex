@@ -68,8 +68,10 @@ current iteration to return before the next attempt.
     value\\
     $\downarrow$\\
     MQTT connected?\\
-    Yes: service client and publish to \texttt{lab/ldr}\\
-    No: report connection state and retry on the next iteration\\
+    No: attempt MQTT connection\\
+    Connection failed: report state, wait 1000~ms and restart the iteration\\
+    Connected or connection successful: service client and publish to
+    \texttt{lab/ldr}\\
     $\downarrow$\\
     Wait 1000~ms $\rightarrow$ repeat
     }}
