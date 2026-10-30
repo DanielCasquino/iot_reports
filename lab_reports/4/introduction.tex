@@ -1,197 +1,22 @@
-% The very first letter is a 2 line initial drop letter followed
-% by the rest of the first word in caps.
-% 
-% form to use if the first word consists of a single letter:
-% \IEEEPARstart{A}{demo} file is ....
-% 
-% form to use if you need the single drop letter followed by
-% normal text (unknown if ever used by the IEEE):
-% \IEEEPARstart{A}{}demo file is ....
-% 
-% Some journals put the first two words in caps:
-% \IEEEPARstart{T}{his demo} file is ....
-% 
-% Here we have the typical use of a "T" for an initial drop letter
-% and "HIS" in caps to complete the first word.
-\IEEEPARstart{T}{he} network layer is responsible for stitching together
-heterogeneous links, naming hosts with logical addresses, and ensuring that
-datagrams advance hop by hop until they reach the correct transport endpoint.
-Unlike the link layer, where framing details change every few meters of cable,
-network-layer protocols must remain portable and scalable despite mobility,
-address exhaustion, and middleboxes~\cite{tanenbaum:networks}. Every field in
-an IPv4 or IPv6 header is therefore a lever that either preserves reachability
-(time-to-live, checksums, flow labels), or equips upper layers with the context
-they need to recover from loss and reordering.
-
-Throughout this report, we executed controlled traceroutes (with custom MTU) to
-observe fragmentation, captured DNS AAAA transactions, examined NAT behavior on
-both sides of a translation, forced ICMP TTL errors, and observed DHCP to
-address leases.
-% You must have at least 2 lines in the paragraph with the drop letter
-% (should never be an issue)
-
-%\hfill mds
-
-%\hfill August 26, 2015
+\IEEEPARstart{T}{his} laboratory studies a LoRa point-to-point link, its received signal measurements and its integration with an Arduino MEGA. The objectives are to configure the radios through AT commands, exchange messages and examine the received signal strength and signal-to-noise ratio over time.
 
 \subsection{Theoretical Framework}
-% needed in second column of first page if using \IEEEpubid
-%\IEEEpubidadjcol
-\subsubsection{IPv4 Datagram Structure}
-IPv4 datagrams carry a fixed 20-byte header followed by a variable payload. Key
-fields include the Identification value (used to associate fragments), the
-Flags field (with bits for ``Don't Fragment'' and ``More Fragments''), and the
-Time-To-Live (TTL), which routers decrement to avoid loops. The Protocol field
-demultiplexes into transport layers such as UDP, TCP or ICMP, and the header
-checksum protects only the IPv4 header, not the payload~\cite{rfc791}.
+LoRa uses chirp spread spectrum modulation for low-data-rate radio communication. LoRaWAN adds network and medium-access functions to the LoRa physical layer. A direct P2P link between two radios therefore differs from a LoRaWAN deployment with gateways and a network server \cite{augustin2016}.
 
-\subsubsection{Fragmentation and Path MTU}
-When a datagram larger than the outgoing link's Maximum Transmission Unit
-arrives, routers must either fragment it or drop it if DF is set. Fragmentation
-reuses the Identification, fragment offset (8-byte granularity) and MF flag to
-allow the final host to reassemble the payload. Path MTU Discovery (PMTUD)
-reduces reliance on in-network fragmentation by probing the largest DF-marked
-packet that can traverse the path and adapting segment sizes accordingly,
-typically at the transport layer~\cite{rfc791,rfc1191}.
+The spreading factor and bandwidth set the symbol duration,
+\begin{equation}
+T_{\mathrm{sym}}=\frac{2^{SF}}{BW},
+\label{eq:symbol}
+\end{equation}
+where $BW$ is expressed in hertz. Increasing $SF$ at a fixed bandwidth makes symbols longer. Coding rate and payload length also affect the time required to transmit a packet \cite{augustin2016}. For the laboratory example $SF=7$ and $BW=125$~kHz, Equation~\ref{eq:symbol} gives $T_{\mathrm{sym}}=1.024$~ms. This is a calculated symbol duration, rather than a measured packet duration.
 
-\subsubsection{IPv6 Addressing and Flow Labels}
-IPv6 expands addresses to 128 bits, removes header checksum and fragmentation
-from routers, and introduces the Flow Label so that intermediate devices can
-differentiate long-lived flows without peeking at transport headers. Extension
-headers carry optional functionality (routing, fragmentation, security) while
-neighbor discovery replaces ARP~\cite{rfc8200}. IPv6 also relies on stateless
-address autoconfiguration in addition to DHCPv6 when appropriate.
+RSSI describes received signal level in dBm, relative to 1~mW. SNR compares signal power with noise power and is expressed in dB. Negative SNR means the estimated signal power is below the estimated noise power. The RUI3 receiver reports RSSI, SNR and hexadecimal payload in each P2P receive event \cite{rui3}.
 
-\subsubsection{Network Address Translation}
-NAT devices map private tuples (address, port) to public tuples so that
-multiple hosts can share scarce public IPv4 addresses. Traditional ``NAPT''
-rewrites both addresses and transport ports, keeps per-flow state to
-demultiplex responses, and times out idle mappings. While NAT simplifies
-address reuse, it complicates inbound connectivity and any protocol that embeds
-literal IP addresses inside payloads~\cite{rfc3022}.
-
-\subsubsection{Internet Control Message Protocol}
-ICMP piggybacks on IP to report errors and diagnostics. Type/Code pairs
-distinguish echo requests/replies (ping), TTL exceeded (traceroute),
-destination unreachable (including ``Fragmentation needed and DF set''), and
-other control signals. Because ICMP messages include the failing packet's
-header and the first eight bytes of payload, they provide enough context for
-the originator to match the error with the triggering
-transmission~\cite{rfc792}.
-
-\subsubsection{Dynamic Host Configuration Protocol}
-DHCP automates IPv4 configuration by leasing addresses and network parameters
-through a four-way Discover-Offer-Request-Ack handshake. Clients can request
-specific options (router, DNS, lease time) through the parameter-request list,
-and servers track leases so they can reclaim or renew addresses when hosts
-leave the network~\cite{rfc2131}. Even though DHCP is defined at the
-application layer, its purpose is to provision network-layer state.
-
-% An example of a floating figure using the graphicx package.
-% Note that \label must occur AFTER (or within) \caption.
-% For figures, \caption should occur after the \includegraphics.
-% Note that IEEEtran v1.7 and later has special internal code that
-% is designed to preserve the operation of \label within \caption
-% even when the captionsoff option is in effect. However, because
-% of issues like this, it may be the safest practice to put all your
-% \label just after \caption rather than within \caption{}.
-%
-% Reminder: the "draftcls" or "draftclsnofoot", not "draft", class
-% option should be used if it is desired that the figures are to be
-% displayed while in draft mode.
-%
-%\begin{figure}[!t]
-%\centering
-%\includegraphics[width=2.5in]{myfigure}
-% where an .eps filename suffix will be assumed under latex, 
-% and a .pdf suffix will be assumed for pdflatex; or what has been declared
-% via \DeclareGraphicsExtensions.
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure}
-
-% Note that the IEEE typically puts floats only at the top, even when this
-% results in a large percentage of a column being occupied by floats.
-
-% An example of a double column floating figure using two subfigures.
-% (The subfig.sty package must be loaded for this to work.)
-% The subfigure \label commands are set within each subfloat command,
-% and the \label for the overall figure must come after \caption.
-% \hfil is used as a separator to get equal spacing.
-% Watch out that the combined width of all the subfigures on a 
-% line do not exceed the text width or a line break will occur.
-%
-%\begin{figure*}[!t]
-%\centering
-%\subfloat[Case I]{\includegraphics[width=2.5in]{box}%
-%\label{fig_first_case}}
-%\hfil
-%\subfloat[Case II]{\includegraphics[width=2.5in]{box}%
-%\label{fig_second_case}}
-%\caption{Simulation results for the network.}
-%\label{fig_sim}
-%\end{figure*}
-%
-% Note that often IEEE papers with subfigures do not employ subfigure
-% captions (using the optional argument to \subfloat[]), but instead will
-% reference/describe all of them (a), (b), etc., within the main caption.
-% Be aware that for subfig.sty to generate the (a), (b), etc., subfigure
-% labels, the optional argument to \subfloat must be present. If a
-% subcaption is not desired, just leave its contents blank,
-% e.g., \subfloat[].
-
-% An example of a floating table. Note that, for IEEE style tables, the
-% \caption command should come BEFORE the table and, given that table
-% captions serve much like titles, are usually capitalized except for words
-% such as a, an, and, as, at, but, by, for, in, nor, of, on, or, the, to
-% and up, which are usually not capitalized unless they are the first or
-% last word of the caption. Table text will default to \footnotesize as
-% the IEEE normally uses this smaller font for tables.
-% The \label must come after \caption as always.
-%
-%\begin{table}[!t]
-%% increase table row spacing, adjust to taste
-%\renewcommand{\arraystretch}{1.3}
-% if using array.sty, it might be a good idea to tweak the value of
-% \extrarowheight as needed to properly center the text within the cells
-%\caption{An Example of a Table}
-%\label{table_example}
-%\centering
-%% Some packages, such as MDW tools, offer better commands for making tables
-%% than the plain LaTeX2e tabular which is used here.
-%\begin{tabular}{|c||c|}
-%\hline
-%One & Two\\
-%\hline
-%Three & Four\\
-%\hline
-%\end{tabular}
-%\end{table}
-
-% Note that the IEEE does not put floats in the very first column
-% - or typically anywhere on the first page for that matter. Also,
-% in-text middle ("here") positioning is typically not used, but it
-% is allowed and encouraged for Computer Society conferences (but
-% not Computer Society journals). Most IEEE journals/conferences use
-% top floats exclusively. 
-% Note that, LaTeX2e, unlike IEEE journals/conferences, places
-% footnotes above bottom floats. This can be corrected via the
-% \fnbelowfloat command of the stfloats package.
+UART carries AT commands between the computer or microcontroller and the radio. With \texttt{AT+PSEND}, each payload byte is represented by two hexadecimal digits. A local \texttt{OK} acknowledges the command, while \texttt{TXP2P DONE} signals completion of transmission. Reception must be checked separately at the other radio \cite{rui3}.
 
 \subsection{State of the Art}
-Large-scale measurements highlight how uneven IPv6 deployment still is: Czyz
-et~al. correlate BGP announcements, DNS queries, and active probes to show that
-while content providers are dual-stack, many residential ASes still lack native
-IPv6 or fall back to tunnels, which has direct implications on latency and MTU
-stability for AAAA-capable clients~\cite{czyz2014ipv6}. Middlebox transparency
-also remains a research topic—tools such as Tracebox automatically reproduce
-flows while recording every header rewrite along the path, revealing how NATs
-and firewalls tamper with TTLs, checksums, and even TCP options in practice,
-which in turn affects PMTUD and multipath transports~\cite{luckie2014tracebox}.
+Augustin \emph{et al.} examined LoRa's physical and data-link behavior through field tests and simulation. Their study helps relate spreading factor to radio performance and distinguish the modulation from the LoRaWAN network protocol \cite{augustin2016}.
 
-Finally, modern traffic increasingly traverses carrier-grade NATs, encrypted
-DNS resolvers, and HTTP proxies. Razaghpanah et~al. instrumented thousands of
-volunteer devices and showed that these middleboxes can introduce noticeable
-latency, silently drop non-port-80 flows, and reduce entropy in the ephemeral
-port space, which raises security concerns for scalable
-services~\cite{razaghpanah2018}.
+Bor \emph{et al.} combined experimental models with simulation to examine how shared-medium LoRa networks scale. They identified communication-parameter selection and multiple sinks as ways to improve scalability \cite{bor2016}. Here, the scope is a single P2P receiver record, so its RSSI and SNR describe that link rather than network capacity.
+
+More recently, Lorincz \emph{et al.} examined how transmission settings and physical obstacles affect indoor RSSI and SNR in a LoRaWAN test platform \cite{lorincz2025}. Their scope is broader than the present P2P trace, but it shows why propagation conditions should be recorded alongside radio measurements.

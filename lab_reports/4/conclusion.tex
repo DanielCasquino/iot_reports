@@ -1,33 +1,5 @@
+The AT command responses identified the radio firmware and confirmed its P2P work mode. The version query required the \texttt{=?} suffix, while the serial-number query returned no value. We recommend using the query syntax documented for the installed firmware and preserving the complete command-and-response output.
 
-\section*{Conclusions and Recommendations}
+P2P activity was observed at both the transmitter and receiver. The longer receiver record contains 108 samples with varying RSSI and SNR. These measurements describe reception during the recorded interval, but do not determine maximum range or delivery ratio. For a range comparison, we recommend recording distance and obstacles alongside the receiver timestamps and preserving a transmitted-message count.
 
-The experiments in this lab consolidated the intuition gained during the
-previous reports.
-\begin{itemize}
-    \item \texttt{traceroute} gave us a good understanding of TTL depletion and
-          the mechanics of IPv4 fragmentation, and highlighted the differences between ICMP
-          and UDP probes.
-    \item The IPv6 AAAA capture proved that the stack is already dual-stack on campus,
-          and showed DNS resolution for IPv6 hosts in action.
-    \item The NAT traces showed that only the addresses and checksums change as traffic
-          crosses a boundary
-    \item ICMP error captures explained why type/code pairs carry so much diagnostic
-          value, and how different errors are generated in response to different
-          situations.
-    \item The PMTUD sweeps clarified how routers signal ``fragmentation needed''
-    \item Finally, the DHCP handshake showed us that leases, options, and transaction IDs
-          need to be set up before a host joins the network.
-\end{itemize}
-% if have a single appendix:
-%\appendix[Proof of the Zonklar Equations]
-% or
-%\appendix  % for no appendix heading
-% do not use \section anymore after \appendix, only \section*
-% is possibly needed
-
-% use appendices with more than one appendix
-% then use \section to start each appendix
-% you must declare a \section before using any
-% \subsection or using \label (\appendices by itself
-% starts a section numbered zero.)
-%
+The MEGA--RAK setup transmitted an incrementing counter encoded as hexadecimal text. The video records matching counter payloads at the transmitter and receiver, supporting reception during the demonstration. We recommend retaining synchronized logs from both ends and identifying the exact sketch and radio configuration associated with each record, since the shared sketch and the code visible in the video use different spreading factors.
