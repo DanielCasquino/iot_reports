@@ -1,0 +1,56 @@
+\documentclass[journal]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{cite,graphicx,array,amsmath,booktabs,needspace,placeins}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings,xcolor}
+\lstdefinestyle{arduino}{
+    language=C++,
+    basicstyle=\ttfamily\scriptsize,
+    keywordstyle=\color{blue!70!black},
+    commentstyle=\color{green!40!black},
+    stringstyle=\color{red!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    numbersep=5pt,
+    breaklines=true,
+    breakatwhitespace=false,
+    frame=single,
+    rulecolor=\color{gray!50},
+    backgroundcolor=\color{gray!5},
+    showstringspaces=false,
+    tabsize=2,
+    columns=fullflexible,
+    keepspaces=true,
+    captionpos=b,
+    xleftmargin=0pt,
+    xrightmargin=0pt
+}
+
+
+\newcommand{\labpath}{}
+\IfFileExists{4/introduction.tex}{\renewcommand{\labpath}{4/}}{}
+\graphicspath{{\labpath img/}}
+\begin{document}
+\raggedbottom
+\title{LAB 4: LoRa P2P and Arduino MEGA Integration}
+\author{José~Francisco~Paca~Sotero, Daniel~Ignacio~Casquino~Paz,\\
+Nicolas~Stigler~Yañez, Sofia~Valentina~Ku~Paredes\\
+Universidad de Ingeniería y Tecnología}
+\maketitle
+\section{Introduction}
+\input{\labpath introduction.tex}
+\section{Methodology}
+\input{\labpath methodology.tex}
+\section{Development and Discussion}
+\input{\labpath development_discussion.tex}
+\FloatBarrier
+\Needspace{12\baselineskip}
+\section{Conclusions and Recommendations}
+\input{\labpath conclusion.tex}
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{\labpath references}
+\end{document}
