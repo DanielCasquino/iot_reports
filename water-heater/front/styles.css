@@ -10,6 +10,11 @@
     --terma-on: rgb(77, 119, 255);
     --terma-off: rgb(78, 97, 131);
 
+    /* --terma-on-bloom: rgba(239, 160, 86, 0.7);
+    --terma-on: rgb(244, 146, 48);
+    --terma-off: rgb(169, 111, 67); */
+
+
     --highlight: white;
     --shadow: rgba(55, 84, 170, 0.15);
 
@@ -78,6 +83,10 @@ body {
     transition: box-shadow 0.3s cubic-bezier(0.075, 0.82, 0.165, 1);
     cursor: pointer;
 
+    .material-symbols-outlined {
+        font-size: 192px;
+        transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), text-shadow 0.1s cubic-bezier(0.075, 0.82, 0.165, 1);
+    }
 }
 
 .big-button-off {
@@ -88,25 +97,14 @@ body {
         /*shadow*/
         -10px -10px 22px var(--highlight);
     /*rim*/
-
-    i.material-symbols-outlined {
-        color: var(--terma-off);
-    }
+    color: var(--terma-off);
 }
 
 .big-button-on {
     box-shadow: inset 20px 20px 15px var(--shadow), inset -15px -15px 20px var(--highlight), 0px 0px 4px var(--highlight);
 
-    i.material-symbols-outlined {
-        color: var(--terma-on);
-        text-shadow: 0px 0px 32px var(--terma-on-bloom);
-    }
-}
-
-i.material-symbols-outlined {
-    font-size: 192px;
-    color: var(--text);
-    transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), text-shadow 0.1s cubic-bezier(0.075, 0.82, 0.165, 1);
+    color: var(--terma-on);
+    text-shadow: 0px 0px 32px var(--terma-on-bloom);
 }
 
 .temp-display {
@@ -204,4 +202,29 @@ input:checked+.slider:before {
     -webkit-transform: translateX(calc(var(--toggle-width) - var(--toggle-height)));
     -ms-transform: translateX(calc(var(--toggle-width) - var(--toggle-height)));
     transform: translateX(calc(var(--toggle-width) - var(--toggle-height)));
+}
+
+.top-bar {
+    width: 100%;
+    display: flex;
+    justify-content: end;
+    position: absolute;
+    top: 0px;
+    height: 120;
+    padding: 48px 50px;
+
+    .material-symbols-outlined {
+        font-size: 48px;
+        transition: color 0.3s cubic-bezier(0.075, 0.82, 0.165, 1), text-shadow 0.1s cubic-bezier(0.075, 0.82, 0.165, 1);
+    }
+}
+
+
+.top-bar-off {
+    color: var(--terma-off);
+}
+
+.top-bar-on {
+    color: var(--terma-on);
+    text-shadow: 0px 0px 32px var(--terma-on-bloom);
 }

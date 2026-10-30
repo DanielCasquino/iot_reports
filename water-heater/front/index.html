@@ -4,18 +4,22 @@
 <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,700,0,0&icon_names=power_settings_new" />
-    <title>Terma</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+    <title>Terma Erma</title>
 </head>
 
 <body>
-    <span id="temp-display" class="temp-display">29.0°C</span>
+    <div id="top-bar" class="top-bar top-bar-off">
+        <span class="material-symbols-outlined">
+            wifi
+        </span>
+    </div>
+    <span id="temp-display" class="temp-display">--.-°C</span>
 
     <button id="big-button" class="big-button big-button-off" onclick="toggleTerma()">
-        <i class="material-symbols-outlined">
+        <span class="material-symbols-outlined">
             power_settings_new
-        </i>
+        </span>
     </button>
 
     <div class="option-list">
@@ -32,15 +36,16 @@
         </div>
         <div class="option">
             <div class="option-header">
-                <span>Farenheit Display</span>
+                <span>Fahrenheit Display</span>
                 <label class="switch">
-                    <input id="farenheit" type="checkbox" onchange="toggleFarenheit(this)">
+                    <input id="fahrenheit" type="checkbox" onchange="toggleFahrenheit(this)">
                     <span class="slider"></span>
                 </label>
             </div>
+            <span class="option-description">You're so weird if you use this.</span>
         </div>
     </div>
 </body>
-<script src="script.js"></script>
+<script src="script.js" defer></script>
 
 </html>

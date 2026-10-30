@@ -1,0 +1,20 @@
+func reqs:
+    see temp x
+    turn on/off x
+    auto turnoff at max temp x
+nth:
+    change unit x
+    auto turnon at set time
+    notifications
+    active time graph
+
+
+control topics:
+heater/set/power
+heater/set/temperature
+heater/set/autoshutdown
+
+data topics:
+heater/state/power
+heater/state/temperature
+heater/state/autoshutdown
