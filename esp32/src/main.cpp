@@ -165,7 +165,7 @@ void setup()
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  mqttClient.setURI("mqtt://192.168.1.55:1883");
+  mqttClient.setURI(BROKER_URI);
   mqttClient.loopStart();
 
   start_ms = millis();
