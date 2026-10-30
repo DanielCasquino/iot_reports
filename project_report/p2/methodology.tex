@@ -1,0 +1,33 @@
+\begin{figure*}[!t]
+    \centering
+    \includegraphics[width=\textwidth]{diagrama_bloques-proyecto.drawio.png}
+    \caption{External sensing and button actuation. The Rheem 220--240 V supply remains under its original control.}
+    \label{fig:architecture}
+\end{figure*}
+
+\subsection{Reference Appliance and Components}
+The reference is the Rheem EW1-50RP, a 50 L, 1500 W, 220--240 V storage heater. Its panel already shows tank-center temperature and controls heating~\cite{rheemmanual}. The proposed add-on uses exactly three sensors and one actuator, listed in Table~\ref{tab:components}. The ESP32-WROOM controller and ESP32-CAM camera node are development boards.
+
+\begin{table*}[htbp]
+\centering
+\caption{Proposed external prototype components.}
+\label{tab:components}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}P{2.7cm} P{2.8cm} L@{}}
+\toprule
+\tblhead{Role} & \tblhead{Part} & \tblhead{Location and output} \\
+\midrule
+Sensor 1: temperature readout & ESP32-CAM / OV2640 & Camera facing the numeric visor; captures images for digit recognition. \\
+Sensor 2: pilot state & TCS34725 color sensor (I\textsuperscript{2}C) & Shielded optical view of the pilot; classifies red, green, or unreadable light. \\
+Sensor 3: water use & YF-S201 Hall flow meter (5 V, G1/2 nominal) & Pulse output for flow rate and volume at a compatible external pipe union~\cite{seeedflow}; level shifting protects the ESP32's 3.3 V input. \\
+Actuator: on/off & Low-voltage servo with external pusher & One brief press of the original on/off button followed by retraction; torque and stroke chosen after a button test. \\
+Controller and link & ESP32-WROOM-32; Wi-Fi/MQTT & Counts pulses, classifies light, validates commands, and drives the servo. \\
+Interface and enclosure & Application; removable low-voltage case & Displays preprocessed readings; shields optics and houses the electronics without blocking the original panel. \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Architecture and Operating Sequence}
+Figure~\ref{fig:architecture} separates sensing and low-voltage actuation from the heater's existing mains supply. The camera node transfers a cropped image of the visor to the application service for digit recognition. The controller counts Hall pulses, derives flow and accumulated volume, and classifies color readings under a light shield. MQTT over Wi-Fi carries telemetry and on/off requests between the ESP32 controller and application service; the camera sends images over Wi-Fi for recognition. The application shows the latest valid temperature, pilot state, and water use, marking stale or unreadable data instead of treating it as current.
+
+For a requested state change, the controller first checks a recent pilot LED observation. It issues one short servo press only when the observed state differs from the requested state, then retracts and waits for a new observation. A dark or ambiguous pilot does not by itself prove that the heater is off. If the state cannot be confirmed, the application reports uncertainty and asks for manual verification; it does not keep toggling. Reading the numeric visor may require waking the panel, but the button's wake-versus-toggle behavior is not documented and will be tested before any automated wake press is enabled. A local manual press remains possible after removing the pusher, and loss of Wi-Fi does not alter the heater's original operation.

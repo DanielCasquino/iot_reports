@@ -1,0 +1,15 @@
+\subsection*{General Objective}
+Develop and evaluate a removable external IoT prototype for remote monitoring and on/off control of a Rheem EW1-50RP water heater, while leaving its internal controller and mains connection untouched.
+
+\subsection*{Specific Objectives}
+\begin{enumerate}[label=SO\arabic*.]
+\item Read the temperature shown on the heater's original display with a camera and classify the heating pilot with an RGB sensor.
+\item Measure water flow and accumulated volume at an accessible external pipe connection with a Hall-effect flow sensor.
+\item Preprocess the three sensor outputs and present temperature, observed heating state, and water use in a wireless application.
+\item Press the heater's original on/off button with one removable servo mechanism after a validated user request, then check the observed result.
+\item Provide a basic voice interface that converts on/off requests and status questions into the same application actions.
+\item Compare the reported data and button response with direct observation during prototype tests.
+\end{enumerate}
+
+\subsection*{Scope and Limits}
+The implementation targets one EW1-50RP. Its temperature setpoint is configured on the original panel; remote setpoint adjustment is outside this prototype. The camera reads the value displayed by the heater, not an independent measurement of tank or outlet temperature. If the visor is dark, a current temperature cannot be reported until a safe way to wake it is verified. The color sensor reports the visible pilot state, not electrical current or energy consumption. The flow meter reports water passing its installation point, not total household use. The prototype does not claim energy savings or calculate kWh. The servo uses low-voltage power and does not switch the 220--240 V supply. Plumbing compatibility, installation, and final sensor calibration are part of validation.
