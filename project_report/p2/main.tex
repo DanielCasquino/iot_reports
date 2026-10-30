@@ -1,0 +1,55 @@
+\documentclass[manuscript,screen,review]{acmart}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{ragged2e}
+\usepackage{enumitem}
+\newcolumntype{L}{>{\RaggedRight\arraybackslash}X}
+\newcolumntype{P}[1]{>{\RaggedRight\arraybackslash}p{#1}}
+\newcommand{\tblhead}[1]{\textbf{#1}}
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\acmJournal{JACM}
+\acmYear{2026}
+\acmSubmissionID{}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\begin{document}
+\title{External IoT Retrofit for Remote Monitoring and Control of a Rheem EW1-50RP Water Heater}
+\author{José Paca}
+\affiliation{\institution{Universidad de Ingeniería y Tecnología (UTEC)}\city{Lima}\country{Peru}}
+\author{Daniel Casquino}
+\affiliation{\institution{Universidad de Ingeniería y Tecnología (UTEC)}\city{Lima}\country{Peru}}
+\author{Nicolas Stigler}
+\affiliation{\institution{Universidad de Ingeniería y Tecnología (UTEC)}\city{Lima}\country{Peru}}
+\author{Sofia Ku}
+\affiliation{\institution{Universidad de Ingeniería y Tecnología (UTEC)}\city{Lima}\country{Peru}}
+\begin{abstract}
+\input{abstract.tex}
+\end{abstract}
+\keywords{Internet of Things, water heater, ESP32, remote monitoring, optical character recognition, MQTT}
+\maketitle
+\section{Introduction}
+\input{introduction.tex}
+\section{Problem Statement}
+\input{problem_statement.tex}
+\section{Theoretical Framework}
+\input{theoretical_framework.tex}
+\section{State of the Art}
+\input{state_of_the_art.tex}
+\section{Objectives}
+\input{objectives.tex}
+\section{Methodology}
+\input{methodology.tex}
+\input{calibration_validation.tex}
+%% \section{Implementation}
+%% \input{implementation.tex}
+%% \section{Results}
+%% \input{results.tex}
+%% \section{Market Description}
+%% \input{market_descrp.tex}
+%% \section{Conclusion}
+%% \input{conclusion.tex}
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+\end{document}
