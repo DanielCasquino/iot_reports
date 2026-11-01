@@ -7,7 +7,7 @@ The purpose of this section is to answer both the checkpoint and report question
 In this first checkpoint, we tested the serial communication between the computer and the RAK module using AT commands.
 The module was connected through a USB-to-TTL converter, and we opened the Arduino IDE Serial Monitor at 115200 baud to send the commands and observe the responses.
 
-We first used \texttt{ATZ} to reset the device and verify that it responded through the serial connection.
+We first used \texttt{ATZ} to reset the device andobserved its response through the serial connection.
 We then executed \texttt{AT+VER=?} to identify the firmware version, \texttt{AT+SN=?} to request the device serial number, and \texttt{ATE} to enable command echo.
 
 As shown in Figure~\ref{fig:chk1-1}, the module reported the firmware version \texttt{RUI\_4.2.1\_RAK3172-E} and confirmed that its current operating mode was LoRa P2P.
@@ -19,7 +19,7 @@ These results helped us verify the communication interface and become familiar w
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{c1.png}
+    \includegraphics[width=\linewidth]{img/c1.png}
     \caption{Arduino IDE Serial Monitor showing AT command responses, firmware identification, and parameter errors from the RAK module.}
     \label{fig:chk1-1}
 \end{figure}
@@ -34,13 +34,29 @@ The receiver was configured with \texttt{AT+PRECV=65534} to listen continuously,
 To send a message, we used the command \texttt{AT+PSEND}, followed by the payload encoded in hexadecimal.
 The hexadecimal representation is required by the module's AT interface, so the original text must be converted before transmission.
 
+After configuring both RAK modules, we verified their responses through the Arduino IDE Serial Monitor.
+Both terminals responded to the AT commands and confirmed that the devices were operating in LoRa P2P mode.
+Figure~\ref{fig:chk2-at} shows the recorded output from the sender terminal, including several \texttt{OK} responses and
+\texttt{+EVT:TXP2P DONE} events, which indicate completed transmission operations.
+Although the same configuration procedure was performed on both devices, only the sender terminal was photographed.
+The receiver's output was preserved in a text file and is presented later in this checkpoint.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{img/chk2/rak-transmissions.png}
+    \caption{RAK module Serial Monitor showing LoRa P2P mode,
+    command responses, and completed transmission events.}
+    \label{fig:chk2-at}
+\end{figure}
+
+
 Figure~\ref{fig:chk2-1} shows the sender's serial monitor displaying several \texttt{+EVT:TXP2P DONE} events.
 These messages indicate that the module completed its transmission operations.
 However, they do not independently confirm reception, which must be verified through the receiver's output.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{c2.png}
+    \includegraphics[width=\linewidth]{img/c2.png}
     \caption{Sender Serial Monitor showing successful execution of LoRa P2P transmission operations.}
     \label{fig:chk2-1}
 \end{figure}
@@ -50,7 +66,7 @@ The USB-to-TTL converter allowed us to exchange commands and responses with the 
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{IMG_2477.jpg}
+    \includegraphics[width=\linewidth]{img/IMG_2477.jpg}
     \caption{RAK module connected through a USB-to-TTL converter for LoRa P2P communication.}
     \label{fig:chk2-2}
 \end{figure}
@@ -84,7 +100,7 @@ This confirms that the received bytes could be decoded into the intended message
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{67_papoi.png}
+    \includegraphics[width=\linewidth]{img/67_papoi.png}
     \caption{Conversion of the received hexadecimal payload into the original text message "67 papoi".}
     \label{fig:chk2-3}
 \end{figure}
@@ -107,15 +123,24 @@ Figure~\ref{fig:lora-series} shows the variation of RSSI and SNR over elapsed re
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{lora-rssi-snr.pdf}
+\includegraphics[width=\linewidth]{img/lora-rssi-snr.png}
 \caption{RSSI and SNR for 108 received samples, with time relative to the first reception. Markers show individual observations.}
 \label{fig:lora-series}
 \end{figure}
 
 \Needspace{8\baselineskip}
-The low-SNR entries are packets that reached the receiver despite their reported signal-to-noise conditions. They do not show how many other transmissions were missed. Empty intervals in the graph contain no recorded observations and cannot, by themselves, establish packet loss.
+The low-SNR entries are packets that reached the receiver despite their reported signal-to-noise conditions.
+They do not show how many other transmissions were missed.
+Empty intervals in the graph contain no recorded observations and cannot, by themselves, establish packet loss.
 
-The observed variation alone does not identify whether distance, obstacles, antenna orientation or other radio conditions caused the changes. No distances are assigned to these points. This keeps the temporal plot separate from an assessment of maximum coverage.
+During the range test, the receiver was progressively moved away from the transmitter while incoming messages were monitored. 
+Figure~\ref{fig:lora-series} shows considerable variations in RSSI and SNR throughout the recorded interval,
+which are consistent with changes in the radio propagation conditions during the experiment.
+
+However, these variations cannot be attributed exclusively to distance, since obstacles, antenna orientation, and
+interference may also affect the received signal.
+Furthermore, the receiver's position was not recorded for each sample, so the graph cannot establish an exact relationship between
+distance and signal strength or determine the maximum communication range.
 
 
 \FloatBarrier
@@ -142,14 +167,14 @@ Both devices also shared a common ground reference to allow UART communication.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{IMG_2478.jpg}
+    \includegraphics[width=\linewidth]{img/IMG_2478.jpg}
     \caption{Physical implementation of the Arduino MEGA and RAK LoRa module connected through a breadboard.}
     \label{fig:chk3-1}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{IMG_2479.jpg}
+    \includegraphics[width=\linewidth]{img/IMG_2479.jpg}
     \caption{Additional view of the Arduino MEGA and RAK module wiring, including the voltage divider used for UART communication.}
     \label{fig:chk3-2}
 \end{figure}
@@ -188,21 +213,24 @@ In the sender video, the initial messages are displayed while the receiver begin
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{c3-2.png}
+    \includegraphics[width=\linewidth]{img/c3-2.png}
     \caption{Arduino MEGA Serial Monitor showing consecutive LoRa transmission commands and transmission completion events.}
     \label{fig:chk3-sender}
 \end{figure}
 
-The transmission sequence is documented in the following demonstration video, where the sender's operation can be observed:
+The sender demonstration video shows the Arduino MEGA periodically issuing LoRa transmission commands while
+the receiver begins moving away to test the communication range.
+The Serial Monitor displays the hexadecimal payloads, the corresponding \texttt{OK} responses, and the \texttt{+EVT:TXP2P DONE} events,
+confirming that the sender continued completing transmission operations during the experiment.
 
-\noindent\textbf{Sender demonstration:} \href{https://drive.google.com/file/d/1U7MX6kO2TPNVxZwb8u_24bP_hj0Zetdr/view}{Video sender demonstration}
-
+\noindent\textbf{Sender demonstration:}
+\href{https://drive.google.com/file/d/1U7MX6kO2TPNVxZwb8u_24bP_hj0Zetdr/view}{Video sender demonstration}
 
 Figure~\ref{fig:mega-payloads} documents another portion of the counter test, showing values 144 through 148. For example, \texttt{313434} is the hexadecimal encoding of the three ASCII characters in \texttt{144}.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{chk3/mega-payload-transmissions.jpg}
+\includegraphics[width=\linewidth]{img/chk3/mega-payload-transmissions.jpg}
 \caption{Serial output showing generated counter values 144--148 and local transmission-completion events.}
 \label{fig:mega-payloads}
 \end{figure}
@@ -215,7 +243,7 @@ The receiver was used to monitor the incoming messages and verify the communicat
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{c3-3.png}
+    \includegraphics[width=\linewidth]{img/c3-3.png}
     \caption{Receiver terminal displaying successive decoded counter values with RSSI and SNR measurements during the LoRa range test.}
     \label{fig:chk3-receiver}
 \end{figure}
@@ -227,19 +255,31 @@ However, this check alone cannot completely rule out interference or other radio
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{c3-1.png}
+    \includegraphics[width=\linewidth]{img/c3-1.png}
     \caption{Receiver terminal showing reception errors after the devices were separated during the range test, followed by a check of the module's operating mode.}
     \label{fig:chk3-loss}
 \end{figure}
 
-The receiving process is documented in the following demonstration videos:
+The receiving process is documented in two demonstration videos.
+In the first video, the receiver displays consecutive messages containing the transmitted counter values, together
+with their corresponding RSSI and SNR measurements.
+As the receiver moves away from the sender, the incoming messages continue to be monitored, allowing us to observe
+how the signal conditions change during the experiment.
 
-\noindent\textbf{Receiver demonstration 1:} \href{https://drive.google.com/file/d/1LbWK22VkQ3w6i1_o0mo8eUaG4k4VIdii/view}{Video receiver demonstration 1}
+\noindent\textbf{Receiver demonstration 1:}
+\href{https://drive.google.com/file/d/1LbWK22VkQ3w6i1_o0mo8eUaG4k4VIdii/view}{Video receiver demonstration 1}
 
-\noindent\textbf{Receiver demonstration 2:} \href{https://drive.google.com/file/d/1O1AkUlDwLp3YNUK6QXnnBu6x8ed5gSY3/view}{Video receiver demonstration 2}
+The second video shows a later stage of the range test, when the receiver begins displaying reception errors.
+An AT command is then executed to verify that the module remains responsive.
+This check is relevant because it helps distinguish a loss of wireless reception from a complete failure of the module or its serial communication.
 
-Together, the sender and receiver videos show both the repeated transmissions and the behavior of the wireless link as the distance increased.
-The initial successful receptions support the correct operation of the system, while the later reception errors show that successful transmission at the sender does not guarantee delivery beyond the conditions supported by the link.
+\noindent\textbf{Receiver demonstration 2:}
+\href{https://drive.google.com/file/d/1O1AkUlDwLp3YNUK6QXnnBu6x8ed5gSY3/view}{Video receiver demonstration 2}
+
+Together, the videos and Figures~\ref{fig:chk3-receiver} and~\ref{fig:chk3-loss} provide evidence of successful
+periodic reception and the communication difficulties observed as the separation between the devices increased.
+Although the experiment did not establish an exact maximum distance, it demonstrated that completing a transmission
+on the sender does not necessarily guarantee reception under all radio conditions.
 
 The main achievement of this checkpoint was integrating the Arduino MEGA with the RAK module to automate LoRa communication.
 While the previous checkpoint required sending each message manually, the Arduino now handles the configuration, hexadecimal conversion, and periodic transmission through its program.
