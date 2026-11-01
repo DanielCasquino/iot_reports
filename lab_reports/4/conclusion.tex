@@ -1,5 +1,26 @@
-The AT command responses identified the radio firmware and confirmed its P2P work mode. The version query required the \texttt{=?} suffix, while the serial-number query returned no value. We recommend using the query syntax documented for the installed firmware and preserving the complete command-and-response output.
 
-P2P activity was observed at both the transmitter and receiver. The longer receiver record contains 108 samples with varying RSSI and SNR. These measurements describe reception during the recorded interval, but do not determine maximum range or delivery ratio. For a range comparison, we recommend recording distance and obstacles alongside the receiver timestamps and preserving a transmitted-message count.
+The first checkpoint showed us that successfully communicating with a LoRa module involves more than simply establishing a serial connection.
+Although the module responded correctly and reported its firmware version and operating mode, the incorrect version
+command demonstrated how a small syntax error can prevent an instruction from being executed as expected.
+This helped us understand the importance of interpreting the device's responses rather than assuming that every command was accepted.
+We recommend verifying the AT command syntax for the installed firmware and checking
+the responses after each configuration step, especially before proceeding to more complex communication tests.
 
-The MEGA--RAK setup transmitted an incrementing counter encoded as hexadecimal text. The video records matching counter payloads at the transmitter and receiver, supporting reception during the demonstration. We recommend retaining synchronized logs from both ends and identifying the exact sketch and radio configuration associated with each record, since the shared sketch and the code visible in the video use different spreading factors.
+The second checkpoint demonstrated that establishing a LoRa P2P link requires verifying communication from both
+the transmitter and receiver, since a completed transmission does not necessarily guarantee successful reception.
+The received messages confirmed that the original information could be recovered from its
+hexadecimal representation, while the RSSI and SNR measurements showed how signal conditions can vary during communication.
+The range test also highlighted that a wireless link may become unreliable as the devices move farther apart,
+although distance alone cannot explain every variation observed.
+For future tests, we recommend recording the distance and environmental conditions alongside RSSI and SNR, as well as comparing transmitted 
+and received message counts to better evaluate the reliability and practical range of the communication.
+
+The third checkpoint helped us understand how LoRa communication can be automated by integrating a microcontroller with a radiomodule through UART.
+Instead of manually entering AT commands, the Arduino MEGA configured the module and periodically transmitted
+an incrementing counter, whose values could be recovered at the receiver.
+An important aspect of this implementation was the voltage divider, which allowed us to connect devices operating at different
+logic levels without directly exposing the RAK input to the Arduino's 5 V output. 
+Additionally, the reception errors observed during the distance test showed that automation alone does not guarantee reliable wireless delivery.
+We recommend measuring the voltage divider output before connecting the modules and implementing response timeouts and transmission verification in
+future versions of the code.
+These improvements would make the system safer and more reliable when used for continuous IoT monitoring.
