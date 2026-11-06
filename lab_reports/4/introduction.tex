@@ -1,18 +1,18 @@
-\IEEEPARstart{T}{his} laboratory studies a LoRa point-to-point link, its received signal measurements and its integration with an Arduino MEGA. The objectives are to configure the radios through AT commands, exchange messages and examine the received signal strength and signal-to-noise ratio over time.
+\IEEEPARstart{T}{his} laboratory studies a LoRa (long range) point-to-point (P2P) link, its received signal measurements and its integration with an Arduino MEGA. The objectives are to configure the radios through serial commands, exchange messages and examine the received signal strength indicator (RSSI) and signal-to-noise ratio (SNR) over time.
 
 \subsection{Theoretical Framework}
-LoRa uses chirp spread spectrum modulation for low-data-rate radio communication. LoRaWAN adds network and medium-access functions to the LoRa physical layer. A direct P2P link between two radios therefore differs from a LoRaWAN deployment with gateways and a network server \cite{augustin2016}.
+LoRa uses chirp spread spectrum modulation for low-data-rate radio communication. The long range wide area network (LoRaWAN) protocol adds network and medium-access functions to the LoRa physical layer. A direct P2P link between two radios therefore differs from a LoRaWAN deployment with gateways and a network server \cite{augustin2016}.
 
-The spreading factor and bandwidth set the symbol duration,
+The spreading factor (SF) and bandwidth (BW) set the symbol duration,
 \begin{equation}
 T_{\mathrm{sym}}=\frac{2^{SF}}{BW},
 \label{eq:symbol}
 \end{equation}
-where $BW$ is expressed in hertz. Increasing $SF$ at a fixed bandwidth makes symbols longer. Coding rate and payload length also affect the time required to transmit a packet \cite{augustin2016}. For the laboratory example $SF=7$ and $BW=125$~kHz, Equation~\ref{eq:symbol} gives $T_{\mathrm{sym}}=1.024$~ms. This is a calculated symbol duration, rather than a measured packet duration.
+where $BW$ is expressed in hertz. Increasing $SF$ at a fixed bandwidth makes symbols longer. Coding rate (CR) and payload length also affect the time required to transmit a packet \cite{augustin2016}. For the laboratory example $SF=7$ and $BW=125$~kHz, Equation~\ref{eq:symbol} gives $T_{\mathrm{sym}}=1.024$~ms. This is a calculated symbol duration, rather than a measured packet duration.
 
-RSSI describes received signal level in dBm, relative to 1~mW. SNR compares signal power with noise power and is expressed in dB. Negative SNR means the estimated signal power is below the estimated noise power. The RUI3 receiver reports RSSI, SNR and hexadecimal payload in each P2P receive event \cite{rui3}.
+RSSI describes received signal level in dBm, relative to 1~mW. SNR compares signal power with noise power and is expressed in dB. Negative SNR means the estimated signal power is below the estimated noise power. The receiver firmware uses RAKwireless Unified Interface 3 (RUI3), the firmware development platform from radio manufacturer RAKwireless, and reports RSSI, SNR and hexadecimal payload in each P2P receive event \cite{rui3}.
 
-UART carries AT commands between the computer or microcontroller and the radio. With \texttt{AT+PSEND}, each payload byte is represented by two hexadecimal digits. A local \texttt{OK} acknowledges the command, while \texttt{TXP2P DONE} signals completion of transmission. Reception must be checked separately at the other radio \cite{rui3}.
+A universal asynchronous receiver/transmitter (UART) carries serial commands between the computer or microcontroller and the radio. The commands use the attention prefix \texttt{AT} \cite{rui3}. With \texttt{AT+PSEND}, each payload byte is represented by two hexadecimal digits. A local \texttt{OK} acknowledges the command, while \texttt{TXP2P DONE} signals completion of transmission. Reception must be checked separately at the other radio \cite{rui3}.
 
 \subsection{State of the Art}
 Augustin \emph{et al.} examined LoRa's physical and data-link behavior through field tests and simulation. Their study helps relate spreading factor to radio performance and distinguish the modulation from the LoRaWAN network protocol \cite{augustin2016}.

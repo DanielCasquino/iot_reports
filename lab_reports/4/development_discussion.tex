@@ -1,31 +1,25 @@
-Supporting material is available in the \href{https://drive.google.com/drive/folders/1rxPscm24PQ41dW3EaSxCHFeebt27BfVf}{LAB4 shared folder}.
+The RAK modules responded to serial AT commands and exchanged hexadecimal payloads over the LoRa P2P link. The Arduino MEGA then automated radio configuration and counter transmission, while the receiver output showed decoded messages, signal measurements and reception errors during the range test.
 
-The purpose of this section is to answer both the checkpoint and report questions of the lab, as well as discuss any relevant results obtained during the experiences.
+\subsection{AT Command Verification}
 
-\subsection{Checkpoint 1: Introduction to LoRa Communication (AT Commands)}
+We tested the serial communication between the computer and the RAK module using AT commands.
+The module was connected through a USB-to-TTL converter, and we opened the Arduino integrated development environment (IDE) Serial Monitor at 115200 baud to send the commands and observe the responses.
 
-In this first checkpoint, we tested the serial communication between the computer and the RAK module using AT commands.
-The module was connected through a USB-to-TTL converter, and we opened the Arduino IDE Serial Monitor at 115200 baud to send the commands and observe the responses.
+The commands used included \texttt{AT} to check serial responsiveness, \texttt{ATE} to enable command echo, and \texttt{ATZ} to reset the module.
+We used \texttt{AT+VER=?} to identify the firmware version and \texttt{AT+SN=?} to query the device serial number.
 
-We first used \texttt{ATZ} to reset the device andobserved its response through the serial connection.
-We then executed \texttt{AT+VER=?} to identify the firmware version, \texttt{AT+SN=?} to request the device serial number, and \texttt{ATE} to enable command echo.
-
-As shown in Figure~\ref{fig:chk1-1}, the module reported the firmware version \texttt{RUI\_4.2.1\_RAK3172-E} and confirmed that its current operating mode was LoRa P2P.
-Several commands returned \texttt{OK}, indicating successful execution.
-We accidentally entered the incomplete command \texttt{AT+VER}, which returned \texttt{AT\_PARAM\_ERROR}.
-The parameter error was caused by an incorrectly entered command rather than a failure of the serial connection. The serial-number query returned no value before the following \texttt{OK} response.
-
-These results helped us verify the communication interface and become familiar with the AT commands required to configure the module.
+Figure~\ref{fig:chk1-1} captures part of the command-and-response session.
+The module reported firmware version \texttt{RUI\_4.2.1\_RAK3172-E}, displayed its configured LoRa P2P mode, and returned \texttt{OK} responses to serial commands.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/c1.png}
-    \caption{Arduino IDE Serial Monitor showing AT command responses, firmware identification, and parameter errors from the RAK module.}
+    \includegraphics[width=\linewidth]{c1.png}
+    \caption{Arduino IDE Serial Monitor showing AT command responses, firmware identification, and the configured LoRa P2P mode.}
     \label{fig:chk1-1}
 \end{figure}
 
-\subsection{Checkpoint 2: Implementation of LoRa P2P Communication}
-In this checkpoint, we established a point-to-point communication between two RAK modules, configuring one as the sender and the other as the receiver.
+\subsection{LoRa P2P Communication}
+We established a point-to-point communication between two RAK modules, configuring one as the sender and the other as the receiver.
 Both modules were connected to their respective computers through USB-to-TTL converters, allowing us to configure and monitor them using AT commands.
 
 First, we used \texttt{AT+NWM=0} to enable LoRa P2P mode on both devices.
@@ -39,38 +33,33 @@ Both terminals responded to the AT commands and confirmed that the devices were 
 Figure~\ref{fig:chk2-at} shows the recorded output from the sender terminal, including several \texttt{OK} responses and
 \texttt{+EVT:TXP2P DONE} events, which indicate completed transmission operations.
 Although the same configuration procedure was performed on both devices, only the sender terminal was photographed.
-The receiver's output was preserved in a text file and is presented later in this checkpoint.
+The receiver's output was preserved in a text file and is presented later in this section.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/chk2/rak-transmissions.png}
+    \includegraphics[width=\linewidth]{chk2/rak-transmissions.png}
     \caption{RAK module Serial Monitor showing LoRa P2P mode,
     command responses, and completed transmission events.}
     \label{fig:chk2-at}
 \end{figure}
 
 
-Figure~\ref{fig:chk2-1} shows the sender's serial monitor displaying several \texttt{+EVT:TXP2P DONE} events.
+Figure~\ref{fig:chk2-at} shows the sender's serial monitor displaying several \texttt{+EVT:TXP2P DONE} events.
 These messages indicate that the module completed its transmission operations.
 However, they do not independently confirm reception, which must be verified through the receiver's output.
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=\linewidth]{img/c2.png}
-    \caption{Sender Serial Monitor showing successful execution of LoRa P2P transmission operations.}
-    \label{fig:chk2-1}
-\end{figure}
 
 The physical connection used for the communication test is shown in Figure~\ref{fig:chk2-2}.
 The USB-to-TTL converter allowed us to exchange commands and responses with the RAK module through UART, while the antenna was used for wireless transmission.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/IMG_2477.jpg}
+    \includegraphics[width=\linewidth]{IMG_2477.jpg}
     \caption{RAK module connected through a USB-to-TTL converter for LoRa P2P communication.}
     \label{fig:chk2-2}
 \end{figure}
 
+\Needspace{12\baselineskip}
 Although we did not capture a photograph of the receiver's serial monitor, we saved its output in a text file.
 The recorded results included the following messages:
 
@@ -91,16 +80,20 @@ OK
 These messages follow the format \texttt{+EVT:RXP2P:RSSI:SNR:PAYLOAD}, where RSSI represents the received signal strength, SNR indicates the signal-to-noise ratio, and the final field contains the hexadecimal payload.
 The recorded RSSI values were -42, -40, and -37 dBm, while the SNR remained at 8 dB for all three messages.
 These values confirm that the receiver was detecting the transmissions and reporting their signal characteristics.
-Although the RSSI values varied slightly, the available records do not include distance measurements, so this variation cannot be directly attributed to changes in distance.
 
+\begingroup
+\widowpenalty=10000
+\clubpenalty=10000
 The first two received messages were test transmissions, while the final message contained the intended text encoded in hexadecimal.
 The received payload for the last message was \texttt{3637207061706F69}.
 To verify its contents, we converted it from hexadecimal to text, obtaining the message \texttt{67 papoi}, as shown in Figure~\ref{fig:chk2-3}.
 This confirms that the received bytes could be decoded into the intended message.
+\par
+\endgroup
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/67_papoi.png}
+    \includegraphics[width=\linewidth]{67_papoi.png}
     \caption{Conversion of the received hexadecimal payload into the original text message "67 papoi".}
     \label{fig:chk2-3}
 \end{figure}
@@ -109,7 +102,7 @@ Overall, the results demonstrate successful communication between the two RAK mo
 The sender reported completed transmissions, while the receiver registered incoming packets containing signal information and hexadecimal payloads.
 This allowed us to verify both the wireless communication and the representation of the transmitted data.
 
-The range test was later continued during the automated transmissions in Checkpoint 3. 
+The range test was later continued during the automated transmissions with the Arduino MEGA.
 The receiver was moved progressively farther from the sender while its received messages and signal measurements were monitored.
 Figures~\ref{fig:chk3-receiver} and~\ref{fig:chk3-loss} document the successful receptions and the reception error observed during that demonstration.
 
@@ -123,7 +116,7 @@ Figure~\ref{fig:lora-series} shows the variation of RSSI and SNR over elapsed re
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{img/lora-rssi-snr.png}
+\includegraphics[width=\linewidth]{lora-rssi-snr.png}
 \caption{RSSI and SNR for 108 received samples, with time relative to the first reception. Markers show individual observations.}
 \label{fig:lora-series}
 \end{figure}
@@ -143,17 +136,17 @@ Furthermore, the receiver's position was not recorded for each sample, so the gr
 distance and signal strength or determine the maximum communication range.
 
 
-\FloatBarrier
-\subsection{Checkpoint 3: Integration and Data Transmission with Arduino MEGA}
-In this checkpoint, we integrated a RAK LoRa module with an Arduino MEGA to automate the transmission of messages through LoRa P2P communication.
+\Needspace{8\baselineskip}
+\subsection{Arduino MEGA Integration and Data Transmission}
+We integrated a RAK LoRa module with an Arduino MEGA to automate the transmission of messages through LoRa P2P communication.
 The Arduino was programmed to configure the RAK module and periodically send messages without requiring manual intervention.
 
 \subsubsection{Physical Implementation}
 The circuit was assembled using an Arduino MEGA, a RAK module, a breadboard, jumper wires, and three 10 k$\Omega$ resistors, as shown in Figure~\ref{fig:chk3-1} and Figure~\ref{fig:chk3-2}.
 The Arduino communicates with the RAK module through UART, using its \texttt{Serial1} interface connected to the module's UART2 pins.
 Since the Arduino MEGA operates with 5 V logic and the RAK module uses 3.3 V logic, we implemented a voltage divider using three 10 k$\Omega$ resistors connected in series.
-One resistor was placed between the Arduino TX pin and the RAK RX connection, while the other two resistors were connected between this point and GND.
-For a nominal 5 V input, this resistor arrangement gives approximately 3.33 V, as calculated in Equation~\ref{eq:voltage_divider}; this is a calculated value rather than a reported voltage measurement.
+One resistor was placed between the Arduino TX pin and the RAK RX connection, while the other two resistors were connected between this point and ground (GND).
+For a nominal 5 V input, the voltage-divider relation in Equation~\ref{eq:voltage_divider} gives an output of approximately 3.33 V.
 
 \begin{equation}
     V_{\text{out}} =
@@ -167,14 +160,14 @@ Both devices also shared a common ground reference to allow UART communication.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/IMG_2478.jpg}
+    \includegraphics[width=\linewidth]{IMG_2478.jpg}
     \caption{Physical implementation of the Arduino MEGA and RAK LoRa module connected through a breadboard.}
     \label{fig:chk3-1}
 \end{figure}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/IMG_2479.jpg}
+    \includegraphics[width=\linewidth]{IMG_2479.jpg}
     \caption{Additional view of the Arduino MEGA and RAK module wiring, including the voltage divider used for UART communication.}
     \label{fig:chk3-2}
 \end{figure}
@@ -194,13 +187,13 @@ AT+P2P=923700000:12:125:0:10:14
 This configuration establishes a frequency of 923.7 MHz, a spreading factor of 12, a bandwidth of 125 kHz, a coding rate of 4/5, a preamble length of 10, and a transmission power of 14 dBm.
 Finally, \texttt{AT+PRECV=0} prepares the module for transmission.
 
+\Needspace{3\baselineskip}
 In the main loop, the Arduino increments a counter starting from 20, converts the resulting number into its hexadecimal representation, and sends it using \texttt{AT+PSEND}.
 The first transmitted counter value is 21. A delay of 5000 ms follows the response-reading function; it is a programmed pause, rather than a measured transmission period.
 The program also displays the commands sent and the responses received from the RAK module, allowing us to monitor its execution through the Arduino Serial Monitor.
 
-The shared Arduino sketch is available as \href{https://drive.google.com/file/d/1SrnPct0enrU3doz0R0MApW0z8LCoYyoH/view}{\texttt{lora.txt} in Drive} and as \texttt{code/cp3\_lora/cp3\_lora.ino}. Listing~\ref{lst:lora_sender} reproduces that source, which follows the counter example in Appendix H of the laboratory guide \cite{guide}. The payload represents generated counter data, rather than sensor measurements.
+The shared Arduino sketch is available as \href{https://drive.google.com/file/d/1SrnPct0enrU3doz0R0MApW0z8LCoYyoH/view}{\texttt{lora.txt} in Drive}. It generates and transmits an incrementing counter. The payload represents generated counter data; the sensor-reading stage requested in Section 3.2 of the guide is not demonstrated by this test.
 
-\lstinputlisting[style=arduino,caption={Shared Arduino MEGA counter program for LoRa P2P transmission.},label={lst:lora_sender}]{\labpath code/cp3_lora/cp3_lora.ino}
 
 The shared sketch configures spreading factor 12. The sender demonstration shows \texttt{AT+P2P=923700000:10:125:0:10:14}, using spreading factor 10. These are two source-code settings, rather than parameter readbacks from both radios; neither can be assigned to the entire 108-sample receiver record.
 
@@ -209,11 +202,11 @@ The \texttt{sendRAK} function waits for at least one UART byte and prints the by
 
 Figure~\ref{fig:chk3-sender} shows the Arduino Serial Monitor sending consecutive hexadecimal payloads, including \texttt{3332}, \texttt{3333}, and \texttt{3334}, corresponding to the text values 32, 33, and 34.
 The \texttt{OK} responses and \texttt{+EVT:TXP2P DONE} events show that these transmission operations completed on the sender side.
-In the sender video, the initial messages are displayed while the receiver begins moving away to test the communication range.
+
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/c3-2.png}
+    \includegraphics[width=\linewidth]{c3-2.png}
     \caption{Arduino MEGA Serial Monitor showing consecutive LoRa transmission commands and transmission completion events.}
     \label{fig:chk3-sender}
 \end{figure}
@@ -230,7 +223,7 @@ Figure~\ref{fig:mega-payloads} documents another portion of the counter test, sh
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{img/chk3/mega-payload-transmissions.jpg}
+\includegraphics[width=\linewidth]{chk3/mega-payload-transmissions.jpg}
 \caption{Serial output showing generated counter values 144--148 and local transmission-completion events.}
 \label{fig:mega-payloads}
 \end{figure}
@@ -238,24 +231,23 @@ Figure~\ref{fig:mega-payloads} documents another portion of the counter test, sh
 \subsubsection{Reception and Discussion}
 
 To test the automated communication, a second RAK module was connected to another computer and configured as the receiver.
-Both modules used matching LoRa P2P parameters, while the receiver remained in continuous reception mode using \texttt{AT+PRECV=65534}.
+Successful receptions demonstrate compatible settings during those exchanges. The receiver was configured for continuous reception using \texttt{AT+PRECV=65534}.
 The receiver was used to monitor the incoming messages and verify the communication between both devices. As shown in Figure~\ref{fig:chk3-receiver}, it displayed successive received packets and their decoded counter values, together with the corresponding RSSI and SNR measurements. For example, the visible messages include consecutive values from 21 onward, showing that the counter transmitted by the Arduino could be recovered at the receiving end. The recorded RSSI and SNR values varied between messages, illustrating changes in the received signal conditions during the test.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/c3-3.png}
+    \includegraphics[width=\linewidth]{c3-3.png}
     \caption{Receiver terminal displaying successive decoded counter values with RSSI and SNR measurements during the LoRa range test.}
     \label{fig:chk3-receiver}
 \end{figure}
 
 As the receiver was moved farther away, the demonstration eventually showed reception errors, as illustrated in Figure~\ref{fig:chk3-loss}.
 The receiver was then checked using an AT command to confirm that its serial interface was still responding.
-Since messages had previously been received and the error occurred during the range test, the loss of the wireless link is consistent with the increasing separation between devices.
-However, this check alone cannot completely rule out interference or other radio conditions as contributing factors.
+Reception errors occurred during the range test, interspersed with successful receptions; their cause was not isolated.
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{img/c3-1.png}
+    \includegraphics[width=\linewidth]{c3-1.png}
     \caption{Receiver terminal showing reception errors after the devices were separated during the range test, followed by a check of the module's operating mode.}
     \label{fig:chk3-loss}
 \end{figure}
@@ -281,8 +273,7 @@ periodic reception and the communication difficulties observed as the separation
 Although the experiment did not establish an exact maximum distance, it demonstrated that completing a transmission
 on the sender does not necessarily guarantee reception under all radio conditions.
 
-The main achievement of this checkpoint was integrating the Arduino MEGA with the RAK module to automate LoRa communication.
-While the previous checkpoint required sending each message manually, the Arduino now handles the configuration, hexadecimal conversion, and periodic transmission through its program.
+The Arduino MEGA automated the configuration, hexadecimal conversion, and repeated transmission of messages that had previously been sent manually.
 
 An important aspect of this implementation is that the Arduino does not transmit the numerical value directly as a binary integer.
 Instead, it converts the number into a text representation and then encodes each character as a hexadecimal byte.
@@ -290,6 +281,8 @@ This allows the receiving module to obtain the transmitted data in the format ex
 
 Additionally, the voltage divider was an essential part of the integration, since successful communication also depends on the electrical compatibility between the devices, not only on using the same serial protocol.
 
-Overall, this checkpoint demonstrated both automated LoRa P2P communication and a practical limitation of the wireless link.
+The automated LoRa P2P test demonstrated a practical limitation of the wireless link.
 The Arduino continued issuing transmission commands, but reliable reception depended on the radio conditions and separation between the modules.
-This distinction is important for IoT applications, where a functioning transmitter alone does not guarantee that data reaches its destination.
+This distinction is important for Internet of Things (IoT) applications, where a functioning transmitter alone does not guarantee that data reaches its destination.
+
+Supporting material is available in the \href{https://drive.google.com/drive/folders/1rxPscm24PQ41dW3EaSxCHFeebt27BfVf}{LAB4 shared folder}.

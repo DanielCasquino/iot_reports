@@ -1,9 +1,9 @@
 \subsection{Components and Functional Arrangement}
-The laboratory guide specifies two RAK radios with antennas and USB--TTL adapters for serial control. Figure~\ref{fig:lab4-system}(a) shows these functional roles: commands reach each radio through UART, while messages travel over the LoRa link. Serial terminals display command responses and reception events. This arrangement supports the AT verification and P2P experiences \cite{guide}.
+The laboratory guide specifies RAK3172 radio modules from RAKwireless on RAK3272S breakout boards, with antennas and universal serial bus (USB) to transistor-transistor logic (TTL) adapters for serial control. Figure~\ref{fig:lab4-system}(a) shows these functional roles: commands reach each radio through UART, while messages travel over the LoRa link. Serial terminals display command responses and reception events. The serial transmit (TX) and receive (RX) paths carry commands and responses. This arrangement supports the AT verification and P2P experiments \cite{guide}.
 
-For the counter transmitter, the Arduino MEGA2560 replaces the manual command source, using \texttt{Serial1} to communicate with the RAK and USB serial to print diagnostic output. Figure~\ref{fig:lab4-system}(b) separates this transmitter path from the two-radio experiment. The assembly photograph in Figure~\ref{fig:chk3-1} shows the MEGA, radio, antenna, breadboard, jumper wires and resistors.
+For the counter transmitter, the Arduino MEGA2560 replaces the manual command source, using \texttt{Serial1} (serial interface 1) to communicate with the RAK and USB serial to print diagnostic output. Figure~\ref{fig:lab4-system}(b) separates this transmitter path from the two-radio experiment. The assembly photograph in Figure~\ref{fig:chk3-1} shows the MEGA, radio, antenna, breadboard, jumper wires and resistors.
 
-The guide requires voltage adaptation at the RAK receive input because the MEGA uses 5~V logic and the RAK uses 3.3~V logic \cite{guide}. The three-resistor divider is described and calculated in the CP3 implementation section. The block diagram summarizes the functional interfaces; the nominal divider voltage is not presented as a physical measurement.
+The guide requires voltage adaptation at the RAK receive input because the MEGA uses 5~V logic and the RAK uses 3.3~V logic \cite{guide}. The three-resistor divider adapts the UART signal level; its nominal output voltage is derived in the physical implementation section.
 
 \begin{figure}[htbp]
 \centering
@@ -17,7 +17,7 @@ The RUI3 P2P configuration includes frequency, spreading factor, bandwidth, codi
 
 Frequency, modulation settings and other packet-format settings must be compatible between transmitter and receiver. Transmit power describes the transmitting radio and is not a requirement that both radios use identical output power.
 
-Figure~\ref{fig:counter-flow} traces the shared counter sketch, whose structure follows Appendix H \cite{guide}. Initialization opens both serial interfaces at 115200 baud, then sends the version queries, P2P mode and link configuration, and transmitter-mode command. The repeated loop increments the counter, encodes its decimal characters as hexadecimal and calls \texttt{sendRAK} to send \texttt{AT+PSEND}. The source settings and the code visible in the demonstration video are distinguished in the CP3 discussion; neither is assigned to the entire 108-sample record without configuration readback.
+Figure~\ref{fig:counter-flow} traces the shared counter sketch, whose structure follows Appendix H \cite{guide}. Initialization opens both serial interfaces at 115200 baud, then sends the version queries, P2P mode and link configuration, and transmitter-mode command. The repeated loop increments the counter, encodes its decimal characters as hexadecimal bytes using the American Standard Code for Information Interchange (ASCII) and calls \texttt{sendRAK} to send \texttt{AT+PSEND}. The shared sketch and the code visible in the demonstration video use different spreading factors, as detailed in the implementation discussion.
 
 The \texttt{sendRAK} function waits until at least one UART byte is available, reads the bytes currently available and prints the collected text. It does not parse a success response or wait specifically for \texttt{TXP2P DONE}; it also has no timeout on the initial wait. The 5000~ms delay occurs after this function returns, so it specifies a programmed pause rather than a measured transmission period or a reception guarantee.
 
@@ -34,7 +34,7 @@ The analysis uses 108 previously recorded receiver entries. The input contains r
 \tau_i=t_i-t_1.
 \label{eq:elapsed}
 \end{equation}
-The original order and every numeric observation are retained. Figure~\ref{fig:processing} summarizes this processing sequence. The Python script produces the numeric CSV, summary statistics and two plots with a shared time axis. Each point represents a received observation, without smoothing or interpolation.
+The original order and every numeric observation are retained. Figure~\ref{fig:processing} summarizes this processing sequence. The Python script produces a numeric comma-separated values (CSV) file, summary statistics and two plots with a shared time axis. Each point represents a received observation, without smoothing or interpolation.
 
 \begin{figure}[htbp]
 \centering
@@ -44,4 +44,4 @@ The original order and every numeric observation are retained. Figure~\ref{fig:p
 \end{figure}
 
 \subsection{Interpretation of the Measurements}
-The timestamps describe when packets were recorded at the receiver. Intervals between received entries are not necessarily the transmitter's configured period. Packet delivery ratio would require the total transmitted count, or identifiable sequence numbers. Likewise, a distance-dependent analysis requires a position or distance record aligned with reception times.
+The timestamps describe when packets were recorded at the receiver. Intervals between received entries are not necessarily the transmitter's configured period.
