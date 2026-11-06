@@ -21,12 +21,6 @@ Figure~\ref{fig:counter-flow} traces the shared counter sketch, whose structure 
 
 The \texttt{sendRAK} function waits until at least one UART byte is available, reads the bytes currently available and prints the collected text. It does not parse a success response or wait specifically for \texttt{TXP2P DONE}; it also has no timeout on the initial wait. The 5000~ms delay occurs after this function returns, so it specifies a programmed pause rather than a measured transmission period or a reception guarantee.
 
-\begin{figure}[!b]
-\centering
-\includegraphics[width=\linewidth]{mega-counter-flow.png}
-\caption{Counter-program flow. The \texttt{sendRAK} call sends the command and collects available response bytes; it does not verify their contents or remote reception.}
-\label{fig:counter-flow}
-\end{figure}
 
 \subsection{Receiver Record Processing}
 The analysis uses 108 previously recorded receiver entries. The input contains reception timestamps, RSSI and SNR. The elapsed time for sample $i$ is
@@ -34,9 +28,13 @@ The analysis uses 108 previously recorded receiver entries. The input contains r
 \tau_i=t_i-t_1.
 \label{eq:elapsed}
 \end{equation}
-\begin{samepage}
-The original order and every numeric observation are retained. Figure~\ref{fig:processing} summarizes this processing sequence. The Python script produces a numeric comma-separated values (CSV) file, summary statistics and two plots with a shared time axis. Each point represents a received observation, without smoothing or interpolation.\par
-\end{samepage}
+The original order and every numeric observation are retained. Figure~\ref{fig:processing} summarizes this processing sequence. The Python script produces a numeric comma-separated values (CSV) file, summary statistics and two plots with a shared time axis. Each point represents a received observation, without smoothing or interpolation.
+\begin{figure}[!h]
+\centering
+\includegraphics[width=\linewidth]{mega-counter-flow.png}
+\caption{Counter-program flow. The \texttt{sendRAK} call sends the command and collects available response bytes; it does not verify their contents or remote reception.}
+\label{fig:counter-flow}
+\end{figure}
 
 \begin{figure}[htbp]
 \centering
