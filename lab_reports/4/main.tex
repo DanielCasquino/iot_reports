@@ -31,11 +31,11 @@
 
 
 \newcommand{\labpath}{}
-\IfFileExists{4/introduction.tex}{\renewcommand{\labpath}{4/}}{}
+\IfFileExists{lab_reports/4/introduction.tex}{\renewcommand{\labpath}{lab_reports/4/}}{}
 \graphicspath{{\labpath img/}}
 \begin{document}
 \raggedbottom
-\title{LAB 4: LoRa P2P and Arduino MEGA Integration}
+\title{LAB 4: LoRa Point-to-Point (P2P) and Arduino MEGA Integration}
 \author{José~Francisco~Paca~Sotero, Daniel~Ignacio~Casquino~Paz,\\
 Nicolas~Stigler~Yañez, Sofia~Valentina~Ku~Paredes\\
 Universidad de Ingeniería y Tecnología}
@@ -44,6 +44,7 @@ Universidad de Ingeniería y Tecnología}
 \input{\labpath introduction.tex}
 \section{Methodology}
 \input{\labpath methodology.tex}
+\Needspace{10\baselineskip}
 \section{Development and Discussion}
 \input{\labpath development_discussion.tex}
 \FloatBarrier
