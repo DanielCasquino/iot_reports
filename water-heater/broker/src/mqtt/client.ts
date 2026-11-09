@@ -10,13 +10,10 @@ export const mqttClient = mqtt.connect(
 mqttClient.on("connect", () => {
   console.log("Connected to Mosquitto");
 
-  mqttClient.subscribe(
-    ["heater/state/#", "heater/telemetry/#", "heater/availability"],
-    (error) => {
-      if (error) console.error("Subscription error:", error);
-      else console.log("Subscribed to heater topics");
-    },
-  );
+  mqttClient.subscribe(["heater/state/#"], (error) => {
+    if (error) console.error("Subscription error:", error);
+    else console.log("Subscribed to heater topics");
+  });
 });
 
 mqttClient.on("reconnect", () => {

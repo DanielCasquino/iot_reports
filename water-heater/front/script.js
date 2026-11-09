@@ -1,4 +1,4 @@
-const WS_URL = "ws://10.117.122.228:8080";
+const WS_URL = "ws://192.168.1.129:8080";
 const RECONNECT_DELAY_MS = 2000;
 
 let fahrenheit = false;
@@ -34,6 +34,16 @@ function updateAutoShutdown() {
 
 function updateTemperature() {
   const display = document.getElementById("temp-display");
+  const fg = document.getElementById("fg");
+
+  if (fg && heaterState.temperature !== null) {
+    const temp = heaterState.temperature;
+    const opacity = Math.max(
+      0.0,
+      Math.min(0.6, ((temp - 30) / (40 - 30)) * 0.6),
+    );
+    fg.style.opacity = opacity;
+  }
 
   if (!display || heaterState.temperature === null) return;
 
