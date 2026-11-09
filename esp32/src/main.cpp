@@ -4,6 +4,8 @@
 #include "ESP32MQTTClient.h"
 #include "secrets.h"
 #include "temperature_module.h"
+#include "servo_module.h"
+#include "flow_module.h"
 #include "config.h"
 
 using namespace std;
@@ -21,6 +23,8 @@ public:
 
 HeaterState state;
 TemperatureModule temperatureModule;
+ServoModule servoModule;
+// FlowModule flowModule;
 ESP32MQTTClient mqttClient;
 unsigned long start_ms;
 unsigned long curr_ms;
@@ -35,6 +39,7 @@ void handle_power(const std::string &payload)
       return;
     state.power = true;
     digitalWrite(LED_BUILTIN, HIGH);
+    servoModule.tap();
     changed = true;
   }
   else if (payload == "false")
@@ -43,6 +48,7 @@ void handle_power(const std::string &payload)
       return;
     state.power = false;
     digitalWrite(LED_BUILTIN, LOW);
+    servoModule.tap();
     changed = true;
   }
   else
@@ -143,6 +149,7 @@ void tick()
   {
     state.power = false;
     digitalWrite(LED_BUILTIN, LOW);
+    servoModule.tap();
     if (mqttClient.isConnected())
       mqttClient.publish("heater/state/power", "false", 1, true);
   }
@@ -151,6 +158,7 @@ void tick()
     return;
 
   mqttClient.publish("heater/state/temperature", std::to_string(state.temperature), 1, true);
+  // mqttClient.publish("heater/state/flow", std::to_string(flowModule.read()), 1, true);
 }
 
 void setup()
@@ -159,6 +167,8 @@ void setup()
 
   state = HeaterState();
   temperatureModule = TemperatureModule();
+  servoModule = ServoModule();
+  // flowModule = FlowModule();
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -171,7 +181,7 @@ void setup()
   {
     mqttClient.publish("heater/state/power", "false", 1, true);
     mqttClient.publish("heater/state/autoshutdown", "false", 1, true);
-    mqttClient.publish("heater/state/temperature", std::to_string(temperatureModule.read()), 1, true);
+    mqttClient.publish("heater/state/temperature", std::to_string(temperatureModule.read()), 1, true); 
   }
 
   pinMode(LED_BUILTIN, OUTPUT);
@@ -180,7 +190,7 @@ void setup()
 void loop()
 {
   connect_wifi();
-
+  // flowModule.poll();
   curr_ms = millis();
   if (curr_ms - start_ms >= TICKRATE_MS)
   {

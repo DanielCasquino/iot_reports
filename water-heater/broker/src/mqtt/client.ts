@@ -1,7 +1,7 @@
 import mqtt from "mqtt";
 
 export const mqttClient = mqtt.connect(
-  process.env.MQTT_URL ?? "mqtt://10.117.122.228:1883",
+  process.env.MQTT_URL ?? "mqtt://192.168.1.225:1883",
   {
     reconnectPeriod: 2000,
   },
