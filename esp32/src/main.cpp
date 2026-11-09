@@ -3,28 +3,24 @@
 #include <WiFi.h>
 #include "ESP32MQTTClient.h"
 #include "secrets.h"
+#include "temperature_module.h"
+#include "config.h"
 
 using namespace std;
 
-const float AMBIENT_TEMPERATURE = 24.0;
 const int WIFI_RECONNECT_MS = 2000;
-
 const unsigned long TICKRATE_MS = 2000;
-const float MAX_TEMPERATURE_C = 40.0;
-
-const float MIN_TEMPERATURE_C = 20.0;
-const float COOLRATE_C = 0.1;
-const float HEATRATE_C = 0.1;
 
 struct HeaterState
 {
 public:
   bool power = false;
-  bool is_auto_shutdown_enabled = false;
-  float temperature = AMBIENT_TEMPERATURE;
+  bool isAutoShutdownEnabled = false;
+  float temperature = 20.0; // default temperature
 };
 
 HeaterState state;
+TemperatureModule temperatureModule;
 ESP32MQTTClient mqttClient;
 unsigned long start_ms;
 unsigned long curr_ms;
@@ -66,16 +62,16 @@ void handle_auto_shutdown(const std::string &payload)
   Serial.println(payload.c_str());
   if (payload == "true")
   {
-    if (state.is_auto_shutdown_enabled)
+    if (state.isAutoShutdownEnabled)
       return;
-    state.is_auto_shutdown_enabled = true;
+    state.isAutoShutdownEnabled = true;
     changed = true;
   }
   else if (payload == "false")
   {
-    if (!state.is_auto_shutdown_enabled)
+    if (!state.isAutoShutdownEnabled)
       return;
-    state.is_auto_shutdown_enabled = false;
+    state.isAutoShutdownEnabled = false;
     changed = true;
   }
   else
@@ -86,7 +82,7 @@ void handle_auto_shutdown(const std::string &payload)
   if (!mqttClient.isConnected() || !changed)
     return;
 
-  mqttClient.publish("heater/state/autoshutdown", state.is_auto_shutdown_enabled ? "true" : "false", 1, true);
+  mqttClient.publish("heater/state/autoshutdown", state.isAutoShutdownEnabled ? "true" : "false", 1, true);
 }
 
 // Required global callback for connection events
@@ -141,12 +137,12 @@ void connect_wifi()
 
 void tick()
 {
-  state.temperature += (state.power ? HEATRATE_C : -COOLRATE_C);
-  state.temperature = constrain(state.temperature, MIN_TEMPERATURE_C, MAX_TEMPERATURE_C);
+  state.temperature = temperatureModule.read();
 
-  if (state.is_auto_shutdown_enabled && state.temperature == MAX_TEMPERATURE_C && state.power)
+  if (state.isAutoShutdownEnabled && state.temperature >= MAX_TEMPERATURE_C && state.power)
   {
     state.power = false;
+    digitalWrite(LED_BUILTIN, LOW);
     if (mqttClient.isConnected())
       mqttClient.publish("heater/state/power", "false", 1, true);
   }
@@ -162,6 +158,7 @@ void setup()
   Serial.begin(115200);
 
   state = HeaterState();
+  temperatureModule = TemperatureModule();
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -169,6 +166,14 @@ void setup()
   mqttClient.loopStart();
 
   start_ms = millis();
+
+  if (mqttClient.isConnected())
+  {
+    mqttClient.publish("heater/state/power", "false", 1, true);
+    mqttClient.publish("heater/state/autoshutdown", "false", 1, true);
+    mqttClient.publish("heater/state/temperature", std::to_string(temperatureModule.read()), 1, true);
+  }
+
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
