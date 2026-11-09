@@ -1,4 +1,4 @@
-const WS_URL = "ws://192.168.1.129:8080";
+const WS_URL = "ws://192.168.1.154:8080";
 const RECONNECT_DELAY_MS = 2000;
 
 let fahrenheit = false;
