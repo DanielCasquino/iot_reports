@@ -1,51 +1,69 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-
-<head>
+  <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+    />
     <title>Terma Erma</title>
-</head>
+  </head>
 
-<body>
+  <body>
     <div id="top-bar" class="top-bar top-bar-off">
-        <span class="material-symbols-outlined">
-            wifi
-        </span>
+      <span class="material-symbols-outlined"> wifi </span>
     </div>
-    <span id="temp-display" class="temp-display">--.-°C</span>
 
-    <button id="big-button" class="big-button big-button-off" onclick="toggleTerma()">
-        <span class="material-symbols-outlined">
-            power_settings_new
-        </span>
-    </button>
+    <div class="content">
+      <span id="temp-display" class="temp-display">--.-°C</span>
 
-    <div class="option-list">
+      <button
+        id="big-button"
+        class="big-button big-button-off"
+        onclick="toggleTerma()"
+      >
+        <span class="material-symbols-outlined"> power_settings_new </span>
+      </button>
+
+      <div class="option-list">
         <div class="option">
-            <div class="option-header">
-                <span>Low Cortisol Mode</span>
-                <label class="switch">
-                    <input id="automated-shutdown" type="checkbox" onchange="toggleAutomatedShutdown(this)">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <span class="option-description">If enabled, the heater will turn off automatically when reaching
-                maximum temperature.</span>
+          <div class="option-header">
+            <span>Low Cortisol Mode</span>
+            <label class="switch">
+              <input
+                id="automated-shutdown"
+                type="checkbox"
+                onchange="toggleAutomatedShutdown(this)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <span class="option-description"
+            >If enabled, the heater will turn off automatically when reaching
+            maximum temperature.</span
+          >
         </div>
         <div class="option">
-            <div class="option-header">
-                <span>Fahrenheit Display</span>
-                <label class="switch">
-                    <input id="fahrenheit" type="checkbox" onchange="toggleFahrenheit(this)">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <span class="option-description">You're so weird if you use this.</span>
+          <div class="option-header">
+            <span>Fahrenheit Display</span>
+            <label class="switch">
+              <input
+                id="fahrenheit"
+                type="checkbox"
+                onchange="toggleFahrenheit(this)"
+              />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <span class="option-description"
+            >You're so weird if you use this.</span
+          >
         </div>
+      </div>
     </div>
-</body>
-<script src="script.js" defer></script>
-
+    <div class="bottom-bar"></div>
+    <div id="fg" class="fg"></div>
+  </body>
+  <script src="script.js" defer></script>
 </html>
