@@ -11,12 +11,14 @@ interface HeaterState {
   power: boolean | null;
   autoShutdown: boolean | null;
   temperature: number | null;
+  status: "online" | "offline" | null;
 }
 
 const heaterState: HeaterState = {
   power: null,
   autoShutdown: null,
   temperature: null,
+  status: null
 };
 
 let brokerConnected = false;
@@ -33,6 +35,9 @@ mqttClient.on("message", (topic, payload) => {
       break;
     case "heater/state/temperature":
       heaterState.temperature = Number(value);
+      break;
+    case "heater/status":
+      heaterState.status = value === "online" ? "online" : "offline";
       break;
   }
 
@@ -53,6 +58,7 @@ mqttClient.on("close", () => {
   brokerConnected = false;
 })
 
+// sends state to front when they connect
 wss.on("connection", (ws) => {
   ws.send(
     JSON.stringify({
@@ -60,17 +66,18 @@ wss.on("connection", (ws) => {
       data: heaterState,
     }),
   );
+  // commands from frontend to esp
   ws.on("message", (rawMessage) => {
     const message = JSON.parse(rawMessage.toString());
     switch (message.event) {
       case "set_heater_power":
-        console.log("sending power publish to ws");
+        console.log("Publishing power command from ws to esp");
         console.log(String(message.data.enabled));
         mqttClient.publish("heater/set/power", String(message.data.enabled));
         break;
 
       case "set_auto_shutdown":
-        console.log("sending auto shutdown publish to ws");
+        console.log("Publishing autoshutdown command from ws to esp");
         console.log(String(message.data.enabled));
         mqttClient.publish(
           "heater/set/autoshutdown",

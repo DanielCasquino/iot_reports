@@ -14,6 +14,7 @@ mqttClient.on("connect", () => {
     if (error) console.error("Subscription error:", error);
     else console.log("Subscribed to heater topics");
   });
+  mqttClient.subscribe("heater/status");
 });
 
 mqttClient.on("reconnect", () => {
