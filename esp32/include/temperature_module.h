@@ -1,16 +1,18 @@
+#pragma once
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include "config.h"
 
-OneWire oneWire(TEMPERATURE_SENSOR_PIN);
-DallasTemperature sensors(&oneWire);
-
 class TemperatureModule
 {
 public:
-    TemperatureModule()
+    TemperatureModule() {}
+
+    void setup()
     {
+        oneWire = OneWire(TEMPERATURE_SENSOR_PIN);
+        sensors = DallasTemperature(&oneWire);
         sensors.begin();
         Serial.println("Temperature module initialized");
     }
@@ -23,4 +25,8 @@ public:
             return temperature;
         return -1.0;
     }
+
+private:
+    OneWire oneWire;
+    DallasTemperature sensors;
 };

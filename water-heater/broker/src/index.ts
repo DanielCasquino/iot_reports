@@ -19,6 +19,8 @@ const heaterState: HeaterState = {
   temperature: null,
 };
 
+let brokerConnected = false;
+
 mqttClient.on("message", (topic, payload) => {
   const value = payload.toString();
 
@@ -41,6 +43,16 @@ mqttClient.on("message", (topic, payload) => {
   });
 });
 
+mqttClient.on("connect", () => {
+  brokerConnected = true;
+})
+mqttClient.on("offline", () => {
+  brokerConnected = false;
+})
+mqttClient.on("close", () => {
+  brokerConnected = false;
+})
+
 wss.on("connection", (ws) => {
   ws.send(
     JSON.stringify({
@@ -52,13 +64,13 @@ wss.on("connection", (ws) => {
     const message = JSON.parse(rawMessage.toString());
     switch (message.event) {
       case "set_heater_power":
-        console.log("sending power publish");
+        console.log("sending power publish to ws");
         console.log(String(message.data.enabled));
         mqttClient.publish("heater/set/power", String(message.data.enabled));
         break;
 
       case "set_auto_shutdown":
-        console.log("sending auto shutdown publish");
+        console.log("sending auto shutdown publish to ws");
         console.log(String(message.data.enabled));
         mqttClient.publish(
           "heater/set/autoshutdown",
