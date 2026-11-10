@@ -8,6 +8,7 @@ const heaterState = {
   power: false,
   autoShutdown: false,
   temperature: 0,
+  status: "offline"
 };
 
 // for weird people
@@ -64,12 +65,12 @@ function updateBrokerStatus(connected) {
   indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
 }
 
-function updateEspStatus(connected){
+function updateEspStatus() {
   const indicator = document.getElementById("esp-status");
 
   if (!indicator) return;
 
-  indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
+  indicator.className = `icon-wrapper icon-wrapper-${heaterState.status === "online" ? "on" : "off"}`;
 }
 
 // mqtt shi
@@ -78,15 +79,17 @@ function handleMqttMessage(data) {
 
   switch (topic) {
     case "heater/state/power":
-      heaterState.power = payload === "true";
-      updatePowerButton();
-      break;
-
+      {
+        heaterState.power = payload === "true";
+        updatePowerButton();
+        break;
+      }
     case "heater/state/autoshutdown":
-      heaterState.autoShutdown = payload === "true";
-      updateAutoShutdown();
-      break;
-
+      {
+        heaterState.autoShutdown = payload === "true";
+        updateAutoShutdown();
+        break;
+      }
     case "heater/state/temperature":
       {
         const temperature = Number.parseFloat(payload);
@@ -95,14 +98,22 @@ function handleMqttMessage(data) {
           heaterState.temperature = temperature;
           updateTemperature();
         }
+        break;
       }
-      break;
+    case "heater/status":
+      {
+        console.log("received " + payload + " from status");
+        heaterState.status = payload === "online" ? "online" : "offline";
+        updateEspStatus();
+      }
     default:
       console.debug("wuduhelllllllllllllllll ooomaga no wayayayyyy:", topic);
       break;
   }
 }
 
+// here we either received a state snapshot after requesting it on connection
+// or we receive a command
 function handleMessage(message) {
   switch (message.event) {
     case "state_snapshot":
@@ -111,6 +122,7 @@ function handleMessage(message) {
       updateAutoShutdown(heaterState.autoShutdown);
       if (heaterState.temperature !== null)
         updateTemperature(heaterState.temperature);
+      updateEspStatus(heaterState.status);
       break;
     case "mqtt_message":
       handleMqttMessage(message.data);
@@ -221,6 +233,7 @@ window.addEventListener("load", () => {
   updatePowerButton();
   updateAutoShutdown();
   updateBrokerStatus(false);
+  updateEspStatus();
 
   connect();
 });

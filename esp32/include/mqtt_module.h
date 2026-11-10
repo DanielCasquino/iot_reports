@@ -1,6 +1,7 @@
 #pragma once
 #include "ESP32MQTTClient.h"
 #include "heater_module.h"
+#include "config.h"
 
 ESP32MQTTClient mqttClient;
 
@@ -35,6 +36,10 @@ public:
             return;
         }
         mqttClient.setURI(BROKER_URI);
+
+        mqttClient.setKeepAlive(ESP_KEEPALIVE_SECONDS);
+        mqttClient.enableLastWillMessage("heater/status", "offline", true, 1);
+
         mqttClient.loopStart();
     }
     void attach(HeaterModule &h) { this->heaterModule = &h; }
@@ -52,7 +57,15 @@ public:
         if (!instance || !mqttClient.isMyTurn(client))
             return;
 
+        Serial.println("Connected to broker");
+
+        mqttClient.publish("heater/status", "online", 1, true);
+
         instance->subscribe();
+
+        instance->publishState();
+        instance->publishPowerState();
+        instance->publishAutoShutdown();
     }
     void handlePower(const std::string &payload)
     {

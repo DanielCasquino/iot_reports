@@ -17,7 +17,6 @@ unsigned long last_ms;
 void onMqttConnect(esp_mqtt_client_handle_t client)
 {
   MqttModule::onConnect(client);
-  Serial.println("Connected to broker");
 }
 
 void setup()
