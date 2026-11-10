@@ -56,12 +56,20 @@ function updateTemperature() {
   display.textContent = `${temperature.toFixed(1)}${unit}`;
 }
 
-function updateConnectionStatus(connected) {
-  const indicator = document.getElementById("top-bar");
+function updateBrokerStatus(connected) {
+  const indicator = document.getElementById("broker-status");
 
   if (!indicator) return;
 
-  indicator.className = `top-bar top-bar-${connected ? "on" : "off"}`;
+  indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
+}
+
+function updateEspStatus(connected){
+  const indicator = document.getElementById("esp-status");
+
+  if (!indicator) return;
+
+  indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
 }
 
 // mqtt shi
@@ -128,7 +136,7 @@ function connect() {
 
   socket.addEventListener("open", () => {
     console.log("WebSocket connected.");
-    updateConnectionStatus(true);
+    updateBrokerStatus(true);
   });
 
   socket.addEventListener("message", (event) => {
@@ -142,7 +150,7 @@ function connect() {
 
   socket.addEventListener("close", () => {
     console.log("WebSocket disconnected.");
-    updateConnectionStatus(false);
+    updateBrokerStatus(false);
 
     reconnectTimeout = setTimeout(connect, RECONNECT_DELAY_MS);
   });
@@ -212,7 +220,7 @@ window.addEventListener("load", () => {
 
   updatePowerButton();
   updateAutoShutdown();
-  updateConnectionStatus(false);
+  updateBrokerStatus(false);
 
   connect();
 });

@@ -256,7 +256,10 @@ input:checked + .slider:before {
   justify-content: end;
   height: 120;
   padding: 48px 50px;
+  gap: 24px;
+}
 
+.icon-wrapper{
   .material-symbols-outlined {
     font-size: 48px;
     transition:
@@ -265,11 +268,11 @@ input:checked + .slider:before {
   }
 }
 
-.top-bar-off {
+.icon-wrapper-off {
   color: var(--terma-off);
 }
 
-.top-bar-on {
+.icon-wrapper-on {
   color: var(--terma-on);
   text-shadow: 0px 0px 32px var(--terma-on-bloom);
 }
@@ -295,11 +298,11 @@ input:checked + .slider:before {
   );
   opacity: 0;
   mix-blend-mode: lighten;
-  transition: opacity 0.3s cubic-bezier(0.075, 0.82, 0.165, 3);
+  transition: opacity 1s cubic-bezier(0.075, 0.82, 0.165, 3);
   animation: pulse 2s infinite cubic-bezier(0.075, 0.82, 0.165, 1);
 }
 
-// slightly increase and decrease the gradient size to create a subtle pulsing effect
+/* slightly increase and decrease the gradient size to create a subtle pulsing effect */
 @keyframes pulse {
   0% {
     background-image: radial-gradient(
