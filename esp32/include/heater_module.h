@@ -2,6 +2,7 @@
 #include "temperature_module.h"
 #include "servo_module.h"
 #include "flow_module.h"
+#include "config.h"
 
 class HeaterModule
 {
@@ -11,7 +12,9 @@ public:
     {
         pinMode(LED_BUILTIN, OUTPUT);
         temperatureModule.setup();
-        servoModule.setup();
+        servoModuleA.setup(SERVO_PIN_A);
+        servoModuleB.setup(SERVO_PIN_B);
+        servoModuleC.setup(SERVO_PIN_C);
         flowModule.setup();
     }
 
@@ -26,7 +29,7 @@ public:
         if (isAutoShutdownEnabled && temp >= MAX_TEMPERATURE_C && power)
         {
             setPower(false);
-            servoModule.tap();
+            servoModuleA.tap();
             return true;
         }
         return false;
@@ -37,19 +40,26 @@ public:
     {
         power = p;
         digitalWrite(LED_BUILTIN, p);
-        servoModule.tap();
+        servoModuleA.tap();
+        servoModuleB.tap();
+        servoModuleC.tap();
     }
 
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
-    void setIsAutoShutdownEnabled(bool iase) { isAutoShutdownEnabled = iase; }
+    void setIsAutoShutdownEnabled(bool iase)
+    {
+        isAutoShutdownEnabled = iase;
+        servoModuleB.tap();
+    }
 
     float getTemperature() { return temperatureModule.read(); }
 
     float getFlowrate() { return flowModule.read(); }
+    float getVolume() { return flowModule.getTotalVolume(); }
 
 private:
     TemperatureModule temperatureModule;
-    ServoModule servoModule;
+    ServoModule servoModuleA, servoModuleB, servoModuleC;
     FlowModule flowModule;
 
     bool power = false;

@@ -1,17 +1,16 @@
 #pragma once
 #include <Arduino.h>
 #include <ESP32Servo.h>
-#include "config.h"
 
 class ServoModule
 {
 public:
     ServoModule() {}
 
-    void setup()
+    void setup(int servo_pin)
     {
         servo.setPeriodHertz(50);
-        servo.attach(SERVO_PIN, 500, 2400);
+        servo.attach(servo_pin, 500, 2400);
         servo.write(0);
         Serial.println("Servo module initialized");
     }
