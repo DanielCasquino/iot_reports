@@ -252,20 +252,22 @@ window.addEventListener("load", () => {
   connect();
 });
 
-async function captureTemperature() {
+async function captureTemperature(wake = false) {
   const button = document.getElementById("capture-temperature");
   const status = document.getElementById("camera-status");
+  const wakeButton = document.getElementById("wake-temperature");
   if (button) button.disabled = true;
+  if (wakeButton) wakeButton.disabled = true;
   if (status) status.textContent = "Capturing and reading display...";
   try {
-    const response = await fetch("/api/camera/capture", { method: "POST" });
+    const response = await fetch(wake ? "/api/camera/capture?wake=1" : "/api/camera/capture", { method: "POST" });
     const result = await response.json();
     if (status) status.textContent = result.error || `OCR: ${result.value}°C (${Math.round(result.confidence)}%)`;
     const image = document.getElementById("camera-preview");
     if (image) image.src = `/api/camera/image?t=${Date.now()}`;
   } catch (error) {
     if (status) status.textContent = "Camera/backend unavailable";
-  } finally { if (button) button.disabled = false; }
+  } finally { if (button) button.disabled = false; if (wakeButton) wakeButton.disabled = false; }
 }
 
 function updateColor() {

@@ -34,8 +34,11 @@ ESP32 receives it and publishes its state through the existing path.
    Initial OCR startup downloads an English model once; prewarm before losing
    Internet with `npm run test:ocr`, or supply `OCR_LANG_PATH` (see `.env.example`).
 
-No servo is automatically used to wake the display: that requires identifying
-and verifying a button action that does not toggle heater power. A dark display
+ServoA is the power/display button. **Wake display + read** publishes a separate
+non-retained `heater/command/wake_display=tap`, waits800ms and then captures.
+It is allowed only when ESP32 reports online/powerON; verify actual state before
+using it. It does not change logical power. Scheduled captures do not issue wake
+commands: automatic wake still requires validated dark-display detection. A dark display
 must produce unavailable, not a guessed temperature. Until that wake action is
 verified, automatic capture alone cannot guarantee continuously readable data.
 
@@ -55,8 +58,8 @@ verified, automatic capture alone cannot guarantee continuously readable data.
 - Camera diagnostics: `GET /api/camera/status` returns OCR text/confidence/error;
   `/api/camera/image` and `/api/camera/processed` return the last images in RAM.
 
-The three-servo test mapping is preserved. The redundant extra servoA tap after
-`setPower(false)` in auto-shutdown was removed; `setPower` already actuates it.
+Power now taps **servoA only**; the previous three-servo mapping was a bench test.
+ServoB/C initialization and other existing functions remain as before.
 No images or credentials are added to Git. No cloud service is required.
 
 ## TCS34725
@@ -65,7 +68,7 @@ No images or credentials are added to Git. No cloud service is required.
 `heater/state/color` (`R,G,B,C`) or `unavailable`. Values are also printed on
 serial and shown in the app. No uncalibrated red/green→heating inference.
 
-Chosen free pins: **SDA22, SCL23**, configurable in `esp32/include/config.h`.
+Chosen free pins: **SDA23, SCL22**, configurable in `esp32/include/config.h`.
 GPIO21 remains servoC, so do not use the usual default SDA21. Confirm actual
 wiring and module voltage labels; keep I2C signal levels compatible with3.3V.
 Absent sensor does not stop the other modules. Current gain1x/integration24ms
