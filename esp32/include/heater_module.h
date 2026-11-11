@@ -2,6 +2,7 @@
 #include "temperature_module.h"
 #include "servo_module.h"
 #include "flow_module.h"
+#include "color_module.h"
 #include "config.h"
 
 class HeaterModule
@@ -16,20 +17,21 @@ public:
         servoModuleB.setup(SERVO_PIN_B);
         servoModuleC.setup(SERVO_PIN_C);
         flowModule.setup();
+        colorModule.setup();
     }
 
     void loop()
     {
         flowModule.poll();
+        colorModule.poll();
     }
 
     bool monitorAutoShutdown()
     {
         float temp = temperatureModule.read();
-        if (isAutoShutdownEnabled && temp >= MAX_TEMPERATURE_C && power)
+        if (isAutoShutdownEnabled && temperatureModule.isAvailable() && temp >= MAX_TEMPERATURE_C && power)
         {
             setPower(false);
-            servoModuleA.tap();
             return true;
         }
         return false;
@@ -52,6 +54,11 @@ public:
         servoModuleB.tap();
     }
 
+    void setTemperature(float value) { temperatureModule.update(value); }
+    void invalidateTemperature() { temperatureModule.invalidate(); }
+    bool isTemperatureAvailable() { return temperatureModule.isAvailable(); }
+    ColorModule &getColor() { return colorModule; }
+
     float getTemperature() { return temperatureModule.read(); }
 
     float getFlowrate() { return flowModule.read(); }
@@ -61,6 +68,7 @@ private:
     TemperatureModule temperatureModule;
     ServoModule servoModuleA, servoModuleB, servoModuleC;
     FlowModule flowModule;
+    ColorModule colorModule;
 
     bool power = false;
     bool isAutoShutdownEnabled = false;

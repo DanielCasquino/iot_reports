@@ -2,6 +2,8 @@
 #include "ESP32MQTTClient.h"
 #include "heater_module.h"
 #include "config.h"
+#include <cstdlib>
+#include <cmath>
 
 ESP32MQTTClient mqttClient;
 
@@ -45,6 +47,8 @@ public:
     void attach(HeaterModule &h) { this->heaterModule = &h; }
     void subscribe()
     {
+        mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
+                             { handleTemperature(payload); });
         mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
                              { handlePower(payload); });
         mqttClient.subscribe("heater/set/autoshutdown", [this](const std::string &payload)
@@ -61,12 +65,25 @@ public:
 
         mqttClient.publish("heater/status", "online", 1, true);
 
+        instance->heaterModule->invalidateTemperature();
         instance->subscribe();
 
         instance->publishState();
         instance->publishPowerState();
         instance->publishAutoShutdown();
     }
+    void handleTemperature(const std::string &payload)
+    {
+        if (!heaterModule) return;
+        char *end = nullptr;
+        float value = strtof(payload.c_str(), &end);
+        if (payload.empty() || end == payload.c_str() || *end != '\0' ||
+            !std::isfinite(value) || value < 0 || value > 100)
+            heaterModule->invalidateTemperature();
+        else
+            heaterModule->setTemperature(value);
+    }
+
     void handlePower(const std::string &payload)
     {
         if (!heaterModule || !mqttClient.isConnected())
@@ -140,7 +157,16 @@ public:
     {
         if (!heaterModule || !mqttClient.isConnected())
             return;
-        mqttClient.publish("heater/state/temperature", std::to_string(heaterModule->getTemperature()), 1, true);
+        mqttClient.publish("heater/state/temperature",
+                           heaterModule->isTemperatureAvailable() ? std::to_string(heaterModule->getTemperature()) : "unavailable", 1, true);
+        ColorModule &color = heaterModule->getColor();
+        if (color.isAvailable() && color.hasReading())
+        {
+            std::string rgb = std::to_string(color.getRed()) + "," + std::to_string(color.getGreen()) + "," +
+                              std::to_string(color.getBlue()) + "," + std::to_string(color.getClear());
+            mqttClient.publish("heater/state/color", rgb, 1, true);
+        }
+        else mqttClient.publish("heater/state/color", "unavailable", 1, true);
         mqttClient.publish("heater/state/flowrate", std::to_string(heaterModule->getFlowrate()), 1, true);
     }
 

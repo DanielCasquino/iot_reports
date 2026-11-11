@@ -6,18 +6,21 @@ import { wss, broadcast } from "./websocket/server.js";
 import { fileURLToPath } from "url";
 import express from "express";
 import path from "path";
+import { CameraModule } from "./camera/module.js";
 
 interface HeaterState {
   power: boolean | null;
   autoShutdown: boolean | null;
   temperature: number | null;
   status: "online" | "offline" | null;
+  color: string | null;
 }
 
 const heaterState: HeaterState = {
   power: null,
   autoShutdown: null,
   temperature: null,
+  color: null,
   status: null
 };
 
@@ -34,10 +37,14 @@ mqttClient.on("message", (topic, payload) => {
       heaterState.autoShutdown = value === "true";
       break;
     case "heater/state/temperature":
-      heaterState.temperature = Number(value);
+      heaterState.temperature = value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+      break;
+    case "heater/state/color":
+      heaterState.color = value === "unavailable" ? null : value;
       break;
     case "heater/status":
       heaterState.status = value === "online" ? "online" : "offline";
+      if (heaterState.status === "offline") heaterState.temperature = null;
       break;
   }
 
@@ -53,9 +60,13 @@ mqttClient.on("connect", () => {
 })
 mqttClient.on("offline", () => {
   brokerConnected = false;
+  heaterState.temperature = null;
+  broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
 mqttClient.on("close", () => {
   brokerConnected = false;
+  heaterState.temperature = null;
+  broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
 
 // sends state to front when they connect
@@ -94,6 +105,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const cameraModule = new CameraModule(mqttClient);
+cameraModule.setup(app);
 
 const frontendPath = path.resolve(__dirname, "../../front");
 
