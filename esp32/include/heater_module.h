@@ -43,9 +43,9 @@ public:
         power = p;
         digitalWrite(LED_BUILTIN, p);
         servoModuleA.tap();
-        servoModuleB.tap();
-        servoModuleC.tap();
     }
+
+    void wakeDisplay() { if (power) servoModuleA.tap(); }
 
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
     void setIsAutoShutdownEnabled(bool iase)

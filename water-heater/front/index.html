@@ -25,6 +25,7 @@
 
       <span id="temperature-status">Temperature unavailable</span>
       <button id="capture-temperature" onclick="captureTemperature()">Read display</button>
+      <button id="wake-temperature" onclick="captureTemperature(true)">Wake display + read (power already ON)</button>
       <span id="color-display">RGB sensor unavailable</span>
       <span id="camera-status" aria-live="polite"></span>
       <details><summary>Camera preview</summary><img id="camera-preview" alt="Last captured display" style="max-width:100%"></details>

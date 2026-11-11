@@ -20,7 +20,7 @@ export class CameraModule {
     text: "", confidence: 0, error: "No capture yet",
   };
 
-  constructor(private mqtt: MqttClient) {}
+  constructor(private mqtt: MqttClient, private isPoweredOn: () => boolean = () => false) {}
 
   setup(app: Express) {
     app.get("/api/camera/status", (_req, res) => res.json(this.state));
@@ -32,9 +32,9 @@ export class CameraModule {
       if (!this.processed) { res.status(404).end(); return; }
       res.set("Cache-Control", "no-store").type("png").send(this.processed);
     });
-    app.post("/api/camera/capture", async (_req, res) => {
+    app.post("/api/camera/capture", async (req, res) => {
       if (this.busy) { res.status(409).json({ error: "Capture already running" }); return; }
-      const ok = await this.capture();
+      const ok = await this.capture(req.query.wake === "1");
       res.status(ok ? 200 : 422).json(this.state);
     });
     const interval = Number(process.env.CAMERA_POLL_MS ?? 5000);
@@ -67,10 +67,16 @@ export class CameraModule {
     return Buffer.concat(chunks);
   }
 
-  async capture(): Promise<boolean> {
+  async capture(wake = false): Promise<boolean> {
     if (this.busy || this.stopped) return false;
     this.busy = true;
     try {
+      if (wake) {
+        if (!this.mqtt.connected || !this.isPoweredOn())
+          throw new Error("Wake requires an online ESP32 reporting power ON; confirm actual heater state first");
+        this.mqtt.publish("heater/command/wake_display", "tap", { qos: 0, retain: false });
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
       // Existing one-buffer camera firmware can hold an older frame: discard one.
       await this.fetchImage();
       this.image = await this.fetchImage();

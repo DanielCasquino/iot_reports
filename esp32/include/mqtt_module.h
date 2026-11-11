@@ -47,6 +47,8 @@ public:
     void attach(HeaterModule &h) { this->heaterModule = &h; }
     void subscribe()
     {
+        mqttClient.subscribe("heater/command/wake_display", [this](const std::string &payload)
+                             { if (heaterModule && payload == "tap") heaterModule->wakeDisplay(); });
         mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
                              { handleTemperature(payload); });
         mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
