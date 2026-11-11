@@ -48,14 +48,14 @@
   }
 }
 
-/* input,
+input,
 textarea,
 button,
 select,
 label,
 a {
   -webkit-tap-highlight-color: transparent;
-} */
+}
 
 html {
   box-sizing: border-box;
@@ -259,7 +259,7 @@ input:checked + .slider:before {
   gap: 24px;
 }
 
-.icon-wrapper{
+.icon-wrapper {
   .material-symbols-outlined {
     font-size: 48px;
     transition:

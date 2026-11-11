@@ -1,4 +1,4 @@
-const WS_URL = "ws://192.168.1.154:8080";
+const WS_URL = "ws://10.75.44.228:8080";
 const RECONNECT_DELAY_MS = 2000;
 
 let fahrenheit = false;
@@ -8,7 +8,7 @@ const heaterState = {
   power: false,
   autoShutdown: false,
   temperature: 0,
-  status: "offline"
+  status: "offline",
 };
 
 // for weird people
@@ -78,34 +78,30 @@ function handleMqttMessage(data) {
   const { topic, payload } = data;
 
   switch (topic) {
-    case "heater/state/power":
-      {
-        heaterState.power = payload === "true";
-        updatePowerButton();
-        break;
-      }
-    case "heater/state/autoshutdown":
-      {
-        heaterState.autoShutdown = payload === "true";
-        updateAutoShutdown();
-        break;
-      }
-    case "heater/state/temperature":
-      {
-        const temperature = Number.parseFloat(payload);
+    case "heater/state/power": {
+      heaterState.power = payload === "true";
+      updatePowerButton();
+      break;
+    }
+    case "heater/state/autoshutdown": {
+      heaterState.autoShutdown = payload === "true";
+      updateAutoShutdown();
+      break;
+    }
+    case "heater/state/temperature": {
+      const temperature = Number.parseFloat(payload);
 
-        if (Number.isFinite(temperature)) {
-          heaterState.temperature = temperature;
-          updateTemperature();
-        }
-        break;
+      if (Number.isFinite(temperature)) {
+        heaterState.temperature = temperature;
+        updateTemperature();
       }
-    case "heater/status":
-      {
-        console.log("received " + payload + " from status");
-        heaterState.status = payload === "online" ? "online" : "offline";
-        updateEspStatus();
-      }
+      break;
+    }
+    case "heater/status": {
+      console.log("received " + payload + " from status");
+      heaterState.status = payload === "online" ? "online" : "offline";
+      updateEspStatus();
+    }
     default:
       console.debug("wuduhelllllllllllllllll ooomaga no wayayayyyy:", topic);
       break;
