@@ -1,4 +1,4 @@
-const WS_URL = "ws://10.75.44.228:8080";
+const WS_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.hostname}:8080`;
 const RECONNECT_DELAY_MS = 2000;
 
 let fahrenheit = false;
@@ -7,8 +7,10 @@ let socket;
 const heaterState = {
   power: false,
   autoShutdown: false,
-  temperature: 0,
+  temperature: null,
+  lastTemperature: null,
   status: "offline",
+  color: null,
 };
 
 // for weird people
@@ -46,7 +48,18 @@ function updateTemperature() {
     fg.style.opacity = opacity;
   }
 
-  if (!display || heaterState.temperature === null) return;
+  if (!display) return;
+  if (heaterState.temperature === null) {
+    display.textContent = "--.-°C";
+    if (fg) fg.style.opacity = 0;
+    const status = document.getElementById("temperature-status");
+    if (status) status.textContent = heaterState.lastTemperature === null
+      ? "Temperature unavailable" : `Last reading: ${heaterState.lastTemperature.toFixed(1)}°C (not current)`;
+    return;
+  }
+  heaterState.lastTemperature = heaterState.temperature;
+  const status = document.getElementById("temperature-status");
+  if (status) status.textContent = "Current OCR reading";
 
   const temperature = fahrenheit
     ? c2f(heaterState.temperature)
@@ -89,17 +102,20 @@ function handleMqttMessage(data) {
       break;
     }
     case "heater/state/temperature": {
-      const temperature = Number.parseFloat(payload);
-
-      if (Number.isFinite(temperature)) {
-        heaterState.temperature = temperature;
-        updateTemperature();
-      }
+      const temperature = payload.trim() === "" ? NaN : Number(payload);
+      heaterState.temperature = Number.isFinite(temperature) && temperature >= 0 && temperature <= 100 ? temperature : null;
+      updateTemperature();
+      break;
+    }
+    case "heater/state/color": {
+      heaterState.color = payload === "unavailable" ? null : payload;
+      updateColor();
       break;
     }
     case "heater/status": {
       console.log("received " + payload + " from status");
       heaterState.status = payload === "online" ? "online" : "offline";
+      if (heaterState.status === "offline") { heaterState.temperature = null; updateTemperature(); }
       updateEspStatus();
     }
     default:
@@ -116,9 +132,9 @@ function handleMessage(message) {
       Object.assign(heaterState, message.data);
       updatePowerButton(heaterState.power);
       updateAutoShutdown(heaterState.autoShutdown);
-      if (heaterState.temperature !== null)
-        updateTemperature(heaterState.temperature);
+      updateTemperature();
       updateEspStatus(heaterState.status);
+      updateColor();
       break;
     case "mqtt_message":
       handleMqttMessage(message.data);
@@ -159,6 +175,8 @@ function connect() {
   socket.addEventListener("close", () => {
     console.log("WebSocket disconnected.");
     updateBrokerStatus(false);
+    heaterState.temperature = null;
+    updateTemperature();
 
     reconnectTimeout = setTimeout(connect, RECONNECT_DELAY_MS);
   });
@@ -233,3 +251,24 @@ window.addEventListener("load", () => {
 
   connect();
 });
+
+async function captureTemperature() {
+  const button = document.getElementById("capture-temperature");
+  const status = document.getElementById("camera-status");
+  if (button) button.disabled = true;
+  if (status) status.textContent = "Capturing and reading display...";
+  try {
+    const response = await fetch("/api/camera/capture", { method: "POST" });
+    const result = await response.json();
+    if (status) status.textContent = result.error || `OCR: ${result.value}°C (${Math.round(result.confidence)}%)`;
+    const image = document.getElementById("camera-preview");
+    if (image) image.src = `/api/camera/image?t=${Date.now()}`;
+  } catch (error) {
+    if (status) status.textContent = "Camera/backend unavailable";
+  } finally { if (button) button.disabled = false; }
+}
+
+function updateColor() {
+  const display = document.getElementById("color-display");
+  if (display) display.textContent = heaterState.color === null ? "RGB sensor unavailable" : `Raw R,G,B,C: ${heaterState.color}`;
+}

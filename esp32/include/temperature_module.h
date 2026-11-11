@@ -1,32 +1,32 @@
 #pragma once
 #include <Arduino.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
+#include <math.h>
 #include "config.h"
 
+// Temperature comes from backend OCR; it is not a probe reading anymore.
 class TemperatureModule
 {
 public:
-    TemperatureModule() {}
+    void setup() { Serial.println("Temperature module initialized (MQTT/OCR)"); }
 
-    void setup()
+    void update(float temperature)
     {
-        oneWire = OneWire(TEMPERATURE_SENSOR_PIN);
-        sensors = DallasTemperature(&oneWire);
-        sensors.begin();
-        Serial.println("Temperature module initialized");
+        if (!isfinite(temperature) || temperature < 0 || temperature > 100)
+        {
+            invalidate();
+            return;
+        }
+        value = temperature;
+        observedAt = millis();
+        available = true;
     }
 
-    float read()
-    {
-        sensors.requestTemperatures();
-        float temperature = sensors.getTempCByIndex(0);
-        if (temperature != DEVICE_DISCONNECTED_C)
-            return temperature;
-        return -1.0;
-    }
+    void invalidate() { available = false; }
+    bool isAvailable() { return available && millis() - observedAt <= TEMPERATURE_MAX_AGE_MS; }
+    float read() { return isAvailable() ? value : NAN; }
 
 private:
-    OneWire oneWire;
-    DallasTemperature sensors;
+    float value = NAN;
+    unsigned long observedAt = 0;
+    bool available = false;
 };

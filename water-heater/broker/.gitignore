@@ -1,3 +1,6 @@
 node_modules/
 dist/
 .env
+*.traineddata
+*.traineddata.gz
+ocr-data/
