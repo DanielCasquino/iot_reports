@@ -57,6 +57,20 @@ public:
                              });
         mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
                              { handleTemperature(payload); });
+        mqttClient.subscribe("heater/input/temperature_verification", [this](const std::string &payload)
+                             {
+                                 auto separator = payload.find(',');
+                                 if (!heaterModule || separator == std::string::npos) return;
+                                 std::string token = payload.substr(0, separator);
+                                 if (token.empty() || token.find_first_not_of("0123456789") != std::string::npos) return;
+                                 unsigned long long id = strtoull(token.c_str(), nullptr, 10);
+                                 if (id > UINT32_MAX) return;
+                                 const char *number = payload.c_str() + separator + 1;
+                                 char *end = nullptr;
+                                 float value = strtof(number, &end);
+                                 if (end != number && *end == '\0' && std::isfinite(value))
+                                     heaterModule->verifyTemperature(uint32_t(id), value);
+                             });
         mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
                              { handlePower(payload); });
         mqttClient.subscribe("heater/set/autoshutdown", [this](const std::string &payload)
@@ -102,29 +116,25 @@ public:
             publishPowerState();
             return;
         }
-        bool changed = false;
         Serial.println(payload.c_str());
         if (payload == "true")
         {
             if (heaterModule->getPower())
                 return;
-            changed = heaterModule->setPower(true);
+            heaterModule->requestPower(true);
         }
         else if (payload == "false")
         {
             if (!heaterModule->getPower())
                 return;
-            changed = heaterModule->setPower(false);
+            heaterModule->requestPower(false);
         }
         else
         {
             Serial.println("Invalid power payload");
         }
 
-        if (!mqttClient.isConnected() || !changed)
-            return;
-
-        publishPowerState();
+        // Main loop executes the servo command and publishes the resulting power state.
     }
 
     void handleAutoShutdown(const std::string &payload)
@@ -165,12 +175,23 @@ public:
         publishPowerState();
         publishAutoShutdown();
     }
+    void requestTemperatureVerification()
+    {
+        if (!heaterModule || !mqttClient.isConnected() || !heaterModule->needsTemperatureVerification()) return;
+        mqttClient.publish("heater/command/verify_temperature",
+                           std::to_string(heaterModule->temperatureVerificationId()), 0, false);
+    }
     void publishState()
     {
         if (!heaterModule || !mqttClient.isConnected())
             return;
         mqttClient.publish("heater/state/temperature",
                            heaterModule->isTemperatureAvailable() ? std::to_string(heaterModule->getTemperature()) : "unavailable", 1, true);
+        mqttClient.publish("heater/state/temperature_adjustment", heaterModule->getAdjustmentStatus(), 1, true);
+        mqttClient.publish("heater/state/temperature_locked", heaterModule->isTemperatureLocked() ? "true" : "false", 1, true);
+        mqttClient.publish("heater/state/temperature_target",
+                           std::string(heaterModule->getAdjustmentStatus()) == "idle" ? "unavailable" :
+                           std::to_string(heaterModule->getTargetTemperature()), 1, true);
         ColorModule &color = heaterModule->getColor();
         if (color.isAvailable() && color.hasReading())
         {
