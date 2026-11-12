@@ -23,11 +23,15 @@ export function classifyPilot(raw: string | null, env: NodeJS.ProcessEnv = proce
   const red = parseColor(env.COLOR_RED_REFERENCE);
   const green = parseColor(env.COLOR_GREEN_REFERENCE);
   const tolerance = Number(env.COLOR_MAX_DISTANCE);
-  if (!red?.[3] || !green?.[3] || !Number.isFinite(tolerance) || tolerance <= 0) return "unknown";
-  const r = distance(sample, red), g = distance(sample, green);
+  // A positive match against either measured reference is enough to establish
+  // that state. Requiring both references blocked red-only calibration, which
+  // is exactly the case needed to recover from an unknown power state.
+  if ((!red?.[3] && !green?.[3]) || !Number.isFinite(tolerance) || tolerance <= 0) return "unknown";
+  const r = red?.[3] ? distance(sample, red) : Infinity;
+  const g = green?.[3] ? distance(sample, green) : Infinity;
   // Overlapping calibration regions are ambiguous, not evidence for either state.
-  if ((r <= tolerance) === (g <= tolerance)) return "unknown";
-  return r <= tolerance ? "heating" : "ready";
+  if (r <= tolerance && g <= tolerance) return "unknown";
+  return r <= tolerance ? "heating" : g <= tolerance ? "ready" : "unknown";
 }
 
 export class HeaterObservation {

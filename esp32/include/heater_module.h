@@ -62,6 +62,8 @@ public:
     bool isPowerKnown() { return powerKnown; }
     void observePowerOn()
     {
+        if (!powerKnown || !power)
+            Serial.println("Power observed on from pilot");
         power = true;
         powerKnown = true;
         digitalWrite(LED_BUILTIN, HIGH);

@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "test": "tsx --test test/*.test.ts",
     "test:ocr": "tsx test/ocr-smoke.ts",
+    "calibrate:color": "node scripts/color-calibration.mjs",
     "security:check": "npm audit --audit-level=low"
   },
   "keywords": [],
