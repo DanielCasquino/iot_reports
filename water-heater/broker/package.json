@@ -21,7 +21,7 @@
     "mqtt": "^5.16.1",
     "ws": "^8.22.0",
     "tesseract.js": "^6.0.1",
-    "sharp": "^0.34.0"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -31,7 +31,9 @@
     "typescript": "^7.0.2"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "sharp@0.35.5": true,
+    "tesseract.js": false
   },
   "overrides": {
     "wasm-feature-detect": "1.8.0"
