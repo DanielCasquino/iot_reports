@@ -12,3 +12,15 @@ test("malformed or unexpected WebSocket input never crashes or becomes an actuat
   assert.deepEqual(parseCommand('{"event":"set_auto_shutdown","data":{"enabled":true}}'),
     { topic: "heater/set/autoshutdown", payload: "true" });
 });
+
+test("temperature commands validate integer targets, baseline and request IDs", () => {
+  assert.deepEqual(parseCommand(JSON.stringify({ event: "set_temperature", data: { target: 46, base: 43, requestId: 123 } })),
+    { topic: "heater/set/temperature", payload: "123,43,46" });
+  assert.deepEqual(parseCommand(JSON.stringify({ event: "sync_temperature_base", data: { target: 43, base: 46, requestId: 124 } })),
+    { topic: "heater/set/temperature_base", payload: "124,46,43" });
+  for (const target of [34, 76, 43.5, "44", null])
+    assert.equal(parseCommand(JSON.stringify({ event: "set_temperature", data: { target, base: 43, requestId: 1 } })), null);
+  for (const data of [{ target: 44, base: 43 }, { target: 44, base: 0, requestId: 1 },
+    { target: 44, base: 43, requestId: 0 }, { target: 44, base: 43, requestId: 4294967296 }])
+    assert.equal(parseCommand(JSON.stringify({ event: "set_temperature", data })), null);
+});

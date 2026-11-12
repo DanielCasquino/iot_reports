@@ -19,6 +19,7 @@ public:
         adjustment.requestId = esp_random();
         observations = xQueueCreate(8, sizeof(Observation));
         powerRequests = xQueueCreate(4, sizeof(bool));
+        temperatureRequests = xQueueCreate(4, sizeof(TemperatureRequest));
         pinMode(LED_BUILTIN, OUTPUT);
 #if TEMPORARY_SENSOR_TEST_MODE
         // TEMPORARY: do not wait for the RGB pilot to establish initial power.
@@ -44,6 +45,25 @@ public:
         bool requestedPower;
         if (powerRequests && xQueueReceive(powerRequests, &requestedPower, 0) == pdTRUE && setPower(requestedPower))
             return true;
+        TemperatureRequest request;
+        if (temperatureRequests && xQueueReceive(temperatureRequests, &request, 0) == pdTRUE) {
+            if (request.id != lastTemperatureCommandId) {
+                lastTemperatureCommandId = request.id;
+                temperatureCommandResult = "accepted";
+#if TEMPORARY_SENSOR_TEST_MODE
+                if (adjustment.state != TemperatureAdjustment::State::Idle) temperatureCommandResult = "busy";
+                else if (request.target < MIN_TEMPERATURE_C || request.target > MAX_TEMPERATURE_C) temperatureCommandResult = "invalid";
+                else if (request.calibrate) testSetpoint = request.target;
+                else if (!powerKnown || !power) temperatureCommandResult = "off";
+                else if (request.base != testSetpoint) temperatureCommandResult = "base_mismatch";
+                else if (!adjustment.applyTarget(request.target, testSetpoint)) temperatureCommandResult = "invalid";
+#else
+                temperatureCommandResult = "disabled";
+#endif
+            }
+            temperatureControlChanged = true;
+        }
+        auto previousAdjustmentState = adjustment.state;
         Observation observation;
         while (observations && xQueueReceive(observations, &observation, 0) == pdTRUE) {
 #if !TEMPORARY_SENSOR_TEST_MODE
@@ -71,6 +91,7 @@ public:
                 // Water temperature is not the display setpoint. Track test presses
                 // separately from the actual probe measurement.
                 adjustment.select(increasePressed ? 1 : -1, testSetpoint, millis());
+                temperatureControlChanged = true;
 #else
                 adjustment.select(increasePressed ? 1 : -1, temperatureModule.read(), millis());
 #endif
@@ -86,16 +107,13 @@ public:
                 testSetpoint += direction * TEMPERATURE_STEP_C;
 #endif
                 adjustment.completedPress(millis());
-#if TEMPORARY_SENSOR_TEST_MODE
-                // TEMPORARY: do not wait for camera confirmation after the batch.
-                // This is only an estimated setpoint, never a sensor reading.
-                if (adjustment.state == TemperatureAdjustment::State::Verifying) {
-                    testSetpoint = adjustment.target;
-                    adjustment.cancel();
-                }
-#endif
             }
         }
+#if TEMPORARY_SENSOR_TEST_MODE
+        // Camera remains bypassed; wait for the physical panel to save first.
+        adjustment.finishWithoutCamera(millis());
+#endif
+        if (previousAdjustmentState != adjustment.state) temperatureControlChanged = true;
         return false;
     }
 
@@ -127,6 +145,7 @@ public:
         if (!powerKnown || power == p || !tapPowerButton())
             return false;
         adjustment.cancel();
+        temperatureControlChanged = true;
         power = p;
         digitalWrite(LED_BUILTIN, p);
         invalidateTemperature();
@@ -153,7 +172,30 @@ public:
 #endif
     }
     uint32_t temperatureVerificationId() { return adjustment.requestId; }
-    const char *getAdjustmentStatus() { return adjustment.status(); }
+    const char *getAdjustmentStatus() {
+#if TEMPORARY_SENSOR_TEST_MODE
+        if (adjustment.state == TemperatureAdjustment::State::Verifying) return "settling";
+#endif
+        return adjustment.status();
+    }
+    void requestTemperatureControl(uint32_t id, int base, int target, bool calibrate) {
+        TemperatureRequest request{id, base, target, calibrate};
+        if (temperatureRequests) xQueueSend(temperatureRequests, &request, 0);
+    }
+    int getSetpoint() {
+#if TEMPORARY_SENSOR_TEST_MODE
+        return testSetpoint;
+#else
+        return -1;
+#endif
+    }
+    uint32_t getTemperatureCommandId() { return lastTemperatureCommandId; }
+    const char *getTemperatureCommandResult() { return temperatureCommandResult; }
+    bool takeTemperatureControlChanged() {
+        bool changed = temperatureControlChanged;
+        temperatureControlChanged = false;
+        return changed;
+    }
     bool isTemperatureLocked() { return adjustment.locked(); }
     int getTargetTemperature() { return adjustment.target; }
     void invalidateTemperature() {
@@ -188,6 +230,11 @@ private:
         return true;
     }
 
+    struct TemperatureRequest { uint32_t id; int base; int target; bool calibrate; };
+    QueueHandle_t temperatureRequests = nullptr;
+    uint32_t lastTemperatureCommandId = 0;
+    const char *temperatureCommandResult = "none";
+    bool temperatureControlChanged = true;
     struct Observation { float value; uint32_t id; bool verification; };
     QueueHandle_t observations = nullptr;
     QueueHandle_t powerRequests = nullptr;

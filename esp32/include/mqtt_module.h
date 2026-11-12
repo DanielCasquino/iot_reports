@@ -4,6 +4,7 @@
 #include "config.h"
 #include <cstdlib>
 #include <cmath>
+#include <cstdio>
 
 ESP32MQTTClient mqttClient;
 
@@ -71,6 +72,8 @@ public:
                                  if (end != number && *end == '\0' && std::isfinite(value))
                                      heaterModule->verifyTemperature(uint32_t(id), value);
                              });
+        mqttClient.subscribe("heater/set/temperature", [this](const std::string &payload) { handleTemperatureControl(payload, false); });
+        mqttClient.subscribe("heater/set/temperature_base", [this](const std::string &payload) { handleTemperatureControl(payload, true); });
         mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
                              { handlePower(payload); });
         mqttClient.subscribe("heater/set/autoshutdown", [this](const std::string &payload)
@@ -106,6 +109,27 @@ public:
             heaterModule->setTemperature(value);
     }
 
+    void handleTemperatureControl(const std::string &payload, bool calibrate)
+    {
+        if (!heaterModule || payload.size() > 40) return;
+        unsigned long id = 0;
+        int base = 0, target = 0, consumed = 0;
+        if (sscanf(payload.c_str(), "%lu,%d,%d%n", &id, &base, &target, &consumed) != 3 ||
+            consumed != int(payload.size()) || id == 0 || target < MIN_TEMPERATURE_C || target > MAX_TEMPERATURE_C) return;
+        heaterModule->requestTemperatureControl(uint32_t(id), base, target, calibrate);
+    }
+    void publishTemperatureControl()
+    {
+        if (!heaterModule || !mqttClient.isConnected()) return;
+        std::string payload = "{\"base\":" + std::to_string(heaterModule->getSetpoint()) +
+            ",\"target\":" + std::to_string(heaterModule->getTargetTemperature()) +
+            ",\"status\":\"" + heaterModule->getAdjustmentStatus() + "\",\"locked\":" +
+            (heaterModule->isTemperatureLocked() ? "true" : "false") +
+            ",\"min\":" + std::to_string(int(MIN_TEMPERATURE_C)) + ",\"max\":" + std::to_string(int(MAX_TEMPERATURE_C)) +
+            ",\"commandId\":" + std::to_string(heaterModule->getTemperatureCommandId()) +
+            ",\"result\":\"" + heaterModule->getTemperatureCommandResult() + "\"}";
+        mqttClient.publish("heater/state/temperature_control", payload, 1, true);
+    }
     void handlePower(const std::string &payload)
     {
         if (!heaterModule || !mqttClient.isConnected())
@@ -192,6 +216,7 @@ public:
         mqttClient.publish("heater/state/temperature_target",
                            std::string(heaterModule->getAdjustmentStatus()) == "idle" ? "unavailable" :
                            std::to_string(heaterModule->getTargetTemperature()), 1, true);
+        publishTemperatureControl();
         ColorModule &color = heaterModule->getColor();
         if (color.isAvailable() && color.hasReading())
         {

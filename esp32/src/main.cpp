@@ -37,6 +37,8 @@ void loop()
 {
   if (heaterModule.loop())
     mqttModule.publishPowerState();
+  if (heaterModule.takeTemperatureControlChanged())
+    mqttModule.publishTemperatureControl();
   mqttModule.requestTemperatureVerification();
   unsigned long curr_ms = millis();
   if (curr_ms - last_ms >= TICK_INTERVAL_MS)
