@@ -1,12 +1,22 @@
-Domestic electric storage water heaters may require users to be near the appliance to read its temperature and operate its controls.
-The Rheem EW1-50RP (50 L, 1500 W) is the reference case for this project. It already measures and displays the temperature at the
-center of its tank, controls heating through its own thermostat, and offers an AI Smart mode~\cite{rheemmanual}.
-The missing function addressed here is remote access to the existing panel information and on/off button.
+Domestic electric storage water heaters may require users to be physically near the appliance to monitor its temperature and
+operate its controls. 
+The Rheem EW1-50RP (50 L, 1500 W) is the reference appliance for this project.
+It measures and displays the temperature at the center of its tank, controls heating through an internal thermostat,
+and provides an AI Smart operating mode~\cite{rheemmanual}.
+However, access to its temperature readings and control interface is restricted to the appliance's physical panel.
 
-This proposal adds a removable external IoT layer.
-A camera reads the displayed temperature, while an RGB sensor observes the heating LED indicator (pilot), and a flow sensor measures
-water use at an accessible pipe connection. Servos are also used to press the original on/off buttons.
+This project addresses this limitation through an external Internet of Things (IoT) system that integrates sensing,
+mechanical actuation, and wireless communication without modifying the heater's internal electrical circuitry.
+An ESP32-CAM captures images of the original temperature display for optical recognition, while a RGB sensor monitors the heating indicator.
+Additionally, a Hall-effect flow sensor measures water flow and accumulated consumption through an external pipe connection.
 
-A mobile application presents the three measurements and sends an on/off request, and a simple voice interface uses the same request path.
-The prototype is specific to the EW1-50RP (it retains its own temperature setting and electrical safeguards), while the underlying
-access problem can affect other appliances with local-only controls.
+An ESP32-WROOM microcontroller coordinates sensor acquisition, servo actuation, and communication through the MQTT protocol.
+A Node.js application service processes camera images, manages MQTT messages, and communicates with a web-based dashboard
+through WebSocket. This architecture enables remote visualization of temperature readings, sensor measurements, and device information,
+while allowing control commands to be transmitted to the embedded controller.
+
+The system is designed around the Rheem EW1-50RP while preserving the heater's original temperature regulation and
+electrical protection mechanisms.
+Its modular architecture also provides a reference for extending monitoring and external control capabilities to other
+appliances with local-only interfaces.
+
