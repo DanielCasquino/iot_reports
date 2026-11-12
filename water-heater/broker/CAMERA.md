@@ -98,8 +98,11 @@ does **not** mean asleep, so it never triggers an automatic power-button tap.
 The `power` field is the controller's logical state, not an independently measured
 mains state. A dark pilot cannot distinguish OFF from loss of supply.
 
-RGB classification stays `unknown` until references and a distance tolerance are
-provided from repeated measurements with the sensor in its final position:
+RGB classification stays `unknown` until at least one reference and a distance
+tolerance are provided from repeated measurements with the sensor in its final
+position. Only one reference is required: a red match alone reports `heating`
+(and recovers `power=on`); a green match reports `ready`. Calibrate both if the
+pilot may be green at restart, because red-only cannot confirm a green pilot.
 
 - `COLOR_RED_REFERENCE=R,G,B,C` for the heating pilot.
 - `COLOR_GREEN_REFERENCE=R,G,B,C` for the heat-preservation pilot.
@@ -108,6 +111,12 @@ provided from repeated measurements with the sensor in its final position:
   stay unknown. Do not copy arbitrary RGB values as calibration.
 - Optional `COLOR_DARK_MAX_CLEAR` is the maximum measured C for an unlit pilot.
   The resulting state is `unlit`, not a power or heating diagnosis.
+
+From `water-heater/broker/`, run `npm run calibrate:color red` with the red pilot
+lit (and optionally `green`/`unlit`) to collect live samples and print the values
+for `.env`. Restart the backend after editing `.env`; `.env` is not watched. The
+backend logs pilot transitions and the `heater/input/power=true` inference, so a
+missing reference or an out-of-tolerance sample is visible without guessing.
 
 The TCS retries initialization every five seconds if missing and invalidates its
 sample on I2C disconnection. Calibrate/check red, green, unlit and ambient light;
@@ -148,9 +157,13 @@ flow formula are preserved.
 ## Restart state synchronization (pending physical calibration)
 
 Controller starts with `heater/state/power=unknown`, not a measured OFF. Absolute
-power requests are rejected until observed state is known. Fresh calibrated RGB
-classified as heating/ready lets the backend publish non-retained
+power requests are rejected until observed state is known. While power is unknown,
+fresh calibrated RGB classified as heating/ready lets the backend publish non-retained
 `heater/input/power=true`; dark, uncalibrated or unreadable data never publish false.
+A red reference alone is sufficient for this inference. The backend clears its
+cached power whenever the controller reports its status, so a stale `true` from
+before a controller restart cannot suppress the inference. It does not infer ON
+while power is known to be false, so it cannot race a commanded OFF.
 An explicit local A press can operate the mechanical button while state is
 unknown, but does not claim its physical result. A commanded change updates the
 controller's logical state; it is not a separate physical confirmation. The

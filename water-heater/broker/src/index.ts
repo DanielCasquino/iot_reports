@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 import express from "express";
 import path from "path";
 import { CameraModule } from "./camera/module.js";
-import { classifyPilot, HeaterObservation } from "./heater/state.js";
+import { classifyPilot, HeaterObservation, type PilotState } from "./heater/state.js";
 import { parseCommand } from "./websocket/command.js";
 
 interface HeaterState {
@@ -32,6 +32,19 @@ const heaterState: HeaterState = {
 
 const observation = new HeaterObservation();
 let brokerConnected = false;
+let lastPilot: PilotState | null = null;
+
+if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE) {
+  console.warn(
+    "Pilot RGB classification is disabled: set COLOR_RED_REFERENCE and/or " +
+    "COLOR_GREEN_REFERENCE plus COLOR_MAX_DISTANCE in .env, then restart the backend.",
+  );
+} else if (!Number.isFinite(Number(process.env.COLOR_MAX_DISTANCE)) || Number(process.env.COLOR_MAX_DISTANCE) <= 0) {
+  console.warn(
+    "Pilot RGB classification is disabled: COLOR_MAX_DISTANCE must be a positive " +
+    "normalized distance, then restart the backend.",
+  );
+}
 
 mqttClient.on("message", (topic, payload, packet) => {
   const value = payload.toString();
@@ -54,13 +67,23 @@ mqttClient.on("message", (topic, payload, packet) => {
       heaterState[topic.endsWith("/flowrate") ? "flowrate" : "volume"] = Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
       break;
     }
-    case "heater/state/color":
+    case "heater/state/color": {
       heaterState.color = value === "unavailable" ? null : value;
-      if (heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
+      const pilot = classifyPilot(heaterState.color);
+      if (pilot !== lastPilot) {
+        console.log(`Pilot state ${lastPilot ?? "none"} -> ${pilot} (raw ${heaterState.color ?? "unavailable"})`);
+        lastPilot = pilot;
+      }
+      if (heaterState.power === null && (pilot === "heating" || pilot === "ready")) {
+        console.log(`Pilot ${pilot} recovers the unknown power state; publishing heater/input/power=true`);
         mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
+      }
       break;
+    }
     case "heater/status":
       heaterState.status = value === "online" ? "online" : "offline";
+      // A (re)connecting controller starts without a known power observation.
+      heaterState.power = null;
       if (heaterState.status === "offline") heaterState.temperature = null;
       break;
   }
