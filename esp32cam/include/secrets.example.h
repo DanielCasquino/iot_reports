@@ -1,3 +1,3 @@
 #pragma once
-#define WIFI_SSID "YOUR_WIFI"
-#define WIFI_PASSWORD "YOUR_PASSWORD"
+#define WIFI_SSID "Mondongo"
+#define WIFI_PASSWORD "AlejandroD"

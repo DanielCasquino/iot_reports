@@ -1,5 +1,5 @@
-const char *WIFI_SSID = "quaso";
-const char *WIFI_PASSWORD = "mondongo";
+const char *WIFI_SSID = "Mondongo";
+const char *WIFI_PASSWORD = "AlejandroD";
 
-const char *BROKER_URI = "mqtt://10.75.44.228:1883";
+const char *BROKER_URI = "mqtt://192.168.1.154:1883";
 const char *MQTT_USERNAME = "ESP32";
