@@ -30,7 +30,10 @@ const heaterState: HeaterState = {
   status: null
 };
 
-const observation = new HeaterObservation();
+// TEMPORARY: use probe telemetry; RGB/camera stay enabled for diagnostics.
+// Set false here via .env AND TEMPORARY_SENSOR_TEST_MODE=0 in ESP32 config to restore.
+const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE !== "false";
+const observation = new HeaterObservation(sensorTestMode);
 let brokerConnected = false;
 
 mqttClient.on("message", (topic, payload, packet) => {
@@ -56,7 +59,8 @@ mqttClient.on("message", (topic, payload, packet) => {
     }
     case "heater/state/color":
       heaterState.color = value === "unavailable" ? null : value;
-      if (heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
+      // TEMPORARILY bypass RGB -> power control, retaining raw RGB telemetry.
+      if (!sensorTestMode && heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
         mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
       break;
     case "heater/status":

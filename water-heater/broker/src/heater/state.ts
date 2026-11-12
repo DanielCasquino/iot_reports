@@ -31,6 +31,9 @@ export function classifyPilot(raw: string | null, env: NodeJS.ProcessEnv = proce
 }
 
 export class HeaterObservation {
+  constructor(private readonly sensorTestMode = false) {}
+  private temperature: number | null = null;
+  private temperatureAt = -Infinity;
   private color: string | null = null;
   private colorAt = -Infinity;
   private onlineAt = -Infinity;
@@ -46,6 +49,13 @@ export class HeaterObservation {
       this.color = null;
       this.colorAt = -Infinity;
       this.power = null;
+      this.temperature = null;
+      this.temperatureAt = -Infinity;
+    }
+    if (topic === "heater/state/temperature") {
+      const reading = value.trim() === "" ? NaN : Number(value);
+      this.temperature = Number.isFinite(reading) && reading >= 0 && reading <= 100 ? reading : null;
+      this.temperatureAt = now;
     }
     if (topic === "heater/state/color") { this.color = value; this.colorAt = now; }
     if (topic === "heater/state/power") this.power = value === "true" ? true : value === "false" ? false : null;
@@ -53,6 +63,8 @@ export class HeaterObservation {
   }
 
   disconnect() {
+    this.temperature = null;
+    this.temperatureAt = -Infinity;
     this.online = false;
     this.power = null;
     this.color = null;
@@ -67,8 +79,12 @@ export class HeaterObservation {
     return {
       online, power: online ? this.power : null, pilot,
       display: !cameraFresh ? "unknown" : camera.available ? "readable" : "unreadable",
-      temperature: cameraFresh && camera.available ? camera.value : null,
-      reason: !online ? "No fresh controller telemetry" : pilot === "unknown" ? "RGB unavailable, stale or not calibrated"
+      // TEMPORARY: physical probe telemetry replaces the OCR temperature gate.
+      temperature: this.sensorTestMode
+        ? online && now - this.temperatureAt <= 30000 ? this.temperature : null
+        : cameraFresh && camera.available ? camera.value : null,
+      temperatureSource: this.sensorTestMode ? "probe" : "camera",
+      reason: !online ? "No fresh controller telemetry" : this.sensorTestMode ? null : pilot === "unknown" ? "RGB unavailable, stale or not calibrated"
         : pilot === "unlit" ? "Unlit pilot does not establish power loss" : null,
     };
   }
