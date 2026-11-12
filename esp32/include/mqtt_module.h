@@ -47,8 +47,14 @@ public:
     void attach(HeaterModule &h) { this->heaterModule = &h; }
     void subscribe()
     {
-        mqttClient.subscribe("heater/command/wake_display", [this](const std::string &payload)
-                             { if (heaterModule && payload == "tap") heaterModule->wakeDisplay(); });
+        mqttClient.subscribe("heater/input/power", [this](const std::string &payload)
+                             {
+                                 if (heaterModule && payload == "true")
+                                 {
+                                     heaterModule->observePowerOn();
+                                     publishPowerState();
+                                 }
+                             });
         mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
                              { handleTemperature(payload); });
         mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
@@ -90,21 +96,25 @@ public:
     {
         if (!heaterModule || !mqttClient.isConnected())
             return;
+        if (!heaterModule->isPowerKnown())
+        {
+            Serial.println("Power state unknown; waiting for an observation");
+            publishPowerState();
+            return;
+        }
         bool changed = false;
         Serial.println(payload.c_str());
         if (payload == "true")
         {
             if (heaterModule->getPower())
                 return;
-            heaterModule->setPower(true);
-            changed = true;
+            changed = heaterModule->setPower(true);
         }
         else if (payload == "false")
         {
             if (!heaterModule->getPower())
                 return;
-            heaterModule->setPower(false);
-            changed = true;
+            changed = heaterModule->setPower(false);
         }
         else
         {
@@ -169,6 +179,7 @@ public:
             mqttClient.publish("heater/state/color", rgb, 1, true);
         }
         else mqttClient.publish("heater/state/color", "unavailable", 1, true);
+        mqttClient.publish("heater/state/volume", std::to_string(heaterModule->getVolume()), 1, true);
         mqttClient.publish("heater/state/flowrate", std::to_string(heaterModule->getFlowrate()), 1, true);
     }
 
@@ -179,7 +190,7 @@ public:
 
         mqttClient.publish(
             "heater/state/power",
-            heaterModule->getPower() ? "true" : "false", 1, true);
+            heaterModule->isPowerKnown() ? (heaterModule->getPower() ? "true" : "false") : "unknown", 1, true);
     }
     void publishAutoShutdown()
     {

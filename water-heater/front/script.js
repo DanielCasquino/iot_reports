@@ -3,14 +3,20 @@ const RECONNECT_DELAY_MS = 2000;
 
 let fahrenheit = false;
 let socket;
+let brokerConnected = false;
+let capturePending = false;
+let reconnectTimeout;
+let observationText = "Waiting for fresh readings";
 
 const heaterState = {
-  power: false,
+  power: null,
   autoShutdown: false,
   temperature: null,
   lastTemperature: null,
   status: "offline",
   color: null,
+  flowrate: null,
+  volume: null,
 };
 
 // for weird people
@@ -24,7 +30,10 @@ function updatePowerButton() {
 
   if (!button) return;
 
-  button.className = `big-button big-button-${heaterState.power ? "on" : "off"}`;
+  const confirmed = brokerConnected && heaterState.status === "online" && typeof heaterState.power === "boolean";
+  button.setAttribute("aria-label", confirmed ? (heaterState.power ? "Turn heater off" : "Turn heater on") : "Heater power unconfirmed");
+  button.setAttribute("aria-pressed", String(confirmed && heaterState.power));
+  button.className = `big-button big-button-${confirmed && heaterState.power ? "on" : "off"}`;
 }
 
 function updateAutoShutdown() {
@@ -50,11 +59,11 @@ function updateTemperature() {
 
   if (!display) return;
   if (heaterState.temperature === null) {
-    display.textContent = "--.-°C";
+    display.textContent = fahrenheit ? "--.-°F" : "--.-°C";
     if (fg) fg.style.opacity = 0;
     const status = document.getElementById("temperature-status");
     if (status) status.textContent = heaterState.lastTemperature === null
-      ? "Temperature unavailable" : `Last reading: ${heaterState.lastTemperature.toFixed(1)}°C (not current)`;
+      ? "Temperature unavailable" : `Last reading: ${(fahrenheit ? c2f(heaterState.lastTemperature) : heaterState.lastTemperature).toFixed(1)}${fahrenheit ? "°F" : "°C"} (not current)`;
     return;
   }
   heaterState.lastTemperature = heaterState.temperature;
@@ -75,6 +84,10 @@ function updateBrokerStatus(connected) {
 
   if (!indicator) return;
 
+  brokerConnected = connected;
+  updateControls();
+  indicator.title = connected ? "WebSocket connected" : "WebSocket disconnected";
+  indicator.setAttribute("aria-label", indicator.title);
   indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
 }
 
@@ -83,6 +96,9 @@ function updateEspStatus() {
 
   if (!indicator) return;
 
+  updateControls();
+  indicator.title = heaterState.status === "online" ? "Device online" : "Device offline";
+  indicator.setAttribute("aria-label", indicator.title);
   indicator.className = `icon-wrapper icon-wrapper-${heaterState.status === "online" ? "on" : "off"}`;
 }
 
@@ -92,8 +108,8 @@ function handleMqttMessage(data) {
 
   switch (topic) {
     case "heater/state/power": {
-      heaterState.power = payload === "true";
-      updatePowerButton();
+      heaterState.power = payload === "true" ? true : payload === "false" ? false : null;
+      updateControls();
       break;
     }
     case "heater/state/autoshutdown": {
@@ -103,8 +119,15 @@ function handleMqttMessage(data) {
     }
     case "heater/state/temperature": {
       const temperature = payload.trim() === "" ? NaN : Number(payload);
-      heaterState.temperature = Number.isFinite(temperature) && temperature >= 0 && temperature <= 100 ? temperature : null;
+      heaterState.temperature = heaterState.status === "online" && Number.isFinite(temperature) && temperature >= 0 && temperature <= 100 ? temperature : null;
       updateTemperature();
+      break;
+    }
+    case "heater/state/flowrate":
+    case "heater/state/volume": {
+      const value = payload.trim() === "" ? NaN : Number(payload);
+      heaterState[topic.endsWith("/flowrate") ? "flowrate" : "volume"] = Number.isFinite(value) && value >= 0 ? value : null;
+      updateFlow();
       break;
     }
     case "heater/state/color": {
@@ -130,11 +153,14 @@ function handleMessage(message) {
   switch (message.event) {
     case "state_snapshot":
       Object.assign(heaterState, message.data);
+      const t = heaterState.temperature;
+      heaterState.temperature = heaterState.status === "online" && typeof t === "number" && Number.isFinite(t) && t >= 0 && t <= 100 ? t : null;
       updatePowerButton(heaterState.power);
       updateAutoShutdown(heaterState.autoShutdown);
       updateTemperature();
       updateEspStatus(heaterState.status);
       updateColor();
+      updateFlow();
       break;
     case "mqtt_message":
       handleMqttMessage(message.data);
@@ -175,6 +201,10 @@ function connect() {
   socket.addEventListener("close", () => {
     console.log("WebSocket disconnected.");
     updateBrokerStatus(false);
+    heaterState.status = "offline";
+    heaterState.color = null;
+    updateColor();
+    updateEspStatus();
     heaterState.temperature = null;
     updateTemperature();
 
@@ -188,7 +218,7 @@ function connect() {
 }
 
 function sendCommand(event, data) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
+  if (!brokerConnected || heaterState.status !== "online" || !socket || socket.readyState !== WebSocket.OPEN) {
     console.error("Cannot send command: WebSocket is not connected.");
     return;
   }
@@ -199,14 +229,9 @@ function sendCommand(event, data) {
 
 // ui input shi
 function toggleTerma() {
+  if (typeof heaterState.power !== "boolean") return;
   sendCommand("set_heater_power", {
     enabled: !heaterState.power,
-  });
-}
-
-function toggleAutomatedShutdown(checkbox) {
-  sendCommand("set_auto_shutdown", {
-    enabled: checkbox.checked,
   });
 }
 
@@ -223,13 +248,13 @@ function toggleAutomatedShutdown(checkbox) {
 function toggleFahrenheit(checkbox) {
   fahrenheit = checkbox.checked;
 
-  localStorage.setItem("fahrenheit", String(fahrenheit));
+  try { localStorage.setItem("fahrenheit", String(fahrenheit)); } catch {}
 
   updateTemperature();
 }
 
 function retrieveLocalSettings() {
-  fahrenheit = localStorage.getItem("fahrenheit") === "true";
+  try { fahrenheit = localStorage.getItem("fahrenheit") === "true"; } catch {}
 
   const checkbox = document.getElementById("fahrenheit");
 
@@ -253,6 +278,8 @@ window.addEventListener("load", () => {
 });
 
 async function captureTemperature(wake = false) {
+  if (!brokerConnected || heaterState.status !== "online" || capturePending || (wake && !heaterState.power)) return;
+  capturePending = true;
   const button = document.getElementById("capture-temperature");
   const status = document.getElementById("camera-status");
   const wakeButton = document.getElementById("wake-temperature");
@@ -260,17 +287,73 @@ async function captureTemperature(wake = false) {
   if (wakeButton) wakeButton.disabled = true;
   if (status) status.textContent = "Capturing and reading display...";
   try {
-    const response = await fetch(wake ? "/api/camera/capture?wake=1" : "/api/camera/capture", { method: "POST" });
+    const response = await fetch(wake ? "/api/camera/capture?wake=1" : "/api/camera/capture", { method: "POST", cache: "no-store" });
     const result = await response.json();
-    if (status) status.textContent = result.error || `OCR: ${result.value}°C (${Math.round(result.confidence)}%)`;
+    if (!response.ok || result.error || typeof result.value !== "number" || !Number.isFinite(result.value)) {
+      if (status) status.textContent = "Display unreadable or capture unavailable. No new temperature confirmed.";
+    } else if (status) status.textContent = `Captured OCR: ${result.value}°C`;
     const image = document.getElementById("camera-preview");
     if (image) image.src = `/api/camera/image?t=${Date.now()}`;
   } catch (error) {
     if (status) status.textContent = "Camera/backend unavailable";
-  } finally { if (button) button.disabled = false; if (wakeButton) wakeButton.disabled = false; }
+  } finally { capturePending = false; updateControls(); }
 }
 
 function updateColor() {
   const display = document.getElementById("color-display");
   if (display) display.textContent = heaterState.color === null ? "RGB sensor unavailable" : `Raw R,G,B,C: ${heaterState.color}`;
+}
+
+function updateControls() {
+  const available = brokerConnected && heaterState.status === "online";
+  updatePowerButton();
+  updateFlow();
+  document.getElementById("heater-observation").textContent = available ? observationText : "Waiting for fresh readings";
+  for (const id of ["big-button", "automated-shutdown", "capture-temperature", "wake-temperature"]) {
+    const control = document.getElementById(id);
+    if (control) control.disabled = !available || (id === "big-button" && typeof heaterState.power !== "boolean") || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
+  }
+  const status = document.getElementById("connection-status");
+  if (status) status.textContent = available ? "Connected · controls ready" : "Disconnected · controls unavailable";
+}
+
+// The backend combines fresh observations; a failed OCR does not establish sleep.
+async function refreshObservation() {
+  try {
+    const response = await fetch("/api/heater/status", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+    if (!response.ok) throw new Error("Status unavailable");
+    const state = await response.json();
+    const pilot = { heating: "Heating", ready: "Maintaining temperature", unlit: "Pilot unlit", unknown: "Pilot not confirmed" };
+    const display = { readable: "display readable", unreadable: "display unreadable", unknown: "display not confirmed" };
+    observationText = state.online
+      ? `${pilot[state.pilot] || pilot.unknown} · ${display[state.display] || display.unknown}`
+      : "Waiting for fresh device readings";
+    heaterState.status = state.online ? "online" : "offline";
+    heaterState.power = typeof state.power === "boolean" ? state.power : null;
+    updateEspStatus();
+    if (!state.online) {
+      heaterState.status = "offline";
+      heaterState.color = null;
+      updateColor();
+      updateEspStatus();
+    }
+    if (!state.online || state.temperature === null) {
+      heaterState.temperature = null;
+      updateTemperature();
+    }
+  } catch {
+    observationText = "Live status unavailable";
+    heaterState.status = "offline";
+    heaterState.temperature = null;
+    updateEspStatus();
+    updateTemperature();
+  } finally { setTimeout(refreshObservation, 5000); }
+}
+window.addEventListener("load", refreshObservation);
+
+function updateFlow() {
+  const available = brokerConnected && heaterState.status === "online";
+  const rate = available && typeof heaterState.flowrate === "number" ? `${heaterState.flowrate.toFixed(2)} L/min` : "unavailable";
+  const volume = available && typeof heaterState.volume === "number" ? `${heaterState.volume.toFixed(2)} L since restart` : "unavailable";
+  document.getElementById("flow-display").textContent = `Flow: ${rate} · Volume: ${volume}`;
 }
