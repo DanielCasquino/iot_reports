@@ -4,6 +4,10 @@
 #include "flow_module.h"
 #include "color_module.h"
 #include "button_module.h"
+#include "temperature_adjustment.h"
+#include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "config.h"
 
 class HeaterModule
@@ -12,6 +16,9 @@ public:
     HeaterModule() {}
     void setup()
     {
+        adjustment.requestId = esp_random();
+        observations = xQueueCreate(8, sizeof(Observation));
+        powerRequests = xQueueCreate(4, sizeof(bool));
         pinMode(LED_BUILTIN, OUTPUT);
         temperatureModule.setup();
         servoModuleA.setup(SERVO_PIN_A);
@@ -26,32 +33,47 @@ public:
 
     bool loop()
     {
+        bool requestedPower;
+        if (powerRequests && xQueueReceive(powerRequests, &requestedPower, 0) == pdTRUE && setPower(requestedPower))
+            return true;
+        Observation observation;
+        while (observations && xQueueReceive(observations, &observation, 0) == pdTRUE) {
+            if (observation.verification) {
+                if (adjustment.verify(observation.id, observation.value))
+                    temperatureModule.update(observation.value);
+            } else temperatureModule.update(observation.value);
+        }
         flowModule.poll();
         colorModule.poll();
         bool powerPressed = buttonA.pressed();
         bool increasePressed = buttonB.pressed();
         bool decreasePressed = buttonC.pressed();
-        if (int(powerPressed) + int(increasePressed) + int(decreasePressed) != 1) return false;
-        if (powerPressed)
-        {
-            if (powerKnown) return setPower(!power);
-            if (!tapPowerButton()) return false;
-            temperatureModule.invalidate();
-            return true;
+        if (int(powerPressed) + int(increasePressed) + int(decreasePressed) == 1) {
+            if (powerPressed) {
+                if (powerKnown) return setPower(!power);
+                if (!tapPowerButton()) return false;
+                temperatureModule.invalidate();
+                return true;
+            }
+            if (powerKnown && power)
+                adjustment.select(increasePressed ? 1 : -1, temperatureModule.read(), millis());
         }
-        if (!powerKnown || !power || !reserveServoPress()) return false;
-        if (increasePressed) servoModuleB.tap();
-        else servoModuleC.tap();
-        temperatureModule.invalidate();
-        adjustingTemperature = true;
-        adjustedAt_ms = millis();
+        if (powerKnown && power) {
+            int direction = adjustment.tick(millis());
+            if (direction) {
+                temperatureModule.invalidate();
+                if (direction > 0) servoModuleB.tap();
+                else servoModuleC.tap();
+                adjustment.completedPress(millis());
+            }
+        }
         return false;
     }
 
     bool monitorAutoShutdown()
     {
         float temp = temperatureModule.read();
-        if (isAutoShutdownEnabled && temperatureModule.isAvailable() && temp >= MAX_TEMPERATURE_C && powerKnown && power)
+        if (isAutoShutdownEnabled && temperatureModule.isAvailable() && temp >= AUTO_SHUTDOWN_TEMPERATURE_C && powerKnown && power)
         {
             return setPower(false);
         }
@@ -66,10 +88,12 @@ public:
         powerKnown = true;
         digitalWrite(LED_BUILTIN, HIGH);
     }
+    void requestPower(bool p) { if (powerRequests) xQueueSend(powerRequests, &p, 0); }
     bool setPower(bool p)
     {
         if (!powerKnown || power == p || !tapPowerButton())
             return false;
+        adjustment.cancel();
         power = p;
         digitalWrite(LED_BUILTIN, p);
         temperatureModule.invalidate();
@@ -84,14 +108,14 @@ public:
 
     void setTemperature(float value)
     {
-        if (adjustingTemperature)
-        {
-            if (millis() - adjustedAt_ms < TEMPERATURE_ADJUST_SETTLE_MS)
-                return;
-            adjustingTemperature = false;
-        }
-        temperatureModule.update(value);
+        enqueueObservation({value, 0, false});
     }
+    void verifyTemperature(uint32_t id, float value) { enqueueObservation({value, id, true}); }
+    bool needsTemperatureVerification() { return adjustment.needsVerification(millis()); }
+    uint32_t temperatureVerificationId() { return adjustment.requestId; }
+    const char *getAdjustmentStatus() { return adjustment.status(); }
+    bool isTemperatureLocked() { return adjustment.locked(); }
+    int getTargetTemperature() { return adjustment.target; }
     void invalidateTemperature() { temperatureModule.invalidate(); }
     bool isTemperatureAvailable() { return temperatureModule.isAvailable(); }
     ColorModule &getColor() { return colorModule; }
@@ -119,8 +143,13 @@ private:
         return true;
     }
 
-    bool adjustingTemperature = false;
-    unsigned long adjustedAt_ms = 0;
+    struct Observation { float value; uint32_t id; bool verification; };
+    QueueHandle_t observations = nullptr;
+    QueueHandle_t powerRequests = nullptr;
+    void enqueueObservation(Observation observation) {
+        if (observations) xQueueSend(observations, &observation, 0);
+    }
+    TemperatureAdjustment adjustment;
     unsigned long lastTap_ms = 0;
     bool hasTapped = false;
     ButtonModule buttonA, buttonB, buttonC;

@@ -23,7 +23,21 @@ export class CameraModule {
 
   constructor(private mqtt: MqttClient) {}
 
+  private subscribeVerification = () => {
+    this.mqtt.subscribe("heater/command/verify_temperature");
+  };
+  private handleVerification = (topic: string, payload: Buffer, packet: { retain?: boolean }) => {
+    if (topic !== "heater/command/verify_temperature" || packet.retain) return;
+    const id = payload.toString();
+    if (!/^\d{1,10}$/.test(id) || Number(id) > 0xffffffff) return;
+    // Busy captures are ignored; the ESP32 retries. Never reuse a previous image.
+    void this.readDisplayTemperature(false, id);
+  };
+
   setup(app: Express) {
+    this.mqtt.on("connect", this.subscribeVerification);
+    this.mqtt.on("message", this.handleVerification);
+    if (this.mqtt.connected) this.subscribeVerification();
     app.get("/api/camera/status", (_req, res) => res.set("Cache-Control", "no-store").json(this.getState()));
     app.get("/api/camera/image", (_req, res) => {
       if (!this.image) { res.status(404).end(); return; }
@@ -74,7 +88,7 @@ export class CameraModule {
     return Buffer.concat(chunks);
   }
 
-  async readDisplayTemperature(wake = false): Promise<boolean> {
+  async readDisplayTemperature(wake = false, verificationId?: string): Promise<boolean> {
     if (this.busy || this.stopped) return false;
     if (wake) {
       this.state.error = "Display wake taps are disabled; capture without pressing power";
@@ -138,6 +152,9 @@ export class CameraModule {
       await new Promise<void>((resolve, reject) => {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
+      if (verificationId !== undefined) {
+        this.mqtt.publish("heater/input/temperature_verification", `${verificationId},${value}`, { qos: 0, retain: false });
+      }
       this.state.lastValue = value;
       return true;
     } catch (error) {
@@ -150,6 +167,8 @@ export class CameraModule {
 
   async close() {
     this.stopped = true;
+    this.mqtt.removeListener?.("connect", this.subscribeVerification);
+    this.mqtt.removeListener?.("message", this.handleVerification);
     if (this.timer) clearTimeout(this.timer);
     if (this.ocrWorker) await this.ocrWorker.terminate();
   }
