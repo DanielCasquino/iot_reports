@@ -167,3 +167,13 @@ the heater. It records failed/unavailable readings rather than inventing zeros.
 The human reference is not automatically trusted or a calibration result. Record
 lighting, pilot color and actions alongside each sample; do not call software
 confidence a measured accuracy. Volume is since controller restart, not lifetime.
+
+### Visor de siete segmentos
+
+`CAMERA_SEVEN_SEGMENT=true` activa el lector geométrico para un visor de dos dígitos enteros claros sobre fondo oscuro. `CAMERA_CROP` es obligatorio y debe contener únicamente los dos dígitos completos, con margen, en coordenadas de la imagen original de la cámara. No reutilizar coordenadas de una foto de celular o de otro encuadre. Reiniciar el backend tras cambiar `.env`.
+
+El lector busca los siete segmentos de cada dígito y compara tres umbrales relativos de brillo. Acepta cuando al menos dos lecturas completas coinciden y ninguna otra lectura completa discrepa; los casos incompletos se rechazan. No convierte números según la temperatura anterior. En este modo CAMERA_INVERT, CAMERA_THRESHOLD y CAMERA_MIN_CONFIDENCE no se aplican: no usa Tesseract y no inventa una confianza estadística. El endpoint de estado informa `reader: "seven-segment"` y `confidence: null`. Sin esta opción, Tesseract conserva su funcionamiento anterior.
+
+Validación local:15 fotos del visor compartidas por el equipo, dos grupos de encuadre con un recorte fijo por grupo; lecturas40,30,34,37,44,42,75,32,38,30,33,42,72,75,40. Las primeras14 se usaron para ajustar; la última se evaluó después sin cambiar parámetros. Se probaron también dígitos generados y fondos vacíos. El conjunto no demuestra desempeño general ni sustituye una prueba de campo. Falta validar la cámara instalada, distintos niveles de luz, reflejos y lectura en vivo contra una persona. Una región recortada incorrectamente puede producir una lectura incorrecta; no habilitar autoapagado durante pruebas.
+
+Inspección: `/api/camera/image` muestra la última captura; `/api/camera/processed` muestra la máscara usada; `/api/camera/status` contiene valor, método y error. El campo `available` sólo indica aceptación por el lector y vigencia, no certifica que coincida con el estado físico ni que la temperatura mostrada sea medida en vez de consigna. No requiere reflashear la ESP32-CAM.
