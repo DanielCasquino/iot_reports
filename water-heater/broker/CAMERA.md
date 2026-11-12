@@ -4,9 +4,14 @@ The ESP32-CAM already serves `GET /capture`: **no camera reflash is required**.
 Node requests the JPEG, reads the display and publishes a temperature. The main
 ESP32 receives it and publishes its state through the existing path.
 
+Code entry points: `CameraModule.requestCameraJpeg()` only requests a JPEG from
+the camera; `readDisplayTemperature()` coordinates capture, OCR and MQTT delivery.
+`parseTemperature()` validates OCR text; the `ocrWorker` field holds the OCR
+engine. HTTP routes and MQTT topics keep their existing names.
+
 ## Run with the current hotspot
 
-1. Pull the project and run `npm install` in `water-heater/broker/` (Node20+).
+1. Pull the project and run `npm install` in `water-heater/broker/` (Node22+).
 2. Add these to your existing `.env` (do not overwrite its MQTT configuration):
 
    ```ini
@@ -34,13 +39,12 @@ ESP32 receives it and publishes its state through the existing path.
    Initial OCR startup downloads an English model once; prewarm before losing
    Internet with `npm run test:ocr`, or supply `OCR_LANG_PATH` (see `.env.example`).
 
-ServoA is the power/display button. **Wake display + read** publishes a separate
-non-retained `heater/command/wake_display=tap`, waits800ms and then captures.
-It is allowed only when ESP32 reports online/powerON; verify actual state before
-using it. It does not change logical power. Scheduled captures do not issue wake
-commands: automatic wake still requires validated dark-display detection. A dark display
-must produce unavailable, not a guessed temperature. Until that wake action is
-verified, automatic capture alone cannot guarantee continuously readable data.
+ServoA presses the original power button. The team now observes the display
+remaining visible (sometimes dimmer), so acquisition never taps power. The old
+`wake=1` request is rejected, including from older frontends. The dashboard no
+longer exposes a wake control. Keep periodic OCR running when automatic shutdown
+uses temperature even if no browser is connected. OCR failure means unavailable;
+it does not establish that a display slept or that the heater switched off.
 
 ## Data path
 
@@ -69,7 +73,7 @@ No images or credentials are added to Git. No cloud service is required.
 serial and shown in the app. No uncalibrated red/green→heating inference.
 
 Chosen free pins: **SDA23, SCL22**, configurable in `esp32/include/config.h`.
-GPIO21 remains servoC, so do not use the usual default SDA21. Confirm actual
+Current servo pins are A25/B26/C27; keep the explicitly selected SDA23/SCL22. Confirm actual
 wiring and module voltage labels; keep I2C signal levels compatible with3.3V.
 Absent sensor does not stop the other modules. Current gain1x/integration24ms
 is an initial setting; verify lighting and mounting before classifying colors.
@@ -83,3 +87,83 @@ Sources: [Espressif camera driver](https://github.com/espressif/esp32-camera),
 [Tesseract.js](https://github.com/naptha/tesseract.js),
 [Sharp](https://sharp.pixelplumbing.com/),
 [Adafruit TCS34725](https://github.com/adafruit/Adafruit_TCS34725).
+
+## Pilot/display observations
+
+`GET /api/heater/status` combines fresh controller telemetry (10s), camera OCR
+(30s), and an optional calibrated pilot classification. Retained MQTT values do
+not establish a fresh observation. The backend requests a live snapshot on
+reconnect. Display states are `readable`, `unreadable`, or `unknown`: unreadable
+does **not** mean asleep, so it never triggers an automatic power-button tap.
+The `power` field is the controller's logical state, not an independently measured
+mains state. A dark pilot cannot distinguish OFF from loss of supply.
+
+RGB classification stays `unknown` until references and a distance tolerance are
+provided from repeated measurements with the sensor in its final position:
+
+- `COLOR_RED_REFERENCE=R,G,B,C` for the heating pilot.
+- `COLOR_GREEN_REFERENCE=R,G,B,C` for the heat-preservation pilot.
+- `COLOR_MAX_DISTANCE` is the accepted Euclidean distance between normalized
+  `(R/C,G/C,B/C)` vectors. Choose it using measured variation; overlapping matches
+  stay unknown. Do not copy arbitrary RGB values as calibration.
+- Optional `COLOR_DARK_MAX_CLEAR` is the maximum measured C for an unlit pilot.
+  The resulting state is `unlit`, not a power or heating diagnosis.
+
+The TCS retries initialization every five seconds if missing and invalidates its
+sample on I2C disconnection. Calibrate/check red, green, unlit and ambient light;
+the raw telemetry remains available even without classification.
+
+[Rheem EW1-50RP manual, pp10–11](https://media.rheem.com.pe/blobazrheem/wp-content/uploads/sites/22/2022/01/Manual-de-instrucciones.pdf)
+identifies red as heating, green as heat preservation and the displayed value as
+water temperature. This source does not establish the display-sleep/wake sequence
+reported in the bench discussion: validate that sequence before automating it.
+No temperature adjustment command or fake target counter is added.
+
+## Reproducible dependency checks
+
+Use Node22+ and the committed lockfile. `npm ci --ignore-scripts`, `npm run check`,
+`npm test`, `npm run security:check` and `npm run test:ocr` verify the clean
+installation, types, behavior, known advisories and OCR runtime respectively.
+The clean install without lifecycle scripts was checked on Linux/Node22; check
+the same commands on the Windows demo machine. No additional npm packages were
+needed for the mobile manifest/fullscreen controls. The existing `allowScripts`
+policy is retained for npm versions supporting it; do not approve every script
+just to hide an installation warning. An audit with zero advisories is not an
+assessment of the entire deployment's security.
+
+The WebSocket listener limits messages to4KiB and rejects malformed or nonboolean
+commands instead of throwing or interpreting text as an actuator instruction.
+Commands are not queued when the broker/controller is unavailable.
+
+Water telemetry uses `heater/state/flowrate` (L/min) and `heater/state/volume`
+(litres accumulated since controller restart). The app labels restart scope; it
+is not a persistent consumption meter or an electrical-energy measurement.
+The current firmware conversion is450pulses/litre and still needs a volume test.
+The selected flow pin is GPIO34. [Espressif GPIO documentation](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html)
+specifies no internal pull-up on GPIO34–39; `INPUT_PULLUP` alone cannot provide
+it there. Confirm the existing signal conditioning/external pull-up and input
+voltage before attributing missing pulses to software. The pin assignment and
+flow formula are preserved.
+
+## Restart state synchronization (pending physical calibration)
+
+Controller starts with `heater/state/power=unknown`, not a measured OFF. Absolute
+power requests are rejected until observed state is known. Fresh calibrated RGB
+classified as heating/ready lets the backend publish non-retained
+`heater/input/power=true`; dark, uncalibrated or unreadable data never publish false.
+An explicit local A press can operate the mechanical button while state is
+unknown, but does not claim its physical result. A commanded change updates the
+controller's logical state; it is not a separate physical confirmation. The
+OFF observation rule and final UI behavior for unknown still require agreement
+and physical evidence. Frontend changes remain subject to José's approval.
+
+## Read-only bench record
+
+From broker/: `node scripts/record-observation.mjs http://localhost:3000 48`
+prints a CSV header and one row. Replace48 with a simultaneous human reading
+(or omit it). Redirect stdout to a private file outside Git. The script reads
+status only; it does not capture images, press buttons, publish MQTT, or modify
+the heater. It records failed/unavailable readings rather than inventing zeros.
+The human reference is not automatically trusted or a calibration result. Record
+lighting, pilot color and actions alongside each sample; do not call software
+confidence a measured accuracy. Volume is since controller restart, not lifetime.

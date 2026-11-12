@@ -8,7 +8,7 @@ const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
 
 export class CameraModule {
-  private worker: Awaited<ReturnType<typeof createWorker>> | null = null;
+  private ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
   private busy = false;
   private image: Buffer | null = null;
   private processed: Buffer | null = null;
@@ -20,10 +20,10 @@ export class CameraModule {
     text: "", confidence: 0, error: "No capture yet",
   };
 
-  constructor(private mqtt: MqttClient, private isPoweredOn: () => boolean = () => false) {}
+  constructor(private mqtt: MqttClient) {}
 
   setup(app: Express) {
-    app.get("/api/camera/status", (_req, res) => res.json(this.state));
+    app.get("/api/camera/status", (_req, res) => res.set("Cache-Control", "no-store").json(this.getState()));
     app.get("/api/camera/image", (_req, res) => {
       if (!this.image) { res.status(404).end(); return; }
       res.set("Cache-Control", "no-store").type("jpeg").send(this.image);
@@ -34,22 +34,28 @@ export class CameraModule {
     });
     app.post("/api/camera/capture", async (req, res) => {
       if (this.busy) { res.status(409).json({ error: "Capture already running" }); return; }
-      const ok = await this.capture(req.query.wake === "1");
-      res.status(ok ? 200 : 422).json(this.state);
+      const ok = await this.readDisplayTemperature(req.query.wake === "1");
+      res.status(ok ? 200 : 422).json(this.getState());
     });
     const interval = Number(process.env.CAMERA_POLL_MS ?? 5000);
     if (!Number.isFinite(interval) || interval < 0 || (interval > 0 && interval < 1000))
       throw new Error("CAMERA_POLL_MS must be 0 (manual) or at least 1000");
     if (process.env.CAMERA_URL && interval > 0) {
       const poll = async () => {
-        if (!this.busy) await this.capture();
+        if (!this.busy) await this.readDisplayTemperature();
         if (!this.stopped) this.timer = setTimeout(poll, interval);
       };
       this.timer = setTimeout(poll, 0);
     }
   }
 
-  private async fetchImage(): Promise<Buffer> {
+  getState() {
+    const fresh = this.state.observedAt !== null && Date.now() - Date.parse(this.state.observedAt) <= 30000;
+    return { ...this.state, available: this.state.available && fresh,
+      value: this.state.available && fresh ? this.state.value : null };
+  }
+
+  private async requestCameraJpeg(): Promise<Buffer> {
     const base = process.env.CAMERA_URL;
     if (!base) throw new Error("Set CAMERA_URL=http://<camera-IP> in broker/.env");
     const url = new URL("/capture", base);
@@ -67,21 +73,20 @@ export class CameraModule {
     return Buffer.concat(chunks);
   }
 
-  async capture(wake = false): Promise<boolean> {
+  async readDisplayTemperature(wake = false): Promise<boolean> {
     if (this.busy || this.stopped) return false;
+    if (wake) {
+      this.state.error = "Display wake taps are disabled; capture without pressing power";
+      return false;
+    }
     this.busy = true;
+    let capturedAt: string | null = null;
     try {
-      if (wake) {
-        if (!this.mqtt.connected || !this.isPoweredOn())
-          throw new Error("Wake requires an online ESP32 reporting power ON; confirm actual heater state first");
-        this.mqtt.publish("heater/command/wake_display", "tap", { qos: 0, retain: false });
-        await new Promise((resolve) => setTimeout(resolve, 800));
-      }
-      // Existing one-buffer camera firmware can hold an older frame: discard one.
-      await this.fetchImage();
-      this.image = await this.fetchImage();
+      await this.requestCameraJpeg();
+      this.image = await this.requestCameraJpeg();
       this.processed = null;
       const observedAt = new Date().toISOString();
+      capturedAt = observedAt;
       let pipeline = sharp(this.image, { limitInputPixels: 4_000_000 });
       const crop = process.env.CAMERA_CROP;
       if (crop) {
@@ -100,12 +105,12 @@ export class CameraModule {
         pipeline = pipeline.threshold(threshold);
       }
       this.processed = await pipeline.png().toBuffer();
-      if (!this.worker) {
-        this.worker = await createWorker("eng", 1, process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH } : {});
-        await this.worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
+      if (!this.ocrWorker) {
+        this.ocrWorker = await createWorker("eng", 1, process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH } : {});
+        await this.ocrWorker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
           tessedit_char_whitelist: "0123456789.,Cc°" });
       }
-      const { data } = await this.worker.recognize(this.processed);
+      const { data } = await this.ocrWorker.recognize(this.processed);
       const minimumConfidence = Number(process.env.CAMERA_MIN_CONFIDENCE ?? 80);
       if (!Number.isFinite(minimumConfidence) || minimumConfidence < 0 || minimumConfidence > 100)
         throw new Error("CAMERA_MIN_CONFIDENCE must be 0..100");
@@ -121,7 +126,7 @@ export class CameraModule {
       this.state.lastValue = value;
       return true;
     } catch (error) {
-      this.state = { ...this.state, available: false, value: null,
+      this.state = { ...this.state, available: false, value: null, observedAt: capturedAt,
         error: error instanceof Error ? error.message : "Capture failed" };
       if (this.mqtt.connected) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
       return false;
@@ -131,6 +136,6 @@ export class CameraModule {
   async close() {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
-    if (this.worker) await this.worker.terminate();
+    if (this.ocrWorker) await this.ocrWorker.terminate();
   }
 }

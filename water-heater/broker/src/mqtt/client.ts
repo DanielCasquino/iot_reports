@@ -13,7 +13,10 @@ mqttClient.on("connect", () => {
 
   mqttClient.subscribe(["heater/state/#"], (error) => {
     if (error) console.error("Subscription error:", error);
-    else console.log("Subscribed to heater topics");
+    else {
+      console.log("Subscribed to heater topics");
+      mqttClient.publish("heater/command/state_snapshot", "get", { qos: 0, retain: false });
+    }
   });
   mqttClient.subscribe("heater/status");
 });

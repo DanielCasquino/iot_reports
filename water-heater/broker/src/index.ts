@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 import express from "express";
 import path from "path";
 import { CameraModule } from "./camera/module.js";
+import { classifyPilot, HeaterObservation } from "./heater/state.js";
+import { parseCommand } from "./websocket/command.js";
 
 interface HeaterState {
   power: boolean | null;
@@ -14,6 +16,8 @@ interface HeaterState {
   temperature: number | null;
   status: "online" | "offline" | null;
   color: string | null;
+  flowrate: number | null;
+  volume: number | null;
 }
 
 const heaterState: HeaterState = {
@@ -21,17 +25,22 @@ const heaterState: HeaterState = {
   autoShutdown: null,
   temperature: null,
   color: null,
+  flowrate: null,
+  volume: null,
   status: null
 };
 
+const observation = new HeaterObservation();
 let brokerConnected = false;
 
-mqttClient.on("message", (topic, payload) => {
+mqttClient.on("message", (topic, payload, packet) => {
   const value = payload.toString();
+  observation.update(topic, value, packet.retain);
+  if (packet.retain && value !== "offline") return;
 
   switch (topic) {
     case "heater/state/power":
-      heaterState.power = value === "true";
+      heaterState.power = value === "true" ? true : value === "false" ? false : null;
       break;
     case "heater/state/autoshutdown":
       heaterState.autoShutdown = value === "true";
@@ -39,8 +48,16 @@ mqttClient.on("message", (topic, payload) => {
     case "heater/state/temperature":
       heaterState.temperature = value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
       break;
+    case "heater/state/flowrate":
+    case "heater/state/volume": {
+      const numeric = value.trim() === "" ? NaN : Number(value);
+      heaterState[topic.endsWith("/flowrate") ? "flowrate" : "volume"] = Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+      break;
+    }
     case "heater/state/color":
       heaterState.color = value === "unavailable" ? null : value;
+      if (heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
+        mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
       break;
     case "heater/status":
       heaterState.status = value === "online" ? "online" : "offline";
@@ -60,42 +77,43 @@ mqttClient.on("connect", () => {
 })
 mqttClient.on("offline", () => {
   brokerConnected = false;
+  observation.disconnect();
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
 mqttClient.on("close", () => {
   brokerConnected = false;
+  observation.disconnect();
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
 
 // sends state to front when they connect
 wss.on("connection", (ws) => {
+  const currentObservation = observation.snapshot(cameraModule.getState());
   ws.send(
     JSON.stringify({
       event: "state_snapshot",
-      data: heaterState,
+      data: { ...heaterState,
+        status: currentObservation.online ? "online" : "offline",
+        power: currentObservation.power,
+        temperature: currentObservation.temperature === null ? null : heaterState.temperature,
+      },
     }),
   );
   // commands from frontend to esp
   ws.on("message", (rawMessage) => {
-    const message = JSON.parse(rawMessage.toString());
-    switch (message.event) {
-      case "set_heater_power":
-        console.log("Publishing power command from ws to esp");
-        console.log(String(message.data.enabled));
-        mqttClient.publish("heater/set/power", String(message.data.enabled));
-        break;
-
-      case "set_auto_shutdown":
-        console.log("Publishing autoshutdown command from ws to esp");
-        console.log(String(message.data.enabled));
-        mqttClient.publish(
-          "heater/set/autoshutdown",
-          String(message.data.enabled),
-        );
-        break;
+    const command = parseCommand(rawMessage.toString());
+    if (!command) {
+      ws.send(JSON.stringify({ event: "command_error", data: { error: "Invalid command" } }));
+      return;
     }
+    const currentObservation = observation.snapshot(cameraModule.getState());
+    if (!brokerConnected || !currentObservation.online || currentObservation.power === null) {
+      ws.send(JSON.stringify({ event: "command_error", data: { error: "Controller unavailable" } }));
+      return;
+    }
+    mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
   });
 });
 
@@ -105,8 +123,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const cameraModule = new CameraModule(mqttClient, () => heaterState.status === "online" && heaterState.power === true);
+const cameraModule = new CameraModule(mqttClient);
 cameraModule.setup(app);
+app.get("/api/heater/status", (_req, res) => {
+  const state = observation.snapshot(cameraModule.getState());
+  res.set("Cache-Control", "no-store").json({ ...state,
+    flowrate: state.online ? heaterState.flowrate : null,
+    volume: state.online ? heaterState.volume : null,
+  });
+});
 
 const frontendPath = path.resolve(__dirname, "../../front");
 

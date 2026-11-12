@@ -17,16 +17,20 @@ test("capture publishes non-retained OCR; unreadable image or HTTP failure inval
   let reads = 0;
   globalThis.fetch = (async () => { reads++; return new Response(jpeg, { headers: { "content-type": "image/jpeg" } }); }) as typeof fetch;
   const mockWorker = { recognize: async () => ({ data: { text: "48", confidence: 95 } }), terminate: async () => {} };
-  (module as unknown as { worker: unknown }).worker = mockWorker;
+  (module as unknown as { ocrWorker: unknown }).ocrWorker = mockWorker;
   try {
-    assert.equal(await module.capture(), true);
+    assert.equal(await module.readDisplayTemperature(), true);
     assert.equal(reads, 2);
+    const delivered = messages.length;
+    assert.equal(await module.readDisplayTemperature(true), false);
+    assert.equal(module.getState().available, true);
+    assert.equal(messages.length, delivered);
     assert.deepEqual(messages[0], { topic: "heater/input/temperature", payload: "48", options: { qos: 0, retain: false } });
     mockWorker.recognize = async () => ({ data: { text: "", confidence: 0 } });
-    assert.equal(await module.capture(), false);
+    assert.equal(await module.readDisplayTemperature(), false);
     assert.equal(messages.at(-1)?.payload, "unavailable");
     globalThis.fetch = (async () => new Response("error", { status: 503 })) as typeof fetch;
-    assert.equal(await module.capture(), false);
+    assert.equal(await module.readDisplayTemperature(), false);
     assert.equal(messages.at(-1)?.payload, "unavailable");
   } finally {
     await module.close(); globalThis.fetch = oldFetch;
@@ -34,32 +38,13 @@ test("capture publishes non-retained OCR; unreadable image or HTTP failure inval
   }
 });
 
-test("wake is explicit, guarded by known ON state, and never sends a power command", async () => {
-  const oldFetch = globalThis.fetch;
-  const oldUrl = process.env.CAMERA_URL;
-  process.env.CAMERA_URL = "http://camera.test";
-  const jpeg = await sharp({ create: { width: 80, height: 40, channels: 3, background: "white" } }).jpeg().toBuffer();
-  const messages: { topic: string; payload: string; options: unknown }[] = [];
-  const mqtt = { connected: true, publish(topic: string, payload: string, options: unknown, callback?: (e?: Error) => void) {
-    messages.push({ topic, payload, options }); callback?.();
-  } } as unknown as MqttClient;
-  let powered = false;
-  const module = new CameraModule(mqtt, () => powered);
-  (module as unknown as { worker: unknown }).worker = {
-    recognize: async () => ({ data: { text: "48", confidence: 95 } }), terminate: async () => {},
-  };
-  globalThis.fetch = (async () => new Response(jpeg, { headers: { "content-type": "image/jpeg" } })) as typeof fetch;
+test("legacy wake requests never press power; ordinary capture remains available", async () => {
+  const messages: { topic: string; payload: string }[] = [];
+  const mqtt = { connected: true, publish(topic: string, payload: string) { messages.push({ topic, payload }); } } as unknown as MqttClient;
+  const module = new CameraModule(mqtt);
   try {
-    assert.equal(await module.capture(true), false);
-    assert.equal(messages.some(m => m.topic === "heater/command/wake_display"), false);
-    powered = true;
-    assert.equal(await module.capture(true), true);
-    assert.deepEqual(messages.filter(m => m.topic === "heater/command/wake_display"), [
-      { topic: "heater/command/wake_display", payload: "tap", options: { qos: 0, retain: false } },
-    ]);
-    assert.equal(messages.some(m => m.topic === "heater/set/power"), false);
-  } finally {
-    await module.close(); globalThis.fetch = oldFetch;
-    if (oldUrl === undefined) delete process.env.CAMERA_URL; else process.env.CAMERA_URL = oldUrl;
-  }
+    assert.equal(await module.readDisplayTemperature(true), false);
+    assert.equal(messages.some(m => m.topic === "heater/command/wake_display" || m.topic === "heater/set/power"), false);
+    assert.match(module.getState().error!, /wake taps are disabled/);
+  } finally { await module.close(); }
 });

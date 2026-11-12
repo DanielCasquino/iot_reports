@@ -326,3 +326,39 @@ input:checked + .slider:before {
     );
   }
 }
+
+/* Keep the original layout and soft surfaces on smaller screens. */
+body { min-height: 100dvh; height: auto; max-height: none; position: relative; isolation: isolate; color: var(--text); padding: env(safe-area-inset-top) 24px max(24px, env(safe-area-inset-bottom)); }
+.top-bar, .content { max-width: 620px; }
+.top-bar { height: auto; padding: 28px 0; gap: 20px; align-items: center; }
+.icon-wrapper .material-symbols-outlined, .settings > summary { font-size: 28px; }
+.content { height: auto; flex: 1; }
+.temp-display { font-size: clamp(56px, 10vw, 88px); margin: 20px 0 40px; }
+.big-button { width: min(480px, 78vw, 43dvh); height: auto; aspect-ratio: 1; flex-shrink: 0; }
+.big-button .material-symbols-outlined { font-size: clamp(96px, 30vw, 170px); }
+.option-list { padding: 0; margin-top: clamp(42px, 7dvh, 80px); gap: 28px; }
+.option + .option { margin-top: 0; }
+.option .option-header { font-size: clamp(18px, 3vw, 24px); gap: 24px; }
+:root { --toggle-width: 48px; --toggle-height: 24px; --toggle-padding: 3px; }
+.switch { flex-shrink: 0; }
+input:disabled + .slider { opacity: .4; cursor: not-allowed; }
+button:disabled { cursor: not-allowed; }
+button:focus-visible, summary:focus-visible, input:focus-visible + .slider { outline: 2px solid var(--terma-on); outline-offset: 5px; }
+.bottom-bar { display: none; }
+.fg { position: absolute; inset: 0; z-index: -1; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.settings { position: relative; }
+.settings > summary { list-style: none; color: var(--terma-off); cursor: pointer; line-height: 1; }
+.settings > summary::-webkit-details-marker { display: none; }
+.settings-panel { position: absolute; z-index: 3; right: 0; top: 44px; width: min(300px, 84vw); padding: 20px; border-radius: 20px; background: var(--up); box-shadow: 8px 8px 24px var(--shadow); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.settings-panel button { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--terma-off); border-radius: 12px; padding: 8px 14px; cursor: pointer; }
+#camera-preview { max-width: 100%; border-radius: 10px; }
+#camera-preview:not([src]) { display: none; }
+[hidden] { display: none !important; }
+@media (max-height: 650px) { .top-bar { padding: 16px 0; } .temp-display { margin: 10px 0 24px; } .option-list { margin-top: 28px; } }
+@media (prefers-reduced-motion: reduce) { *, *:before { animation: none !important; transition: none !important; } }
+
+/* Disabled power uses the existing palette, without suggesting a confirmed OFF. */
+.big-button:disabled { filter: grayscale(1); opacity: .45; text-shadow: none; cursor: not-allowed; }
+
+.option .option-description { font-size: clamp(14px, 2.5vw, 18px); line-height: 1.5; margin-top: 10px; }

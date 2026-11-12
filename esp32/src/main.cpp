@@ -35,8 +35,9 @@ void setup()
 
 void loop()
 {
-  heaterModule.loop();
-  float curr_ms = millis();
+  if (heaterModule.loop())
+    mqttModule.publishPowerState();
+  unsigned long curr_ms = millis();
   if (curr_ms - last_ms >= TICK_INTERVAL_MS)
   {
     last_ms = curr_ms;

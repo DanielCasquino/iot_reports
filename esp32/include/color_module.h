@@ -29,10 +29,28 @@ public:
     void poll()
     {
         unsigned long curr_ms = millis();
-        if (!available || curr_ms - last_ms < 1000UL)
+        if (!available)
+        {
+            if (curr_ms - last_ms >= 5000UL)
+            {
+                last_ms = curr_ms;
+                available = Wire.begin(COLOR_SDA_PIN, COLOR_SCL_PIN) && sensor.begin(TCS34725_ADDRESS, &Wire);
+                if (available) Serial.println("Color sensor reconnected");
+            }
+            return;
+        }
+        if (curr_ms - last_ms < 1000UL)
             return;
 
         last_ms = curr_ms;
+        Wire.beginTransmission(TCS34725_ADDRESS);
+        if (Wire.endTransmission() != 0)
+        {
+            available = false;
+            hasSample = false;
+            Serial.println("Color sensor disconnected");
+            return;
+        }
         // The library waits about 25 ms with the selected integration time.
         sensor.getRawData(&red, &green, &blue, &clear);
         hasSample = true;
