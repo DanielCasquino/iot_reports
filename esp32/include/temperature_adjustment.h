@@ -24,6 +24,21 @@ public:
         }
     }
     void cancel() { state = State::Idle; }
+    bool applyTarget(int value, int base) {
+        if (state != State::Idle || value < MIN_TEMPERATURE_C || value > MAX_TEMPERATURE_C ||
+            base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C) return false;
+        target = value;
+        estimated = base;
+        corrections = 0;
+        hasPressed = false;
+        state = target == estimated ? State::Idle : State::Applying;
+        return true;
+    }
+    bool finishWithoutCamera(uint32_t now) {
+        if (state != State::Verifying || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
+        state = State::Idle;
+        return true;
+    }
     void select(int direction, float observed, uint32_t now) {
         if (locked()) return;
         if (state == State::Idle) {

@@ -20,25 +20,40 @@
       <div id="esp-status" class="icon-wrapper icon-wrapper-off" role="img" aria-label="Device offline">
         <span class="material-symbols-outlined" aria-hidden="true">developer_board</span>
       </div>
-      <details class="settings">
-        <summary class="material-symbols-outlined" aria-label="Details" title="Details">more_horiz</summary>
+      <details class="settings base-settings">
+        <summary class="material-symbols-outlined" aria-label="Temperature calibration" title="Temperature calibration">tune</summary>
         <div class="settings-panel">
-          <p id="flow-display">Flow unavailable</p>
-          <p id="heater-observation">Waiting for fresh readings</p>
-          <p id="color-display">RGB unavailable</p>
-          <button id="capture-temperature" disabled onclick="captureTemperature()">Read display</button>
-          <p id="camera-status" role="status"></p>
-          <img id="camera-preview" alt="Last captured display" />
+          <form id="base-form" onsubmit="syncTemperatureBase(event)">
+            <label for="base-temperature">Current setting on the heater (°C)</label>
+            <p>Match the number you set on the physical heater. This does not move the servos.</p>
+            <div class="base-input-row"><input id="base-temperature" type="number" min="35" max="75" step="1" value="43" required disabled />
+            <button id="sync-base" type="submit" disabled>Sync</button></div>
+            <p id="base-status" role="status">Waiting for the controller</p>
+          </form>
         </div>
       </details>
     </div>
     <main class="content">
+      <section class="primary-control" aria-label="Heater control">
       <span id="temp-display" class="temp-display">--.-°C</span>
       <span id="temperature-status" class="sr-only" role="status">Temperature unavailable</span>
       <span id="connection-status" class="sr-only" role="status">Disconnected</span>
       <button id="big-button" class="big-button big-button-off" disabled aria-label="Toggle heater power" onclick="toggleTerma()">
         <span class="material-symbols-outlined" aria-hidden="true">power_settings_new</span>
       </button>
+      <section class="temperature-setting" aria-labelledby="target-label">
+        <div class="target-heading"><span id="target-label">Desired temperature</span>
+          <span id="adjustment-lock" class="material-symbols-outlined" aria-label="Adjustment locked" hidden>lock</span></div>
+        <div class="temperature-stepper">
+          <button id="temperature-down" class="soft-button step-button" disabled onclick="changeTarget(-1)" aria-label="Lower desired temperature"><span class="material-symbols-outlined" aria-hidden="true">remove</span></button>
+          <output id="target-temperature" aria-live="polite">--°C</output>
+          <button id="temperature-up" class="soft-button step-button" disabled onclick="changeTarget(1)" aria-label="Raise desired temperature"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
+        </div>
+        <button id="save-temperature" class="soft-button save-button" disabled onclick="saveTarget()">Save temperature</button>
+        <p id="adjustment-status" role="status">Waiting for the controller</p>
+      </section>
+      </section>
+      <aside class="secondary-control" aria-label="Preferences and sensor details">
       <div class="option-list">
         <div class="option"><div class="option-header">
           <span>Low Cortisol Mode</span>
@@ -54,6 +69,18 @@
           <span class="option-description">You're so weird if you use this.</span>
         </div>
       </div>
+      <details class="settings diagnostics">
+        <summary class="material-symbols-outlined" aria-label="Details" title="Details">more_horiz</summary>
+        <div class="settings-panel diagnostics-panel">
+          <p id="flow-display">Flow unavailable</p>
+          <p id="heater-observation">Waiting for fresh readings</p>
+          <p id="color-display">RGB unavailable</p>
+          <button id="capture-temperature" disabled onclick="captureTemperature()">Read display</button>
+          <p id="camera-status" role="status"></p>
+          <img id="camera-preview" alt="Last captured display" />
+        </div>
+      </details>
+      </aside>
     </main>
     <div id="fg" class="fg"></div>
     <script src="script.js" defer></script>

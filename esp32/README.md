@@ -1,3 +1,34 @@
+# Control desde la web
+
+La web mantiene un borrador local de la temperatura deseada. Los botones +/− no
+mandan pulsaciones ni esperan un temporizador: **Save temperature** envía un único
+objetivo al ESP32. El firmware calcula la diferencia desde la consigna estimada,
+activa el servo correspondiente una vez por grado (al menos 1 s entre pulsaciones)
+y bloquea nuevos ajustes y calibraciones durante los movimientos y los 6 s finales
+de guardado del panel. En el modo temporal no se requiere OCR para liberar el bloqueo.
+Los botones físicos B/C conservan su selección de 5 s porque no tienen botón Save.
+
+`TEMPORARY_INITIAL_SETPOINT_C` es **43 °C** por defecto, configurable en
+`include/config.h`. Debe coincidir con la consigna física al arrancar el ESP32.
+El menú de calibración (icono tune) permite sincronizar otro valor sin mover servos.
+El valor se mantiene en RAM; después de reiniciar se vuelve a la constante inicial.
+La sonda mide el agua; no se usa como consigna del display. El rango de consigna
+es **35–75 °C**, correspondiente al mínimo del manual del equipo.
+
+Comandos MQTT no retenidos: `heater/set/temperature` y
+`heater/set/temperature_base`, con payload `requestId,base,target`. El firmware
+rechaza nuevas órdenes mientras está ocupado, objetivos fuera del rango, ajustes
+con la terma apagada y bases que ya no coinciden. La calibración solo cambia el
+valor estimado, sin tocar servos. Estos comandos web están habilitados únicamente
+en el modo temporal; restaurar OCR requiere revisar el protocolo de consigna.
+`heater/state/temperature_control` publica base, objetivo, estado, bloqueo, límites
+y resultado de la última orden en una única observación JSON. La web espera el
+acuse del ESP32 y no calcula el fin del bloqueo con un temporizador local.
+
+En escritorio se muestra el control a la izquierda y preferencias/RGB/cámara a la
+derecha. En celular se conserva la columna y los diagnósticos quedan en su menú;
+la calibración tiene un menú separado en la barra superior.
+
 # Modo temporal de pruebas (activo)
 
 `TEMPORARY_SENSOR_TEST_MODE = 1` en `include/config.h` activa el modo temporal.
@@ -16,12 +47,13 @@ reiniciar el broker. Los bloques originales se conservan con comentarios y `#if`
   bloquean los controles. La web utiliza la temperatura de la sonda.
 - Subir/bajar conservan la selección de 5 segundos y el bloqueo durante los
   movimientos. **La confirmación por cámara está suspendida**: al finalizar los
-  servos se libera el bloqueo sin afirmar que el display quedó confirmado.
+  servos se esperan 6 segundos para que el panel guarde el valor y se libera el
+  bloqueo sin afirmar que el display quedó confirmado.
 - Para probar subir/bajar, establecer manualmente el display en
-  `TEMPORARY_INITIAL_SETPOINT_C` (**20 °C** por defecto) antes de arrancar el ESP32,
+  `TEMPORARY_INITIAL_SETPOINT_C` (**43 °C** por defecto) antes de arrancar el ESP32,
   o ajustar esa constante al valor real. Se cuentan las pulsaciones desde ese
   valor; no se confunde la temperatura del agua con la consigna del display.
-  El objetivo estimado mantiene el rango 20–75 °C. Si se opera directamente la
+  El objetivo estimado mantiene el rango 35–75 °C. Si se opera directamente la
   terma o un servo pierde una pulsación, este modo no puede detectar el desfase.
 - El autoapagado opcional usa la sonda y conserva el umbral de 40 °C.
 
@@ -44,10 +76,10 @@ bandera temporal.
 
 Los botones se conectan entre GPIO y GND (`INPUT_PULLUP`): A/32 enciende o
 apaga, B/33 sube y C/18 baja. B y C requieren encendido confirmado y una lectura
-OCR reciente, entera y dentro de 20–75 °C para comenzar una selección.
+OCR reciente, entera y dentro de 35–75 °C para comenzar una selección.
 
 Cada pulsación modifica el objetivo pendiente en 1 °C, sin mover servos. Los
-límites son 20 y 75 °C. Cada pulsación individual, incluso en un límite,
+límites son 35 y 75 °C. Cada pulsación individual, incluso en un límite,
 reinicia los 5 segundos de selección. Pulsaciones simultáneas se ignoran.
 Si el objetivo vuelve al valor inicial, no se acciona ningún servo.
 

@@ -4,12 +4,12 @@
 #define TEMPORARY_SENSOR_TEST_MODE 1
 #endif
 // Match the physical display manually at startup during the temporary test.
-#define TEMPORARY_INITIAL_SETPOINT_C 20
+#define TEMPORARY_INITIAL_SETPOINT_C 43
 #define TEMPERATURE_PROBE_INTERVAL_MS 2000UL
 #define TEMPERATURE_SENSOR_PIN 4
 #define MAX_TEMPERATURE_C 75
 #define AUTO_SHUTDOWN_TEMPERATURE_C 40.0
-#define MIN_TEMPERATURE_C 20.0
+#define MIN_TEMPERATURE_C 35
 #define SERVO_PIN_A 25
 #define SERVO_PIN_B 26
 #define SERVO_PIN_C 27
