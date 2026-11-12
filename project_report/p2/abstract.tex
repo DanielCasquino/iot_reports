@@ -1,9 +1,10 @@
-This paper proposes a removable Internet of Things (IoT) retrofit for remote monitoring and on/off control of a
-Rheem EW1-50RP electric storage water heater without accessing its internal electronics or switching its mains supply.
-An ESP32-CAM captures the existing temperature display for application-side optical recognition, a TCS34725 color sensor
-observes the heating indicator, and a YF-S201 Hall-effect sensor measures flow and accumulated water volume at an external
-pipe connection. An ESP32 controller communicates over Wi-Fi/MQTT and operates a low-voltage servo that presses the original
-on/off button following validated requests. The application displays observed states and supports basic voice commands while
-identifying uncertain or unavailable readings. The proposed validation compares optical readings with the panel, calibrates
-flow against measured volume, and verifies button response and mechanical compatibility. This is a prototype design; measured
-performance and energy savings are not claimed.
+This paper presents an Internet of Things (IoT) system for remote monitoring and external control of a Rheem EW1-50RP
+electric storage water heater without modifying its internal electronics or mains supply.
+The system integrates an ESP32-WROOM microcontroller, an ESP32-CAM module for optical temperature acquisition,
+a TCS34725 RGB sensor for monitoring the heating indicator, and a Hall-effect flow sensor for measuring water consumption.
+Temperature readings are extracted from images of the heater's original display using an optical character recognition (OCR)
+pipeline based on Tesseract.js and Sharp. The ESP32 processes sensor readings, controls low-voltage servomotors, and exchanges
+commands and telemetry through Wi-Fi and MQTT. A Node.js service integrates MQTT communication, image processing, and
+WebSocket messaging with a web-based dashboard for remote monitoring and control. The resulting architecture provides a
+non-invasive approach to extending the connectivity of a conventional water heater while preserving its original electrical
+control and protection mechanisms.
