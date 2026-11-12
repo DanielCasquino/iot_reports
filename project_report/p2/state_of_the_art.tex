@@ -1,13 +1,26 @@
-Eight studies guide the scope of this proposal. Each supports a particular design choice; none alone validates the complete Rheem retrofit.
+Eight studies provide the scientific foundation for the system's design.
+Each addresses a specific aspect of smart-home technologies, water-heater control,
+water consumption monitoring, optical data acquisition, or user interaction.
+Together, these studies support the architectural decisions adopted in this work.
 
 \subsection*{A1. Smart-home energy conservation}
-Bhati et al.~\cite{bhati2017} examine household attitudes and behavior in a smart-city energy context. We take the need for useful feedback and simple interaction. Their study does not measure this heater or demonstrate savings from this prototype.
+Bhati et al.~\cite{bhati2017} examine household attitudes and behavior in a smart-city energy context.
+Their findings highlight the relevance of accessible information and user interaction in smart-home systems.
+This supports the integration of a monitoring interface that provides users with information about their water heater.
+However, the study does not establish energy savings for the appliance or system considered in this work.
 
 \subsection*{A2. Control of domestic water heating}
-Booysen et al.~\cite{booysen2019} examine how optimal control can reduce energy for domestic water heating under modeled or studied conditions. This motivates remote access to the heater's on/off function. We do not transfer their savings figures to the EW1-50RP.
+Booysen et al.~\cite{booysen2019} investigate how optimal control strategies can reduce energy consumption in domestic
+water heating under the conditions examined in their study.
+Their work provides motivation for incorporating remote control capabilities into conventional water heaters.
+Unlike approaches that modify internal control strategies, the system developed here interacts with the heater
+through its existing physical interface, preserving the original electrical control mechanisms.
 
 \subsection*{A3. Water-use detection without internal access}
-Singer et al.~\cite{singer2017} investigate external flow sensing for a smart water-heater controller. It supports the value of water-use information in this application. Our proposed Hall meter instead requires a removable external plumbing union.
+Singer et al.~\cite{singer2017} investigate external flow sensing for a smart water-heater controller.
+Their work demonstrates the relevance of water-use information for monitoring domestic heating systems.
+In contrast, the present system uses a Hall-effect turbine flow sensor that measures water passing through
+an external plumbing connection, without accessing the heater's internal electronic circuitry.
 
 \subsection*{A4. Flow measurements around domestic heaters}
 Pirow et al.~\cite{pirow2018} estimate domestic hot-water usage from temperature and vibration sensors outside a pipe. Their proof of concept shows that water-use monitoring can be separated from the heater electronics. It does not validate our Hall sensor or its installation.
