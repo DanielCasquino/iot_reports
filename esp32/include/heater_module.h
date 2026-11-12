@@ -45,13 +45,16 @@ public:
         servoModuleA.tap();
     }
 
-    void wakeDisplay() { if (power) servoModuleA.tap(); }
+    void wakeDisplay()
+    {
+        if (power)
+            servoModuleA.tap();
+    }
 
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
     void setIsAutoShutdownEnabled(bool iase)
     {
         isAutoShutdownEnabled = iase;
-        servoModuleB.tap();
     }
 
     void setTemperature(float value) { temperatureModule.update(value); }

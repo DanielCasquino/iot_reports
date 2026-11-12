@@ -31,7 +31,9 @@
     "typescript": "^7.0.2"
   },
   "allowScripts": {
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "sharp@0.34.5": true,
+    "tesseract.js@6.0.1": true
   },
   "overrides": {
     "wasm-feature-detect": "1.8.0"
