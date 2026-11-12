@@ -20,6 +20,13 @@ public:
         observations = xQueueCreate(8, sizeof(Observation));
         powerRequests = xQueueCreate(4, sizeof(bool));
         pinMode(LED_BUILTIN, OUTPUT);
+#if TEMPORARY_SENSOR_TEST_MODE
+        // TEMPORARY: do not wait for the RGB pilot to establish initial power.
+        // Start this test with the physical heater OFF.
+        powerKnown = true;
+        power = false;
+        digitalWrite(LED_BUILTIN, LOW);
+#endif
         temperatureModule.setup();
         servoModuleA.setup(SERVO_PIN_A);
         servoModuleB.setup(SERVO_PIN_B);
@@ -33,15 +40,19 @@ public:
 
     bool loop()
     {
+        temperatureModule.poll();
         bool requestedPower;
         if (powerRequests && xQueueReceive(powerRequests, &requestedPower, 0) == pdTRUE && setPower(requestedPower))
             return true;
         Observation observation;
         while (observations && xQueueReceive(observations, &observation, 0) == pdTRUE) {
+#if !TEMPORARY_SENSOR_TEST_MODE
+            // TEMPORARILY bypass OCR updates/verification; probe owns temperature.
             if (observation.verification) {
                 if (adjustment.verify(observation.id, observation.value))
                     temperatureModule.update(observation.value);
             } else temperatureModule.update(observation.value);
+#endif
         }
         flowModule.poll();
         colorModule.poll();
@@ -52,19 +63,37 @@ public:
             if (powerPressed) {
                 if (powerKnown) return setPower(!power);
                 if (!tapPowerButton()) return false;
-                temperatureModule.invalidate();
+                invalidateTemperature();
                 return true;
             }
-            if (powerKnown && power)
+            if (powerKnown && power) {
+#if TEMPORARY_SENSOR_TEST_MODE
+                // Water temperature is not the display setpoint. Track test presses
+                // separately from the actual probe measurement.
+                adjustment.select(increasePressed ? 1 : -1, testSetpoint, millis());
+#else
                 adjustment.select(increasePressed ? 1 : -1, temperatureModule.read(), millis());
+#endif
+            }
         }
         if (powerKnown && power) {
             int direction = adjustment.tick(millis());
             if (direction) {
-                temperatureModule.invalidate();
+                invalidateTemperature();
                 if (direction > 0) servoModuleB.tap();
                 else servoModuleC.tap();
+#if TEMPORARY_SENSOR_TEST_MODE
+                testSetpoint += direction * TEMPERATURE_STEP_C;
+#endif
                 adjustment.completedPress(millis());
+#if TEMPORARY_SENSOR_TEST_MODE
+                // TEMPORARY: do not wait for camera confirmation after the batch.
+                // This is only an estimated setpoint, never a sensor reading.
+                if (adjustment.state == TemperatureAdjustment::State::Verifying) {
+                    testSetpoint = adjustment.target;
+                    adjustment.cancel();
+                }
+#endif
             }
         }
         return false;
@@ -84,6 +113,10 @@ public:
     bool isPowerKnown() { return powerKnown; }
     void observePowerOn()
     {
+#if TEMPORARY_SENSOR_TEST_MODE
+        // TEMPORARILY ignore RGB-derived power observations.
+        return;
+#endif
         power = true;
         powerKnown = true;
         digitalWrite(LED_BUILTIN, HIGH);
@@ -96,7 +129,7 @@ public:
         adjustment.cancel();
         power = p;
         digitalWrite(LED_BUILTIN, p);
-        temperatureModule.invalidate();
+        invalidateTemperature();
         return true;
     }
 
@@ -111,12 +144,24 @@ public:
         enqueueObservation({value, 0, false});
     }
     void verifyTemperature(uint32_t id, float value) { enqueueObservation({value, id, true}); }
-    bool needsTemperatureVerification() { return adjustment.needsVerification(millis()); }
+    bool needsTemperatureVerification() {
+#if TEMPORARY_SENSOR_TEST_MODE
+        // TEMPORARY: camera remains available, but cannot block the controls.
+        return false;
+#else
+        return adjustment.needsVerification(millis());
+#endif
+    }
     uint32_t temperatureVerificationId() { return adjustment.requestId; }
     const char *getAdjustmentStatus() { return adjustment.status(); }
     bool isTemperatureLocked() { return adjustment.locked(); }
     int getTargetTemperature() { return adjustment.target; }
-    void invalidateTemperature() { temperatureModule.invalidate(); }
+    void invalidateTemperature() {
+#if !TEMPORARY_SENSOR_TEST_MODE
+        // TEMPORARILY preserve the probe reading across power/OCR events.
+        temperatureModule.invalidate();
+#endif
+    }
     bool isTemperatureAvailable() { return temperatureModule.isAvailable(); }
     ColorModule &getColor() { return colorModule; }
 
@@ -150,6 +195,9 @@ private:
         if (observations) xQueueSend(observations, &observation, 0);
     }
     TemperatureAdjustment adjustment;
+#if TEMPORARY_SENSOR_TEST_MODE
+    int testSetpoint = TEMPORARY_INITIAL_SETPOINT_C;
+#endif
     unsigned long lastTap_ms = 0;
     bool hasTapped = false;
     ButtonModule buttonA, buttonB, buttonC;
