@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { MqttClient } from "mqtt";
 import sharp from "sharp";
+import { readSevenSegmentImage } from "./seven-segment.js";
 import { createWorker, PSM } from "tesseract.js";
 import { parseTemperature } from "./temperature.js";
 
@@ -15,9 +16,9 @@ export class CameraModule {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private state: { available: boolean; value: number | null; lastValue: number | null;
-    observedAt: string | null; text: string; confidence: number; error: string | null } = {
+    observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null } = {
     available: false, value: null, lastValue: null, observedAt: null,
-    text: "", confidence: 0, error: "No capture yet",
+    text: "", confidence: null, reader: "tesseract", error: "No capture yet",
   };
 
   constructor(private mqtt: MqttClient) {}
@@ -96,28 +97,42 @@ export class CameraModule {
           throw new Error("CAMERA_CROP must be left,top,width,height in image pixels");
         pipeline = pipeline.extract({ left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! });
       }
-      pipeline = pipeline.resize({ width: 800 }).grayscale().normalise();
-      if (process.env.CAMERA_INVERT === "true") pipeline = pipeline.negate();
-      if (process.env.CAMERA_THRESHOLD) {
-        const threshold = Number(process.env.CAMERA_THRESHOLD);
-        if (!Number.isInteger(threshold) || threshold < 0 || threshold > 255)
-          throw new Error("CAMERA_THRESHOLD must be 0..255");
-        pipeline = pipeline.threshold(threshold);
+      const sevenSegment = process.env.CAMERA_SEVEN_SEGMENT === "true";
+      let value: number | null;
+      let text: string;
+      let confidence: number | null = null;
+      if (sevenSegment) {
+        if (!crop) throw new Error("Set CAMERA_CROP around the two digits for seven-segment mode");
+        const reading = await readSevenSegmentImage(await pipeline.png().toBuffer());
+        this.processed = reading.image;
+        value = reading.value;
+        text = value === null ? "" : String(value);
+      } else {
+        pipeline = pipeline.resize({ width: 800 }).grayscale().normalise();
+        if (process.env.CAMERA_INVERT === "true") pipeline = pipeline.negate();
+        if (process.env.CAMERA_THRESHOLD) {
+          const threshold = Number(process.env.CAMERA_THRESHOLD);
+          if (!Number.isInteger(threshold) || threshold < 0 || threshold > 255)
+            throw new Error("CAMERA_THRESHOLD must be 0..255");
+          pipeline = pipeline.threshold(threshold);
+        }
+        this.processed = await pipeline.png().toBuffer();
+        if (!this.ocrWorker) {
+          this.ocrWorker = await createWorker("eng", 1, process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH } : {});
+          await this.ocrWorker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
+            tessedit_char_whitelist: "0123456789.,Cc°" });
+        }
+        const { data } = await this.ocrWorker.recognize(this.processed);
+        const minimumConfidence = Number(process.env.CAMERA_MIN_CONFIDENCE ?? 80);
+        if (!Number.isFinite(minimumConfidence) || minimumConfidence < 0 || minimumConfidence > 100)
+          throw new Error("CAMERA_MIN_CONFIDENCE must be 0..100");
+        value = parseTemperature(data.text, data.confidence, minimumConfidence);
+        text = data.text.trim();
+        confidence = data.confidence;
       }
-      this.processed = await pipeline.png().toBuffer();
-      if (!this.ocrWorker) {
-        this.ocrWorker = await createWorker("eng", 1, process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH } : {});
-        await this.ocrWorker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
-          tessedit_char_whitelist: "0123456789.,Cc°" });
-      }
-      const { data } = await this.ocrWorker.recognize(this.processed);
-      const minimumConfidence = Number(process.env.CAMERA_MIN_CONFIDENCE ?? 80);
-      if (!Number.isFinite(minimumConfidence) || minimumConfidence < 0 || minimumConfidence > 100)
-        throw new Error("CAMERA_MIN_CONFIDENCE must be 0..100");
-      const value = parseTemperature(data.text, data.confidence, minimumConfidence);
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
       this.state = { ...this.state, available: value !== null, value, observedAt,
-        text: data.text.trim(), confidence: data.confidence, error: value === null ? "Unreadable or low-confidence display" : null };
+        text, confidence, reader: sevenSegment ? "seven-segment" : "tesseract", error: value === null ? (sevenSegment ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (value === null) throw new Error(this.state.error!);
       if (!this.mqtt.connected) throw new Error("MQTT disconnected; reading not delivered");
       await new Promise<void>((resolve, reject) => {
