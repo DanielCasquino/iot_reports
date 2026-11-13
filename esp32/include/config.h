@@ -34,7 +34,7 @@
 #define TEMPERATURE_MAX_CORRECTIONS 3
 
 #define SERVO_REST_A 0
-#define SERVO_PRESS_A 90
+#define SERVO_PRESS_A 29
 #define SERVO_REST_B 0
 #define SERVO_PRESS_B 90
 #define SERVO_REST_C 0
