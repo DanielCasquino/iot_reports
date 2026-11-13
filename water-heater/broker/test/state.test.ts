@@ -15,6 +15,17 @@ test("pilot requires calibration; low light is not proof of OFF or power failure
   assert.equal(classifyPilot("80,10,10,100", { ...env, COLOR_GREEN_REFERENCE: env.COLOR_RED_REFERENCE }), "unknown");
 });
 
+test("a matching reference alone is enough to infer that state", () => {
+  const redOnly = { COLOR_RED_REFERENCE: "80,10,10,100", COLOR_MAX_DISTANCE: "0.1" };
+  assert.equal(classifyPilot("80,10,10,100", redOnly), "heating");
+  assert.equal(classifyPilot("10,80,10,100", redOnly), "unknown");
+  const greenOnly = { COLOR_GREEN_REFERENCE: "10,80,10,100", COLOR_MAX_DISTANCE: "0.1" };
+  assert.equal(classifyPilot("10,80,10,100", greenOnly), "ready");
+  assert.equal(classifyPilot("80,10,10,100", greenOnly), "unknown");
+  // A reference without a tolerance still cannot classify.
+  assert.equal(classifyPilot("80,10,10,100", { COLOR_RED_REFERENCE: "80,10,10,100" }), "unknown");
+});
+
 test("retained and expired telemetry cannot enable commands; OCR failure does not mean asleep", () => {
   const state = new HeaterObservation();
   const camera = { available: true, value: 48, observedAt: new Date(1000).toISOString() };

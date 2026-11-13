@@ -132,9 +132,10 @@ public:
     void observePowerOn()
     {
 #if TEMPORARY_SENSOR_TEST_MODE
-        // TEMPORARILY ignore RGB-derived power observations.
         return;
 #endif
+        if (!powerKnown || !power)
+            Serial.println("Power observed on from pilot");
         power = true;
         powerKnown = true;
         digitalWrite(LED_BUILTIN, HIGH);
