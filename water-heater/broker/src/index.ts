@@ -8,9 +8,11 @@ import express from "express";
 import path from "path";
 import { CameraModule } from "./camera/module.js";
 import { classifyPilot, HeaterObservation } from "./heater/state.js";
+import { parseTemperatureControl, type TemperatureControl } from "./heater/temperature-control.js";
 import { parseCommand } from "./websocket/command.js";
 
 interface HeaterState {
+  temperatureControl: TemperatureControl | null;
   power: boolean | null;
   autoShutdown: boolean | null;
   temperature: number | null;
@@ -21,6 +23,7 @@ interface HeaterState {
 }
 
 const heaterState: HeaterState = {
+  temperatureControl: null,
   power: null,
   autoShutdown: null,
   temperature: null,
@@ -30,7 +33,10 @@ const heaterState: HeaterState = {
   status: null
 };
 
-const observation = new HeaterObservation();
+// TEMPORARY: use probe telemetry; RGB/camera stay enabled for diagnostics.
+// Set false here via .env AND TEMPORARY_SENSOR_TEST_MODE=0 in ESP32 config to restore.
+const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE !== "false";
+const observation = new HeaterObservation(sensorTestMode);
 let brokerConnected = false;
 
 mqttClient.on("message", (topic, payload, packet) => {
@@ -39,6 +45,9 @@ mqttClient.on("message", (topic, payload, packet) => {
   if (packet.retain && value !== "offline") return;
 
   switch (topic) {
+    case "heater/state/temperature_control":
+      heaterState.temperatureControl = parseTemperatureControl(value);
+      break;
     case "heater/state/power":
       heaterState.power = value === "true" ? true : value === "false" ? false : null;
       break;
@@ -56,7 +65,8 @@ mqttClient.on("message", (topic, payload, packet) => {
     }
     case "heater/state/color":
       heaterState.color = value === "unavailable" ? null : value;
-      if (heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
+      // TEMPORARILY bypass RGB -> power control, retaining raw RGB telemetry.
+      if (!sensorTestMode && heaterState.power !== true && ["heating", "ready"].includes(classifyPilot(heaterState.color)))
         mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
       break;
     case "heater/status":
@@ -78,12 +88,14 @@ mqttClient.on("connect", () => {
 mqttClient.on("offline", () => {
   brokerConnected = false;
   observation.disconnect();
+  heaterState.temperatureControl = null;
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
 mqttClient.on("close", () => {
   brokerConnected = false;
   observation.disconnect();
+  heaterState.temperatureControl = null;
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 })
@@ -113,6 +125,14 @@ wss.on("connection", (ws) => {
       ws.send(JSON.stringify({ event: "command_error", data: { error: "Controller unavailable" } }));
       return;
     }
+    if (command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base") {
+      const control = heaterState.temperatureControl;
+      if (!sensorTestMode || !control || control.status !== "idle" ||
+          (command.topic === "heater/set/temperature" && currentObservation.power !== true)) {
+        ws.send(JSON.stringify({ event: "command_error", data: { error: "Temperature control unavailable or busy" } }));
+        return;
+      }
+    }
     mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
   });
 });
@@ -128,6 +148,7 @@ cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observation.snapshot(cameraModule.getState());
   res.set("Cache-Control", "no-store").json({ ...state,
+    temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
     volume: state.online ? heaterState.volume : null,
   });

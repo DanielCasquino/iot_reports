@@ -362,3 +362,50 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 .big-button:disabled { filter: grayscale(1); opacity: .45; text-shadow: none; cursor: not-allowed; }
 
 .option .option-description { font-size: clamp(14px, 2.5vw, 18px); line-height: 1.5; margin-top: 10px; }
+
+/* Responsive layout: retain the existing palette, typography and soft surfaces. */
+.primary-control { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.secondary-control { width: 100%; }
+.temperature-setting { width: min(100%, 340px); margin-top: 32px; text-align: center; }
+.target-heading { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; color: var(--text-less-important); }
+.temperature-stepper { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 18px 0; }
+#target-temperature { color: var(--text); font-size: 36px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.soft-button { font: inherit; color: var(--text); border: 0; background: var(--big-button); border-radius: 16px; box-shadow: 5px 5px 12px var(--shadow), -5px -5px 12px var(--highlight); cursor: pointer; }
+.soft-button:active:not(:disabled) { box-shadow: inset 3px 3px 8px var(--shadow), inset -3px -3px 8px var(--highlight); }
+.soft-button:disabled { opacity: .4; }
+.step-button { width: 48px; height: 48px; display: grid; place-items: center; flex-shrink: 0; }
+.save-button { width: 100%; min-height: 46px; padding: 12px 20px; color: var(--terma-on); font-weight: 600; }
+#adjustment-status { min-height: 42px; font-size: 13px; line-height: 1.5; color: var(--text-less-important); margin: 16px 0 0; }
+.base-settings .settings-panel { width: min(330px, calc(100vw - 48px)); box-sizing: border-box; max-width: calc(100vw - 48px); }
+.base-settings label { font-weight: 600; }
+.base-input-row { display: flex; gap: 12px; }
+#base-temperature { width: 90px; min-height: 44px; font: inherit; padding: 8px; color: var(--text); border: 1px solid var(--terma-off); border-radius: 10px; background: transparent; }
+.base-input-row button { flex: 1; }
+.secondary-control .diagnostics { margin: 24px 0 0; }
+.secondary-control .diagnostics > summary { text-align: right; }
+@media (min-width: 960px) {
+  body { padding-inline: 56px; }
+  .top-bar { max-width: 1120px; }
+  .content { max-width: 1120px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: clamp(60px, 8vw, 140px); align-items: center; padding: 16px 0 48px; }
+  .temp-display { margin: 0 0 30px; font-size: 76px; }
+  .big-button { width: min(340px, 38dvh); }
+  .big-button .material-symbols-outlined { font-size: 140px; }
+  .secondary-control { align-self: center; }
+  .option-list { margin-top: 0; gap: 32px; }
+  .option .option-header { font-size: 20px; }
+  .option .option-description { font-size: 15px; }
+  .secondary-control .diagnostics { margin-top: 36px; }
+  .diagnostics > summary { display: none; }
+  .diagnostics > .diagnostics-panel { display: block; position: static; width: 100%; padding: 22px 0 0; border-radius: 0; background: transparent; box-shadow: none; border-top: 1px solid var(--shadow); }
+  .diagnostics:not([open]) > .diagnostics-panel { display: block; }
+  #camera-preview { max-height: 170px; object-fit: contain; object-position: left; }
+}
+@media (max-width: 959px) {
+  .secondary-control .diagnostics { position: absolute; top: -53px; right: 0; margin: 0; }
+  .base-settings { margin-right: 44px; }
+  .temperature-setting { margin-top: 28px; }
+  .option-list { margin-top: 32px; }
+}
+@media (max-width: 959px) {
+  .base-settings .settings-panel { position: fixed; top: calc(72px + env(safe-area-inset-top)); right: 24px; }
+}
