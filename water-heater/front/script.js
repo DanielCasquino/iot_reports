@@ -6,6 +6,12 @@ let socket;
 let brokerConnected = false;
 let capturePending = false;
 let reconnectTimeout;
+let temperatureControl = null;
+let desiredTemperature = null;
+let temperatureDraftDirty = false;
+let pendingTemperatureCommand = null;
+let temperatureMessage = "";
+
 let observationText = "Waiting for fresh readings";
 
 const heaterState = {
@@ -68,7 +74,7 @@ function updateTemperature() {
   }
   heaterState.lastTemperature = heaterState.temperature;
   const status = document.getElementById("temperature-status");
-  if (status) status.textContent = "Current OCR reading";
+  if (status) status.textContent = "Current temperature reading";
 
   const temperature = fahrenheit
     ? c2f(heaterState.temperature)
@@ -107,6 +113,10 @@ function handleMqttMessage(data) {
   const { topic, payload } = data;
 
   switch (topic) {
+    case "heater/state/temperature_control": {
+      try { receiveTemperatureControl(JSON.parse(payload)); } catch { temperatureControl = null; updateTemperatureControls(); }
+      break;
+    }
     case "heater/state/power": {
       heaterState.power = payload === "true" ? true : payload === "false" ? false : null;
       updateControls();
@@ -153,6 +163,7 @@ function handleMessage(message) {
   switch (message.event) {
     case "state_snapshot":
       Object.assign(heaterState, message.data);
+      receiveTemperatureControl(message.data.temperatureControl);
       const t = heaterState.temperature;
       heaterState.temperature = heaterState.status === "online" && typeof t === "number" && Number.isFinite(t) && t >= 0 && t <= 100 ? t : null;
       updatePowerButton(heaterState.power);
@@ -161,6 +172,13 @@ function handleMessage(message) {
       updateEspStatus(heaterState.status);
       updateColor();
       updateFlow();
+      break;
+    case "command_error":
+      if (pendingTemperatureCommand) {
+        pendingTemperatureCommand = null;
+        temperatureMessage = message.data.error;
+        updateTemperatureControls();
+      }
       break;
     case "mqtt_message":
       handleMqttMessage(message.data);
@@ -202,6 +220,8 @@ function connect() {
     console.log("WebSocket disconnected.");
     updateBrokerStatus(false);
     heaterState.status = "offline";
+    temperatureControl = null;
+    updateTemperatureControls();
     heaterState.color = null;
     updateColor();
     updateEspStatus();
@@ -220,11 +240,12 @@ function connect() {
 function sendCommand(event, data) {
   if (!brokerConnected || heaterState.status !== "online" || !socket || socket.readyState !== WebSocket.OPEN) {
     console.error("Cannot send command: WebSocket is not connected.");
-    return;
+    return false;
   }
 
   socket.send(JSON.stringify({ event, data }));
   console.log(JSON.stringify({ event, data }));
+  return true;
 }
 
 // ui input shi
@@ -251,6 +272,7 @@ function toggleFahrenheit(checkbox) {
   try { localStorage.setItem("fahrenheit", String(fahrenheit)); } catch {}
 
   updateTemperature();
+  updateTemperatureControls();
 }
 
 function retrieveLocalSettings() {
@@ -308,6 +330,7 @@ function updateControls() {
   const available = brokerConnected && heaterState.status === "online";
   updatePowerButton();
   updateFlow();
+  updateTemperatureControls();
   document.getElementById("heater-observation").textContent = available ? observationText : "Waiting for fresh readings";
   for (const id of ["big-button", "automated-shutdown", "capture-temperature", "wake-temperature"]) {
     const control = document.getElementById(id);
@@ -357,3 +380,91 @@ function updateFlow() {
   const volume = available && typeof heaterState.volume === "number" ? `${heaterState.volume.toFixed(2)} L since restart` : "unavailable";
   document.getElementById("flow-display").textContent = `Flow: ${rate} · Volume: ${volume}`;
 }
+
+// The draft stays local. Only Save sends a target; the controller owns the lock.
+function receiveTemperatureControl(control) {
+  if (!control || !Number.isInteger(control.base) || control.base < 35 || control.base > 75 ||
+      !["idle", "selecting", "applying", "settling", "verifying", "error"].includes(control.status) ||
+      typeof control.locked !== "boolean" || control.locked !== !["idle", "selecting"].includes(control.status) ||
+      control.min !== 35 || control.max !== 75 || !Number.isInteger(control.target) || control.target < 0 || control.target > 75 ||
+      !Number.isInteger(control.commandId) || control.commandId < 0 || control.commandId > 0xffffffff) {
+    temperatureControl = null;
+    updateTemperatureControls();
+    return;
+  }
+  temperatureControl = control;
+  if (pendingTemperatureCommand && control.commandId === pendingTemperatureCommand.id) {
+    if (control.result !== "accepted") {
+      const errors = { busy: "Another adjustment is in progress.", off: "Turn the heater on first.",
+        base_mismatch: "The heater setting changed. Check the current value and save again.",
+        disabled: "Temperature control is disabled.", invalid: "Invalid temperature." };
+      temperatureMessage = errors[control.result] || "The command was not accepted.";
+    } else {
+      temperatureMessage = pendingTemperatureCommand.calibrate ? "Current setting synchronized. No servos moved." : "";
+      temperatureDraftDirty = false;
+    }
+    pendingTemperatureCommand = null;
+  }
+  if (desiredTemperature === null || (!temperatureDraftDirty && !pendingTemperatureCommand))
+    desiredTemperature = control.locked || control.status === "selecting" ? control.target : control.base;
+  const input = document.getElementById("base-temperature");
+  if (document.activeElement !== input) input.value = control.base;
+  updateTemperatureControls();
+}
+function updateTemperatureControls() {
+  const online = brokerConnected && heaterState.status === "online" && temperatureControl;
+  const locked = Boolean(pendingTemperatureCommand || temperatureControl?.locked || temperatureControl?.status === "selecting");
+  const editable = online && heaterState.power === true && !locked;
+  document.getElementById("temperature-down").disabled = !editable || desiredTemperature <= (temperatureControl?.min ?? 35);
+  document.getElementById("temperature-up").disabled = !editable || desiredTemperature >= (temperatureControl?.max ?? 75);
+  document.getElementById("save-temperature").disabled = !editable || desiredTemperature === temperatureControl?.base;
+  document.getElementById("sync-base").disabled = !online || locked;
+  document.getElementById("base-temperature").disabled = !online || locked;
+  const output = document.getElementById("target-temperature");
+  output.textContent = desiredTemperature === null ? "--°C" : `${fahrenheit ? c2f(desiredTemperature).toFixed(1) : desiredTemperature}°${fahrenheit ? "F" : "C"}`;
+  document.getElementById("adjustment-lock").hidden = !locked;
+  const states = { applying: "Adjusting the heater. Controls are locked.", settling: "Saving on the heater. Please wait.",
+    verifying: "Waiting for confirmation.", selecting: "An adjustment is being selected on the device.", error: "Adjustment failed. Check the heater before continuing." };
+  document.getElementById("adjustment-status").textContent = !online ? "Waiting for the controller" :
+    pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") : states[temperatureControl.status] || temperatureMessage ||
+    (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`);
+  document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : `Estimated setting: ${temperatureControl.base}°C`;
+  document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";
+}
+function changeTarget(direction) {
+  if (document.getElementById(direction > 0 ? "temperature-up" : "temperature-down").disabled) return;
+  desiredTemperature = Math.max(temperatureControl.min, Math.min(temperatureControl.max, desiredTemperature + direction));
+  temperatureDraftDirty = desiredTemperature !== temperatureControl.base;
+  temperatureMessage = "";
+  updateTemperatureControls();
+}
+function sendTemperatureCommand(calibrate, target) {
+  if (!temperatureControl || pendingTemperatureCommand || temperatureControl.status !== "idle") return;
+  const id = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+  if (sendCommand(calibrate ? "sync_temperature_base" : "set_temperature", { target, base: temperatureControl.base, requestId: id })) {
+    pendingTemperatureCommand = { id, calibrate, timedOut: false };
+    // Never unlock or replay movement commands on a timeout: their delivery is unknown.
+    setTimeout(() => {
+      if (pendingTemperatureCommand?.id === id) {
+        pendingTemperatureCommand.timedOut = true;
+        updateTemperatureControls();
+      }
+    }, 15000);
+    temperatureMessage = "";
+    updateTemperatureControls();
+  }
+}
+function saveTarget() {
+  if (!document.getElementById("save-temperature").disabled) sendTemperatureCommand(false, desiredTemperature);
+}
+function syncTemperatureBase(event) {
+  event.preventDefault();
+  const input = document.getElementById("base-temperature");
+  if (input.reportValidity() && !document.getElementById("sync-base").disabled)
+    sendTemperatureCommand(true, Number(input.value));
+}
+// Keep one diagnostics panel: expanded in the desktop column, collapsible on phones.
+const desktopLayout = matchMedia("(min-width: 960px)");
+function arrangeDiagnostics() { document.querySelector(".diagnostics").open = desktopLayout.matches; }
+desktopLayout.addEventListener("change", arrangeDiagnostics);
+arrangeDiagnostics();

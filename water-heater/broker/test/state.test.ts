@@ -31,3 +31,28 @@ test("retained and expired telemetry cannot enable commands; OCR failure does no
   state.disconnect();
   assert.equal(state.snapshot(camera, 1000).power, null);
 });
+
+test("temporary probe mode keeps power and temperature usable without camera or calibrated RGB", () => {
+  const state = new HeaterObservation(true);
+  const unreadable = { available: false, value: null, observedAt: null };
+  state.update("heater/status", "online", false, 1000);
+  state.update("heater/state/power", "false", false, 1000);
+  state.update("heater/state/temperature", "28.5", false, 1000);
+  state.update("heater/state/color", "unavailable", false, 1000);
+  assert.equal(state.snapshot(unreadable, 1000).power, false);
+  assert.equal(state.snapshot(unreadable, 1000).temperature, 28.5);
+  assert.equal(state.snapshot(unreadable, 1000).reason, null);
+  assert.equal(state.snapshot(unreadable, 1000).temperatureSource, "probe");
+  // A successful but incorrect OCR reading cannot replace the probe value either.
+  assert.equal(state.snapshot({ available: true, value: 75, observedAt: new Date(1000).toISOString() }, 1000).temperature, 28.5);
+  state.update("heater/state/power", "true", false, 2000);
+  assert.equal(state.snapshot(unreadable, 2000).power, true);
+  state.update("heater/state/temperature", "unavailable", false, 2000);
+  assert.equal(state.snapshot(unreadable, 2000).temperature, null);
+  assert.equal(state.snapshot(unreadable, 2000).power, true);
+  state.update("heater/state/temperature", "30", true, 2000);
+  assert.equal(state.snapshot(unreadable, 2000).temperature, null);
+  state.disconnect();
+  assert.equal(state.snapshot(unreadable, 2000).power, null);
+  assert.equal(state.snapshot(unreadable, 2000).temperature, null);
+});
