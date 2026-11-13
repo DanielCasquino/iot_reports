@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <WebServer.h>
 #include "esp_camera.h"
+#include "esp_http_server.h"
 
 // AI-Thinker ESP32-CAM pinout.
 class CameraModule
@@ -42,15 +43,32 @@ public:
             return false;
         }
         esp_camera_sensor_get()->set_framesize(esp_camera_sensor_get(), FRAMESIZE_QVGA);
+        cameraMutex = xSemaphoreCreateMutex();
+        if (!cameraMutex) return false;
         pinMode(4, OUTPUT);
         digitalWrite(4, LOW);
         server.on("/config", HTTP_GET, [this]() { configure(); });
         server.on("/status", HTTP_GET, [this]() { status(); });
         server.on("/", HTTP_GET, [this]() {
-            server.send(200, "text/html", "<!doctype html><meta name='viewport' content='width=device-width'><title>Camera test</title><h1>ESP32-CAM</h1><img id='frame' style='max-width:100%' src='/capture'><p><button onclick=\"document.getElementById('frame').src='/capture?t='+Date.now()\">Capture</button></p>");
+            server.send(200, "text/html", R"HTML(<!doctype html><meta name="viewport" content="width=device-width"><title>Camera test</title><style>body{font-family:system-ui;background:#151515;color:white;margin:16px}img{display:block;max-width:100%;image-rendering:auto}button{padding:10px;margin:8px 8px 8px 0}</style><h1>ESP32-CAM</h1><img id="frame"><button onclick="preview()">Encuadrar</button><button onclick="stop()">Detener</button><button onclick="capture()">Foto</button><script>const frame=document.getElementById('frame');function stop(){frame.removeAttribute('src')}async function preview(){stop();const response=await fetch('/config?resolution=qqvga&quality=25');if(response.ok)frame.src='http://'+location.hostname+':81/stream'}function capture(){stop();frame.src='/capture?t='+Date.now()}</script>)HTML");
         });
         server.on("/capture", HTTP_GET, [this]() { capture(); });
         server.begin();
+        httpd_config_t streamConfig = HTTPD_DEFAULT_CONFIG();
+        streamConfig.server_port = 81;
+        streamConfig.ctrl_port = 32769;
+        streamConfig.max_open_sockets = 1;
+        streamConfig.send_wait_timeout = 3;
+        if (httpd_start(&streamServer, &streamConfig) == ESP_OK)
+        {
+            httpd_uri_t streamRoute = {};
+            streamRoute.uri = "/stream";
+            streamRoute.method = HTTP_GET;
+            streamRoute.handler = stream;
+            streamRoute.user_ctx = this;
+            httpd_register_uri_handler(streamServer, &streamRoute);
+        }
+        else Serial.println("Preview server failed to start");
         Serial.println("Camera module initialized");
         return true;
     }
@@ -58,6 +76,32 @@ public:
     void loop() { server.handleClient(); }
 
 private:
+    static esp_err_t stream(httpd_req_t *request)
+    {
+        httpd_resp_set_type(request, "multipart/x-mixed-replace;boundary=frame");
+        httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+        auto *camera = static_cast<CameraModule *>(request->user_ctx);
+        while (true)
+        {
+            if (xSemaphoreTake(camera->cameraMutex, pdMS_TO_TICKS(1000)) != pdTRUE) return ESP_FAIL;
+            unsigned long started = millis();
+            camera_fb_t *frame = esp_camera_fb_get();
+            if (!frame) { xSemaphoreGive(camera->cameraMutex); return ESP_FAIL; }
+            char header[96];
+            int length = snprintf(header, sizeof(header),
+                "--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", unsigned(frame->len));
+            esp_err_t result = httpd_resp_send_chunk(request, header, length);
+            if (result == ESP_OK)
+                result = httpd_resp_send_chunk(request, reinterpret_cast<const char *>(frame->buf), frame->len);
+            if (result == ESP_OK) result = httpd_resp_send_chunk(request, "\r\n", 2);
+            esp_camera_fb_return(frame);
+            xSemaphoreGive(camera->cameraMutex);
+            if (result != ESP_OK) return result;
+            unsigned long elapsed = millis() - started;
+            delay(elapsed < 200 ? 200 - elapsed : 1);
+        }
+    }
+
     void status()
     {
         sensor_t *sensor = esp_camera_sensor_get();
@@ -95,18 +139,25 @@ private:
             if (quality < 10 || quality > 40)
             { server.send(400, "text/plain", "Quality must be 10-40"); return; }
         }
-        if (sensor->set_framesize(sensor, resolution) != 0 || sensor->set_quality(sensor, quality) != 0)
-        { server.send(500, "text/plain", "Camera configuration failed"); return; }
+        if (xSemaphoreTake(cameraMutex, pdMS_TO_TICKS(1000)) != pdTRUE)
+        { server.send(503, "text/plain", "Camera busy"); return; }
+        bool configured = sensor->set_framesize(sensor, resolution) == 0
+            && sensor->set_quality(sensor, quality) == 0;
+        xSemaphoreGive(cameraMutex);
+        if (!configured) { server.send(500, "text/plain", "Camera configuration failed"); return; }
         status();
     }
 
     void capture()
     {
+        if (xSemaphoreTake(cameraMutex, pdMS_TO_TICKS(1000)) != pdTRUE)
+        { server.send(503, "text/plain", "Camera busy"); return; }
         unsigned long captureStarted = millis();
         camera_fb_t *frame = esp_camera_fb_get();
         unsigned long captureMs = millis() - captureStarted;
         if (!frame)
         {
+            xSemaphoreGive(cameraMutex);
             server.send(503, "text/plain", "Capture failed");
             return;
         }
@@ -128,7 +179,10 @@ private:
         Serial.printf("Capture: %lu ms, send: %lu ms, bytes: %u/%u, RSSI: %d dBm\n",
             captureMs, millis() - started, unsigned(sent), unsigned(frame->len), WiFi.RSSI());
         esp_camera_fb_return(frame);
+        xSemaphoreGive(cameraMutex);
     }
 
+    SemaphoreHandle_t cameraMutex = nullptr;
+    httpd_handle_t streamServer = nullptr;
     WebServer server{80};
 };

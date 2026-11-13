@@ -45,3 +45,14 @@ The serial monitor prints capture time, send time, sent/expected bytes and RSSI
 for each request. Timings diagnose firmware stages; they are not equivalent to
 client-side network measurements. These local routes have no authentication;
 keep the camera on the trusted local demo network.
+
+## Live framing preview
+
+Open `/` and select **Encuadrar**. It sets QQVGA160×120 and JPEG quality25,
+then opens MJPEG at `http://<camera-IP>:81/stream`, capped at about5fps.
+Only one streaming viewer is supported. **Detener** disconnects the preview;
+**Foto** requests a single image at the current resolution. Settings are shared
+by streaming and snapshots. Before OCR, stop preview and use
+`/config?resolution=qvga&quality=20` (or VGA if required), then recalibrate crop.
+Use preview for positioning, not to judge final OCR detail. Port81 must be
+reachable locally. Streaming, capture and configuration serialize camera access.
