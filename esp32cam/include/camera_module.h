@@ -30,10 +30,10 @@ public:
         config.pin_reset = -1;
         config.xclk_freq_hz = 20000000;
         config.pixel_format = PIXFORMAT_JPEG;
-        config.frame_size = FRAMESIZE_VGA;
-        config.jpeg_quality = 12;
+        config.frame_size = psramFound() ? FRAMESIZE_VGA : FRAMESIZE_QVGA;
+        config.jpeg_quality = 20;
         config.fb_count = 1;
-        config.fb_location = CAMERA_FB_IN_DRAM;
+        config.fb_location = psramFound() ? CAMERA_FB_IN_PSRAM : CAMERA_FB_IN_DRAM;
 
         esp_err_t result = esp_camera_init(&config);
         if (result != ESP_OK)
@@ -41,6 +41,11 @@ public:
             Serial.printf("Camera init failed: 0x%x\n", result);
             return false;
         }
+        esp_camera_sensor_get()->set_framesize(esp_camera_sensor_get(), FRAMESIZE_QVGA);
+        pinMode(4, OUTPUT);
+        digitalWrite(4, LOW);
+        server.on("/config", HTTP_GET, [this]() { configure(); });
+        server.on("/status", HTTP_GET, [this]() { status(); });
         server.on("/", HTTP_GET, [this]() {
             server.send(200, "text/html", "<!doctype html><meta name='viewport' content='width=device-width'><title>Camera test</title><h1>ESP32-CAM</h1><img id='frame' style='max-width:100%' src='/capture'><p><button onclick=\"document.getElementById('frame').src='/capture?t='+Date.now()\">Capture</button></p>");
         });
@@ -53,9 +58,53 @@ public:
     void loop() { server.handleClient(); }
 
 private:
+    void status()
+    {
+        sensor_t *sensor = esp_camera_sensor_get();
+        String body = "{\"framesize\":" + String(sensor->status.framesize)
+            + ",\"quality\":" + String(sensor->status.quality)
+            + ",\"rssi\":" + String(WiFi.RSSI())
+            + ",\"freeHeap\":" + String(ESP.getFreeHeap())
+            + ",\"freePsram\":" + String(ESP.getFreePsram()) + "}";
+        server.sendHeader("Cache-Control", "no-store");
+        server.send(200, "application/json", body);
+    }
+
+    void configure()
+    {
+        sensor_t *sensor = esp_camera_sensor_get();
+        framesize_t resolution = sensor->status.framesize;
+        int quality = sensor->status.quality;
+        if (server.hasArg("resolution"))
+        {
+            String value = server.arg("resolution");
+            if (value == "qqvga") resolution = FRAMESIZE_QQVGA;
+            else if (value == "qvga") resolution = FRAMESIZE_QVGA;
+            else if (value == "vga" && psramFound()) resolution = FRAMESIZE_VGA;
+            else { server.send(400, "text/plain", "Use qqvga, qvga, or vga with PSRAM"); return; }
+        }
+        if (server.hasArg("quality"))
+        {
+            String value = server.arg("quality");
+            if (value.length() == 0 || value.length() > 2)
+            { server.send(400, "text/plain", "Quality must be 10-40"); return; }
+            for (unsigned int i = 0; i < value.length(); i++)
+                if (!isDigit(value[i]))
+                { server.send(400, "text/plain", "Quality must be 10-40"); return; }
+            quality = value.toInt();
+            if (quality < 10 || quality > 40)
+            { server.send(400, "text/plain", "Quality must be 10-40"); return; }
+        }
+        if (sensor->set_framesize(sensor, resolution) != 0 || sensor->set_quality(sensor, quality) != 0)
+        { server.send(500, "text/plain", "Camera configuration failed"); return; }
+        status();
+    }
+
     void capture()
     {
+        unsigned long captureStarted = millis();
         camera_fb_t *frame = esp_camera_fb_get();
+        unsigned long captureMs = millis() - captureStarted;
         if (!frame)
         {
             server.send(503, "text/plain", "Capture failed");
@@ -76,6 +125,8 @@ private:
             if (written == 0) delay(1);
         }
         if (sent != frame->len) client.stop();
+        Serial.printf("Capture: %lu ms, send: %lu ms, bytes: %u/%u, RSSI: %d dBm\n",
+            captureMs, millis() - started, unsigned(sent), unsigned(frame->len), WiFi.RSSI());
         esp_camera_fb_return(frame);
     }
 

@@ -27,3 +27,21 @@ payloads, public exposure, or changes to the existing heater control. If init
 fails, retain the hexadecimal error and confirm carrier/pinout and camera ribbon.
 No reset/brownout protections are disabled. Physical capture still requires a
 hardware test; building alone does not validate the board or its power supply.
+
+## Capture settings and diagnostics
+
+Startup uses QVGA (320×240), JPEG quality20, one frame buffer, and the white
+GPIO4 LED off. PSRAM is used when detected. The HTML capture page is unchanged.
+
+- `/config?resolution=qvga&quality=20`: set capture resolution and JPEG compression.
+- `/config?resolution=qqvga`:160×120; `/config?resolution=vga`:640×480 (requires PSRAM).
+- `/status`: current driver frame-size enum, JPEG quality, Wi-Fi RSSI in dBm,
+  free heap bytes and free PSRAM bytes.
+
+Quality accepts integers10–40; higher numbers mean more compression. These
+settings are volatile and reset on restart. Changing resolution changes crop
+coordinates in the backend; recalibrate them from the new original capture.
+The serial monitor prints capture time, send time, sent/expected bytes and RSSI
+for each request. Timings diagnose firmware stages; they are not equivalent to
+client-side network measurements. These local routes have no authentication;
+keep the camera on the trusted local demo network.
