@@ -5,7 +5,7 @@ export interface TemperatureControl {
 export function parseTemperatureControl(raw: string): TemperatureControl | null {
   try {
     const value = JSON.parse(raw);
-    if (!value || !Number.isInteger(value.base) || value.base < 35 || value.base > 75 ||
+    if (!value || !Number.isInteger(value.base) || (value.base !== -1 && (value.base < 35 || value.base > 75)) ||
         !Number.isInteger(value.target) || value.target < 0 || value.target > 75 ||
         !["idle", "selecting", "applying", "settling", "verifying", "error"].includes(value.status) ||
         typeof value.locked !== "boolean" || value.locked !== !["idle", "selecting"].includes(value.status) ||

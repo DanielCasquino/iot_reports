@@ -1,7 +1,7 @@
 #pragma once
 // TEMPORARY: set to 0 to restore camera/RGB control dependencies.
 #ifndef TEMPORARY_SENSOR_TEST_MODE
-#define TEMPORARY_SENSOR_TEST_MODE 1
+#define TEMPORARY_SENSOR_TEST_MODE 0
 #endif
 // Match the physical display manually at startup during the temporary test.
 #define TEMPORARY_INITIAL_SETPOINT_C 43
@@ -32,3 +32,12 @@
 #define TEMPERATURE_VERIFY_RETRY_MS 5000UL
 #define TEMPERATURE_VERIFY_TIMEOUT_MS 60000UL
 #define TEMPERATURE_MAX_CORRECTIONS 3
+
+#define SERVO_REST_A 0
+#define SERVO_PRESS_A 90
+#define SERVO_REST_B 0
+#define SERVO_PRESS_B 90
+#define SERVO_REST_C 0
+#define SERVO_PRESS_C 90
+#define SERVO_PRESS_MS 250
+#define SERVO_RETURN_MS 250

@@ -111,12 +111,14 @@ export class CameraModule {
           throw new Error("CAMERA_CROP must be left,top,width,height in image pixels");
         pipeline = pipeline.extract({ left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! });
       }
+      const rotation = Number(process.env.CAMERA_ROTATION ?? 0);
+      if (![0, 90, 180, 270].includes(rotation)) throw new Error("CAMERA_ROTATION must be 0, 90, 180 or 270");
+      pipeline = pipeline.rotate(rotation);
       const sevenSegment = process.env.CAMERA_SEVEN_SEGMENT === "true";
       let value: number | null;
       let text: string;
       let confidence: number | null = null;
       if (sevenSegment) {
-        if (!crop) throw new Error("Set CAMERA_CROP around the two digits for seven-segment mode");
         const reading = await readSevenSegmentImage(await pipeline.png().toBuffer());
         this.processed = reading.image;
         value = reading.value;

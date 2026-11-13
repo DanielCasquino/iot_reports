@@ -30,3 +30,35 @@ test("blank and featureless images do not become temperatures", async () => {
     assert.equal((await readSevenSegmentImage(image)).value, null);
   }
 });
+
+
+test("camera module reads the vertical mounted display without a crop", async () => {
+  const { CameraModule } = await import("../src/camera/module.js");
+  const keys = ["CAMERA_URL", "CAMERA_ROTATION", "CAMERA_CROP", "CAMERA_SEVEN_SEGMENT"];
+  const previous = keys.map(key => process.env[key]);
+  const previousFetch = globalThis.fetch;
+  process.env.CAMERA_URL = "http://camera.test";
+  process.env.CAMERA_ROTATION = "90";
+  process.env.CAMERA_SEVEN_SEGMENT = "true";
+  delete process.env.CAMERA_CROP;
+  const image = await sharp(await display(38)).rotate(270).jpeg().toBuffer();
+  globalThis.fetch = async () => new Response(image, { headers: { "content-type": "image/jpeg" } });
+  const messages: string[] = [];
+  const mqtt = { connected: true, publish(_topic: string, value: string, _options: unknown, callback?: () => void) {
+    messages.push(value); callback?.();
+  } };
+  const module = new CameraModule(mqtt as unknown as import("mqtt").MqttClient);
+  try {
+    assert.equal(await module.readDisplayTemperature(), true);
+    assert.equal(module.getState().value, 38);
+    assert.equal(module.getState().confidence, null);
+    assert.equal(messages.at(-1), "38");
+    process.env.CAMERA_ROTATION = "45";
+    assert.equal(await module.readDisplayTemperature(), false);
+    assert.equal(messages.at(-1), "unavailable");
+  } finally {
+    await module.close();
+    globalThis.fetch = previousFetch;
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});

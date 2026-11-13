@@ -18,6 +18,9 @@ test("temperature commands validate integer targets, baseline and request IDs", 
     { topic: "heater/set/temperature", payload: "123,43,46" });
   assert.deepEqual(parseCommand(JSON.stringify({ event: "sync_temperature_base", data: { target: 43, base: 46, requestId: 124 } })),
     { topic: "heater/set/temperature_base", payload: "124,46,43" });
+  assert.deepEqual(parseCommand(JSON.stringify({ event: "sync_temperature_base", data: { target: 43, base: -1, requestId: 125 } })),
+    { topic: "heater/set/temperature_base", payload: "125,-1,43" });
+  assert.equal(parseCommand(JSON.stringify({ event: "set_temperature", data: { target: 43, base: -1, requestId: 126 } })), null);
   for (const target of [34, 76, 43.5, "44", null])
     assert.equal(parseCommand(JSON.stringify({ event: "set_temperature", data: { target, base: 43, requestId: 1 } })), null);
   for (const data of [{ target: 44, base: 43 }, { target: 44, base: 0, requestId: 1 },

@@ -1,3 +1,64 @@
+# Integración real — 13 de noviembre
+
+Esta rama integra `casita`, `deepfix` y cámara/preview de la rama de revisión.
+El modo temporal de sonda queda desactivado por defecto: temperatura por OCR
+vía MQTT y piloto por TCS34725. Para repetir explícitamente la prueba de sonda,
+usar TEMPORARY_SENSOR_TEST_MODE=1 y el mismo valor true en el backend.
+
+## Antes de fijar brazos
+
+Calibrar con el proyecto separado `servo_calibration/`, monitor serie115200.
+No mueve servos al arrancar. Seleccionar uno libre con `A 90`, `B 90` o `C 90` según su
+README y avanzar por pasos. Registrar posiciones de reposo y pulsación en
+`SERVO_REST_A/B/C` y `SERVO_PRESS_A/B/C` de config.h. Los valores0/90 conservados
+son ejemplos del código original, no una calibración física verificada.
+La pulsación y retorno esperan250ms cada uno, también pendientes de comprobar.
+
+El modo normal mueve a reposo al arrancar; no montar un brazo presionando.
+No usar el regulador3V3 del controlador para alimentar servos. Verificar fuente,
+masa común y recorridos antes del montaje definitivo.
+
+## Temperatura medida y consigna
+
+La temperaturaOCR se usa como medición del display y caduca. No se considera
+la consigna guardada automáticamente: una terma puede mostrar temperatura del
+agua al salir del modo de selección. Al iniciar, consigna=-1 significa desconocida.
+Sincronizar la consigna real mediante el control existente de Daniel antes de
+ordenar cambios. Esta sincronización no mueve servos. Después se mantiene una
+estimación contando pulsaciones de ungrado; comprobar que cada pulsación real
+hace exactamente eso. Las pulsaciones locales seleccionan el objetivo durante
+5s y luego se aplica por pasos con espera entre ellos.
+
+Al terminar el ajuste se espera6s y se libera el control. No se verifica la
+consigna contra la temperatura del agua ni se ejecutan correcciones automáticas.
+Por tanto terminar una secuencia no demuestra que todos los botones fueron
+presionados correctamente: la comprobación mecánica sigue siendo necesaria.
+Durante aplicación/espera se ignoran muestrasOCR para no usar la cifra parpadeante
+como medición de agua. Después se requiere una nueva lectura válida.
+
+## Piloto y reinicio
+
+TCS: SDA23, SCL22, ajustes154ms/4x medidos con sensor pegado y cubierta opaca.
+Las referencias de .env pertenecen a esa posición y configuración.
+Al reiniciar no se supone apagado. Una referencia roja o verde válida puede
+recuperar ON; piloto oscuro por sí solo queda sin interpretar como OFF hasta
+verificar todos los estados del equipo. Un fallo de sensor no es una ordenPower.
+
+## Comprobación en sitio
+
+1. Arranque sin pulsación accidental; estado desconocido hasta observar.
+2. Validar lectura de cámara con el display y piloto con referencia real.
+3. Un comando mueve una vez y retorna, sin presión residual ni cuerpo suelto.
+4. Sincronizar consigna y probar subir/bajar mirando el panel real.
+5. Probar fallos/reconexión sin reutilizar datos antiguos.
+6. Autoapagado sólo con temperatura fresca y ON conocido; mantenerlo desactivado
+   durante calibración. No sustituye los controles térmicos de la terma.
+
+## Historial de funcionamiento de casita
+
+Las notas siguientes describen la rama anterior, incluidos su modo temporal y
+su estrategia original de verificación. El comportamiento vigente es el de arriba.
+
 # Control desde la web
 
 La web mantiene un borrador local de la temperatura deseada. Los botones +/− no
@@ -129,3 +190,11 @@ g++ -std=c++11 -Wall -Wextra -Werror -I esp32/include \
 La validación física pendiente incluye recorrido y tiempo de retorno de los
 servos, incremento real por pulsación, cableado, y que la cámara lea la temperatura
 configurada del display (no una medida distinta de la temperatura del agua).
+
+## Caudal de demostración
+
+El SEA ZJ-S201 se prueba separado de las tuberías de la terma. GPIO34 no tiene
+pull-up interno, aunque el código anterior use INPUT_PULLUP. Comprobar la
+polarización y adaptación reales de su salida antes de trasladarlas aPCB;
+no conectar señal5V directamente alGPIO. Una prueba aislada no valida presión,
+temperatura ni aptitud del sensor para una instalación permanente.
