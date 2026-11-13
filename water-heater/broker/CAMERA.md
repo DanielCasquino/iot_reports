@@ -190,3 +190,28 @@ El lector busca los siete segmentos de cada dígito y compara tres umbrales rela
 Validación local:15 fotos del visor compartidas por el equipo, dos grupos de encuadre con un recorte fijo por grupo; lecturas40,30,34,37,44,42,75,32,38,30,33,42,72,75,40. Las primeras14 se usaron para ajustar; la última se evaluó después sin cambiar parámetros. Se probaron también dígitos generados y fondos vacíos. El conjunto no demuestra desempeño general ni sustituye una prueba de campo. Falta validar la cámara instalada, distintos niveles de luz, reflejos y lectura en vivo contra una persona. Una región recortada incorrectamente puede producir una lectura incorrecta; no habilitar autoapagado durante pruebas.
 
 Inspección: `/api/camera/image` muestra la última captura; `/api/camera/processed` muestra la máscara usada; `/api/camera/status` contiene valor, método y error. El campo `available` sólo indica aceptación por el lector y vigencia, no certifica que coincida con el estado físico ni que la temperatura mostrada sea medida en vez de consigna. No requiere reflashear la ESP32-CAM.
+
+## Montaje vertical y calibración actual
+
+Para las capturas verticales del montaje12Nov: `CAMERA_ROTATION=90` y
+`CAMERA_SEVEN_SEGMENT=true`. Crop es opcional si sólo aparecen los dos dígitos.
+Si se usa, `CAMERA_CROP=left,top,width,height` está en píxeles del JPEG original,
+antes de girarlo. Cambiar resolución exige volver a comprobar coordenadas.
+El lector geométrico no usa una confianza estadística inventada: confidence=null.
+SSOCR se conserva como alternativa probada localmente; no es dependencia nueva
+ni integración automática enWindows. Tesseract continúa disponible.
+
+Referencias derivadas de fotos del sensor montado154ms/4x:
+
+```
+TEMPORARY_SENSOR_TEST_MODE=false
+COLOR_RED_REFERENCE=301,25,34,331
+COLOR_GREEN_REFERENCE=17,22,8,46
+COLOR_MAX_DISTANCE=0.07
+COLOR_DARK_MAX_CLEAR=7
+```
+
+Estas cifras deben comprobarse con lecturas nuevas; reflejan muestras de la
+misma sesión, no validación independiente. El canalC es Clear, luz amplia.
+La muestra oscura se tomó con la terma apagada, pero no demuestra que no pueda
+haber piloto oscuro en otro estado. Conservar unknown cuando no haya evidencia.

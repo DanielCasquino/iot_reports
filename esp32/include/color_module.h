@@ -51,7 +51,6 @@ public:
             Serial.println("Color sensor disconnected");
             return;
         }
-        // The library waits about 25 ms with the selected integration time.
         sensor.getRawData(&red, &green, &blue, &clear);
         hasSample = true;
         Serial.printf("Color raw R=%u G=%u B=%u C=%u\n",
@@ -66,7 +65,7 @@ public:
     uint16_t getClear() const { return clear; }
 
 private:
-    Adafruit_TCS34725 sensor{TCS34725_INTEGRATIONTIME_24MS, TCS34725_GAIN_1X};
+    Adafruit_TCS34725 sensor{TCS34725_INTEGRATIONTIME_154MS, TCS34725_GAIN_4X};
     unsigned long last_ms = 0;
     bool available = false;
     bool hasSample = false;

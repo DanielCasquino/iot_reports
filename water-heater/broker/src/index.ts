@@ -33,9 +33,7 @@ const heaterState: HeaterState = {
   status: null
 };
 
-// TEMPORARY: use probe telemetry; RGB/camera stay enabled for diagnostics.
-// Set false here via .env AND TEMPORARY_SENSOR_TEST_MODE=0 in ESP32 config to restore.
-const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE !== "false";
+const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
@@ -148,7 +146,7 @@ wss.on("connection", (ws) => {
     }
     if (command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base") {
       const control = heaterState.temperatureControl;
-      if (!sensorTestMode || !control || control.status !== "idle" ||
+      if (!control || control.status !== "idle" ||
           (command.topic === "heater/set/temperature" && currentObservation.power !== true)) {
         ws.send(JSON.stringify({ event: "command_error", data: { error: "Temperature control unavailable or busy" } }));
         return;
