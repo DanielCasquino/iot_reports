@@ -12,6 +12,7 @@ import { pilotCommand } from "./heater/pilot-command.js";
 import { parseTemperatureControl, type TemperatureControl } from "./heater/temperature-control.js";
 import { parseCommand } from "./websocket/command.js";
 import { TemperatureReconciliation } from "./heater/temperature-reconciliation.js";
+import { HeaterPanelState, type PanelEffect } from "./heater/panel-state.js";
 import { DesiredState } from "./heater/desired-state.js";
 
 interface HeaterState {
@@ -45,6 +46,7 @@ if (savedTarget !== null && temperatureReconciliation.snapshot().target !== save
 
 const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
+const panel = new HeaterPanelState();
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
 
@@ -148,12 +150,12 @@ wss.on("connection", (ws) => {
   ws.send(
     JSON.stringify({
       event: "state_snapshot",
-      data: { ...heaterState, desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
+      data: { ...heaterState, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
         status: currentObservation.online ? "online" : "offline",
         power: currentObservation.power,
         flowrate: currentObservation.online ? heaterState.flowrate : null,
         volume: currentObservation.online ? heaterState.volume : null,
-        temperature: currentObservation.temperature === null ? null : heaterState.temperature,
+        temperature: currentObservation.temperature,
       },
     }),
   );
@@ -164,16 +166,23 @@ wss.on("connection", (ws) => {
       ws.send(JSON.stringify({ event: "command_error", data: { error: "Invalid command" } }));
       return;
     }
+    const requestId = command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base"
+      ? Number(command.payload.split(",")[0]) : undefined;
+    const reject = (error: string) => ws.send(JSON.stringify({ event: "command_error", data: { error, requestId } }));
     const currentObservation = observation.snapshot(cameraModule.getState());
+    if (["settling", "reading"].includes(panel.snapshot().recovery)) {
+      reject("Display is waking; please wait");
+      return;
+    }
     if (!brokerConnected || !currentObservation.online || currentObservation.power === null) {
-      ws.send(JSON.stringify({ event: "command_error", data: { error: "Controller unavailable" } }));
+      reject("Controller unavailable");
       return;
     }
     if (command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base") {
       const control = heaterState.temperatureControl;
       if (!control || control.status !== "idle" ||
           (command.topic === "heater/set/temperature" && currentObservation.power !== true)) {
-        ws.send(JSON.stringify({ event: "command_error", data: { error: "Temperature control unavailable or busy" } }));
+        reject("Temperature control unavailable or busy");
         return;
       }
     }
@@ -186,7 +195,7 @@ wss.on("connection", (ws) => {
         temperatureReconciliation.request(target, Number(values[0]));
       }
     } catch {
-      ws.send(JSON.stringify({ event: "command_error", data: { error: "Could not save the requested state" } }));
+      reject("Could not save the requested state");
       return;
     }
     mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
@@ -199,24 +208,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const cameraModule = new CameraModule(mqttClient);
+function controllerIdle() {
+  const state = observation.snapshot(cameraModule.getState());
+  return brokerConnected && state.online && heaterState.temperatureControl?.status === "idle" &&
+    !heaterState.temperatureControl.locked;
+}
+const cameraModule = new CameraModule(mqttClient, frame => panel.observeFrame(frame, controllerIdle()));
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observation.snapshot(cameraModule.getState());
-  res.set("Cache-Control", "no-store").json({ ...state, desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
+  res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
     volume: state.online ? heaterState.volume : null,
   });
 });
 
+const panelEffects: Record<PanelEffect, () => void> = {
+  press_plus: () => mqttClient.publish("heater/command/wake_display", "wake", { qos: 0, retain: false }),
+  capture_water: () => { void cameraModule.readDisplayTemperature(); },
+  failed: () => { console.warn("Display wake could not be confirmed"); },
+};
 let lastReconciliationStatus = "";
 setInterval(() => {
+  const effect = panel.tick(Date.now(), controllerIdle());
+  if (effect) panelEffects[effect]();
   const state = observation.snapshot(cameraModule.getState());
   let command;
   try {
     command = temperatureReconciliation.poll(heaterState.temperatureControl,
-      brokerConnected && state.online, state.power === true && state.display === "readable");
+      brokerConnected && state.online, state.power === true && state.display === "readable" &&
+        panel.snapshot().recovery === "idle");
   } catch {
     console.error("Could not save temperature verification state");
     return;

@@ -6,6 +6,11 @@ import { createWorker, PSM } from "tesseract.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
 
+export interface DisplayFrame {
+  value: number | null; visible: boolean; observedAt: number;
+  purpose: "water" | "target" | "mirror";
+}
+
 const MIRROR_TOPIC = "heater/input/display";
 const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
@@ -30,7 +35,7 @@ export class CameraModule {
     displayBrightness: null, displayLight: "unknown",
   };
 
-  constructor(private mqtt: MqttClient) {}
+  constructor(private mqtt: MqttClient, private readonly onDisplayFrame?: (frame: DisplayFrame) => void) {}
 
   private subscribeVerification = () => {
     this.mqtt.subscribe("heater/command/verify_temperature");
@@ -183,6 +188,8 @@ export class CameraModule {
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
       readingState = { ...readingState, available: value !== null, value, observedAt,
         text, confidence, reader: sevenSegment ? "seven-segment" : "tesseract", error: value === null ? (sevenSegment ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
+      this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
+        purpose: verificationId !== undefined ? "target" : mirrorOnly ? "mirror" : "water" });
       this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
       if (this.mqtt.connected) {
         this.mqtt.publish(MIRROR_TOPIC, this.mirrorState.text, { qos: 0, retain: false });

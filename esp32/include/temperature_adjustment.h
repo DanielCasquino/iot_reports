@@ -61,8 +61,8 @@ public:
     int tick(uint32_t now) {
         if (state == State::Opening) {
             if (!hasPressed) { hasPressed = true; pressedAt = now; return 1; }
-            if (uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS) return 0;
-            if (uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) { state = State::Error; verifyingAt = now; return 0; }
+            if (uint32_t(now - pressedAt) < TEMPERATURE_ADJUST_SETTLE_MS) return 0;
+            if (uint32_t(now - pressedAt) >= TEMPERATURE_ADJUST_SETTLE_MS + 2500UL) { state = State::Error; verifyingAt = now; return 0; }
             state = State::Reading;
             readingStarted = true;
             pressedAt = now;
