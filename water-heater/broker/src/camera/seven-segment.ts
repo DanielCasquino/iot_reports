@@ -67,7 +67,7 @@ export async function readSevenSegmentImage(image: Buffer): Promise<{ value: num
     const mask = new Uint8Array(width * height);
     for (let i = 0; i < mask.length; i++) {
       const red = data[i * channels]!, green = data[i * channels + 1]!;
-      mask[i] = .6 * red + .4 * green > peak * threshold && red > green * .85 ? 1 : 0;
+      mask[i] = .6 * red + .4 * green > peak * threshold && red > green * .85 && red > data[i * channels + 2]! * 1.1 ? 1 : 0;
     }
     readings.push(decodeDigits(mask, width, height));
     if (threshold === .5) preview = mask;

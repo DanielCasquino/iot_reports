@@ -74,3 +74,9 @@ test("camera module reads the vertical mounted display without a crop", async ()
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
   }
 });
+
+test("white glare outside the digits does not merge the amber digit columns", async () => {
+  const glare = Buffer.from('<svg width="300" height="245" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="20" fill="white"/></svg>');
+  const image = await sharp(await display(44)).composite([{ input: glare }]).png().toBuffer();
+  assert.equal((await readSevenSegmentImage(image)).value, 44);
+});
