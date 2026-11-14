@@ -29,6 +29,7 @@ void setup()
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setSleep(false);
 
   heaterModule.setup();
   Serial.println(displayModule.setup() ? "Display initialized at 0x3C" : "Display initialization failed at 0x3C");
@@ -66,9 +67,9 @@ void loop()
   if (curr_ms - lastDiagnostic_ms >= 5000UL)
   {
     lastDiagnostic_ms = curr_ms;
-    Serial.printf("Health uptime=%lu heap=%u wifi=%d rssi=%d mqtt=%d display=%d color=%d buttons=%d,%d,%d\n",
+    Serial.printf("Health uptime=%lu heap=%u wifi=%d rssi=%d wifi_sleep=%d mqtt=%d display=%d color=%d buttons=%d,%d,%d\n",
                   curr_ms, unsigned(ESP.getFreeHeap()), int(WiFi.status()),
-                  WiFi.RSSI(), int(mqttClient.isConnected()), int(displayModule.isAvailable()),
+                  WiFi.RSSI(), int(WiFi.getSleep()), int(mqttClient.isConnected()), int(displayModule.isAvailable()),
                   int(heaterModule.getColor().isAvailable()), digitalRead(BUTTON_PIN_A),
                   digitalRead(BUTTON_PIN_B), digitalRead(BUTTON_PIN_C));
   }
