@@ -9,6 +9,13 @@
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
 \usepackage{needspace}
 \usepackage{placeins}
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
 \clubpenalty=10000
 \widowpenalty=10000
 \newcolumntype{L}{>{\RaggedRight\arraybackslash}X}
@@ -36,13 +43,14 @@
 \keywords{Internet of Things, water heater, ESP32, remote monitoring, optical character recognition, MQTT}
 \maketitle
 \Needspace{9\baselineskip}
-\section{Introduction}
+\section{Introduction, Problem Statement, and Theoretical Framework}
+\subsection{Introduction}
 \input{introduction.tex}
-\Needspace{9\baselineskip}
-\section{Problem Statement}
+\Needspace{6\baselineskip}
+\subsection{Problem Statement}
 \input{problem_statement.tex}
-\Needspace{9\baselineskip}
-\section{Theoretical Framework}
+\Needspace{6\baselineskip}
+\subsection{Theoretical Framework}
 \input{theoretical_framework.tex}
 \Needspace{9\baselineskip}
 \section{State of the Art}
@@ -51,7 +59,7 @@
 \section{Objectives}
 \input{objectives.tex}
 \Needspace{9\baselineskip}
-\section{Methodology}
+\section{Methodology and Project Development}
 \input{methodology.tex}
 \input{calibration_validation.tex}
 \Needspace{9\baselineskip}
@@ -59,7 +67,7 @@
 \input{implementation.tex}
 \FloatBarrier
 \Needspace{9\baselineskip}
-\section{Results}
+\section{Results Analysis}
 \input{results.tex}
 \Needspace{9\baselineskip}
 \section{Market Description}
