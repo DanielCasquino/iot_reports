@@ -177,7 +177,7 @@ function handleMessage(message) {
       updateFlow();
       break;
     case "temperature_result":
-      if (message.data.status === "failed") temperatureMessage = "Could not confirm the change after 3 attempts. Try again.";
+      if (message.data.status === "failed") temperatureMessage = "Could not confirm the change. Try again.";
       if (message.data.status === "confirmed") temperatureMessage = "";
       updateTemperatureControls();
       break;

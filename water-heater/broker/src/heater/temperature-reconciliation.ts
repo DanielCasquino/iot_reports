@@ -6,6 +6,8 @@ export class TemperatureReconciliation {
   private pending: number | null = null;
   private startedAt = 0;
   private completed = false;
+  private failed = false;
+  private requestedAt = 0;
   private online = false;
 
   request(target: number, commandId?: number, now = Date.now()) {
@@ -14,17 +16,24 @@ export class TemperatureReconciliation {
     this.pending = commandId ?? null;
     this.startedAt = now;
     this.completed = false;
+    this.failed = false;
+    this.requestedAt = now;
   }
 
   snapshot() {
     return { target: this.target, attempts: this.attempts,
-      status: this.completed ? "confirmed" : this.attempts >= 3 && this.pending === null ? "failed" :
+      status: this.failed ? "failed" : this.completed ? "confirmed" : this.attempts >= 3 && this.pending === null ? "failed" :
         this.pending === null ? "waiting" : "verifying" };
   }
 
   poll(control: TemperatureControl | null, online: boolean, readable: boolean, now = Date.now()) {
+    if (!this.completed && this.target !== null && now - this.requestedAt >= 90000) {
+      this.pending = null;
+      this.failed = true;
+    }
+    if (this.failed) return null;
     if (!online) { this.online = false; this.pending = null; return null; }
-    if (!this.online) { this.online = true; if (this.completed) { this.completed = false; this.attempts = 0; } }
+    if (!this.online) { this.online = true; if (this.completed) { this.completed = false; this.attempts = 0; this.requestedAt = now; } }
     if (!control || this.target === null || this.completed) return null;
     if (this.pending !== null) {
       if (control.commandId === this.pending && control.status === "idle" && control.base === this.target) {
