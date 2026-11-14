@@ -73,11 +73,14 @@ public:
     // Call after the servo has returned, so settle time starts after completion.
     void completedPress(uint32_t now) {
         if (estimated == target) {
-            state = State::Verifying;
-            verifyingAt = now;
-            requested = false;
-            ++requestId;
+            waitForDisplay(now);
         }
+    }
+    void waitForDisplay(uint32_t now) {
+        state = State::Verifying;
+        verifyingAt = now;
+        requested = false;
+        ++requestId;
     }
     bool needsVerification(uint32_t now) {
         if (state != State::Verifying || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
