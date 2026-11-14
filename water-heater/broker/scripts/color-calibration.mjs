@@ -14,7 +14,7 @@ if (!["red", "green", "unlit"].includes(label))
 if (!Number.isFinite(seconds) || seconds < 6 || seconds > 120)
   throw new Error("Capture seconds must be between 6 and 120");
 
-const url = process.env.MQTT_URL ?? "mqtt://192.168.1.225:1883";
+const url = process.env.MQTT_URL ?? "mqtt://192.168.1.208:1883";
 const samples = [];
 const client = mqtt.connect(url, { reconnectPeriod: 2000, queueQoSZero: false });
 
@@ -44,23 +44,16 @@ function finish() {
 
   console.log(`\n${samples.length} samples for "${label}"`);
   console.log(`Median raw: ${reference.join(",")}`);
-  if (label === "unlit") {
-    const clear = Math.max(...samples.map(sample => sample[3]));
-    console.log(`COLOR_DARK_MAX_CLEAR=${Math.ceil(clear * 1.1)}`);
-    console.log(`Highest measured clear: ${clear}. Set the value above it, then restart the backend.`);
-    return;
-  }
-
-  const prefix = label === "red" ? "COLOR_RED_REFERENCE" : "COLOR_GREEN_REFERENCE";
-  const other = label === "red" ? process.env.COLOR_GREEN_REFERENCE : process.env.COLOR_RED_REFERENCE;
+  const prefix = label === "red" ? "COLOR_RED_REFERENCE" : label === "green" ? "COLOR_GREEN_REFERENCE" : "COLOR_UNLIT_REFERENCE";
   console.log(`${prefix}=${reference.join(",")}`);
   console.log(`Observed spread (max normalized distance from median): ${spread.toFixed(3)}`);
   console.log(`Set COLOR_MAX_DISTANCE above ${spread.toFixed(3)} (for example ${Math.max(0.05, spread * 1.5).toFixed(2)}).`);
-  if (other) {
-    const parts = other.split(",").map(Number);
+  for (const key of ["COLOR_RED_REFERENCE", "COLOR_GREEN_REFERENCE", "COLOR_UNLIT_REFERENCE"]) {
+    if (key === prefix || !process.env[key]) continue;
+    const parts = process.env[key].split(",").map(Number);
     if (parts.length === 4 && parts.every(v => Number.isInteger(v) && v >= 0 && v <= 65535) && parts[3] > 0) {
       const separation = distance(reference, parts);
-      console.log(`Distance to the configured opposite reference: ${separation.toFixed(3)}.`);
+      console.log(`Distance to ${key}: ${separation.toFixed(3)}.`);
       console.log("Keep COLOR_MAX_DISTANCE below half of that distance so the two states cannot overlap.");
     }
   }
@@ -73,8 +66,8 @@ client.on("error", error => {
   finish();
 });
 client.on("connect", () => client.subscribe("heater/state/color"));
-client.on("message", (topic, payload) => {
-  if (topic !== "heater/state/color" || finished) return;
+client.on("message", (topic, payload, packet) => {
+  if (topic !== "heater/state/color" || finished || packet.retain) return;
   const value = payload.toString();
   const parts = value.split(",").map(Number);
   if (parts.length !== 4 || parts.some(v => !Number.isInteger(v) || v < 0 || v > 65535) || parts[3] === 0)

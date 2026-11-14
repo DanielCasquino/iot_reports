@@ -17,8 +17,9 @@ function distance(a: Color, b: Color): number {
 export function classifyPilot(raw: string | null, env: NodeJS.ProcessEnv = process.env): PilotState {
   const sample = parseColor(raw ?? undefined);
   if (!sample) return "unknown";
+  const unlit = parseColor(env.COLOR_UNLIT_REFERENCE);
   const dark = Number(env.COLOR_DARK_MAX_CLEAR);
-  if (env.COLOR_DARK_MAX_CLEAR && Number.isInteger(dark) && dark >= 0 && dark <= 65535 && sample[3] <= dark)
+  if (!unlit?.[3] && env.COLOR_DARK_MAX_CLEAR && Number.isInteger(dark) && dark >= 0 && dark <= 65535 && sample[3] <= dark)
     return "unlit";
   if (!sample[3]) return "unknown";
   const red = parseColor(env.COLOR_RED_REFERENCE);
@@ -27,12 +28,11 @@ export function classifyPilot(raw: string | null, env: NodeJS.ProcessEnv = proce
   // A positive match against either measured reference is enough to establish
   // that state. Requiring both references blocked red-only calibration, which
   // is exactly the case needed to recover from an unknown power state.
-  if ((!red?.[3] && !green?.[3]) || !Number.isFinite(tolerance) || tolerance <= 0) return "unknown";
-  const r = red?.[3] ? distance(sample, red) : Infinity;
-  const g = green?.[3] ? distance(sample, green) : Infinity;
+  if ((!red?.[3] && !green?.[3] && !unlit?.[3]) || !Number.isFinite(tolerance) || tolerance <= 0) return "unknown";
+  const references: [Color | null, PilotState][] = [[red, "heating"], [green, "ready"], [unlit, "unlit"]];
+  const matches = references.filter(([reference]) => reference !== null && reference[3] > 0 && distance(sample, reference) <= tolerance);
   // Overlapping calibration regions are ambiguous, not evidence for either state.
-  if (r <= tolerance && g <= tolerance) return "unknown";
-  return r <= tolerance ? "heating" : g <= tolerance ? "ready" : "unknown";
+  return matches.length === 1 ? matches[0]![1] : "unknown";
 }
 
 export class HeaterObservation {

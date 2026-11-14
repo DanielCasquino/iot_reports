@@ -39,7 +39,7 @@ const observation = new HeaterObservation(sensorTestMode);
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
 
-if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE) {
+if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !process.env.COLOR_UNLIT_REFERENCE) {
   console.warn(
     "Pilot RGB classification is disabled: set COLOR_RED_REFERENCE and/or " +
     "COLOR_GREEN_REFERENCE plus COLOR_MAX_DISTANCE in .env, then restart the backend.",
