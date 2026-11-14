@@ -2,8 +2,8 @@ import sharp from "sharp";
 
 const DIGIT_PATTERNS = ["1111110", "0110000", "1101101", "1111001", "0110011",
   "1011011", "1011111", "1110000", "1111111", "1111011"];
-const SEGMENT_REGIONS = [[.3, 0, .7, .15], [.7, .18, 1, .4], [.7, .6, 1, .82],
-  [.3, .85, .7, 1], [0, .6, .3, .82], [0, .18, .3, .4], [.3, .42, .7, .58]];
+const SEGMENT_REGIONS = [[.1, 0, .9, .15], [.7, .18, 1, .4], [.7, .6, 1, .82],
+  [.1, .85, .9, 1], [0, .6, .3, .82], [0, .18, .3, .4], [.1, .42, .9, .58]];
 
 function decodeDigits(mask: Uint8Array, width: number, height: number): number | null {
   const columns: number[] = [];

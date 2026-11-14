@@ -112,3 +112,9 @@ test("OLED mirror forwards visible digits and blank phases without replacing wat
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
   }
 });
+
+test("slanted blurred vertical strokes are not mistaken for horizontal segments", async () => {
+  const image = await sharp(await display(47)).blur(3)
+    .affine([1, -.16, 0, 1], { background: "#18242b" }).png().toBuffer();
+  assert.equal((await readSevenSegmentImage(image)).value, 47);
+});

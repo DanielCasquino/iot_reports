@@ -50,6 +50,9 @@ public:
     void attachDisplay(DisplayMirror &display) { displayMirror = &display; }
     void subscribe()
     {
+        mqttClient.subscribe("heater/command/wake_display", [this](const std::string &payload) {
+            if (heaterModule && payload == "wake") heaterModule->requestDisplayWake();
+        });
         mqttClient.subscribe("heater/input/display", [this](const std::string &payload) {
             if (displayMirror) displayMirror->receive(payload.c_str(), millis());
         });

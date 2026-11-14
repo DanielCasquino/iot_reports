@@ -26,6 +26,7 @@ public:
         observations = xQueueCreate(8, sizeof(Observation));
         pilotObservations = xQueueCreate(8, sizeof(PilotObservation));
         powerRequests = xQueueCreate(4, sizeof(bool));
+        displayWakeRequests = xQueueCreate(1, sizeof(bool));
         temperatureRequests = xQueueCreate(4, sizeof(TemperatureRequest));
         pinMode(LED_BUILTIN, OUTPUT);
 #if TEMPORARY_SENSOR_TEST_MODE
@@ -134,6 +135,9 @@ public:
         colorModule.poll();
         bool powerPressed = buttonA.pressed();
         bool increasePressed = buttonB.pressed();
+        bool displayWakeRequested = false;
+        if (displayWakeRequests) xQueueReceive(displayWakeRequests, &displayWakeRequested, 0);
+        increasePressed = increasePressed || displayWakeRequested;
         bool decreasePressed = buttonC.pressed();
         if (int(powerPressed) + int(increasePressed) + int(decreasePressed) == 1 && reserveServoPress())
         {
@@ -259,6 +263,11 @@ public:
         return true;
     }
 
+    void requestDisplayWake()
+    {
+        bool requested = true;
+        if (displayWakeRequests) xQueueOverwrite(displayWakeRequests, &requested);
+    }
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
     void setIsAutoShutdownEnabled(bool iase)
     {
@@ -412,6 +421,7 @@ private:
     };
     QueueHandle_t observations = nullptr;
     QueueHandle_t powerRequests = nullptr;
+    QueueHandle_t displayWakeRequests = nullptr;
     void enqueueObservation(Observation observation)
     {
         if (observations)
