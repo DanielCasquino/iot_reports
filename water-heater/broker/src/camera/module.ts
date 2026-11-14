@@ -16,6 +16,9 @@ export class CameraModule {
   private processed: Buffer | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  private verificationId: string | null = null;
+  private verificationAttempts = 0;
+  private verificationStartedAt = 0;
   private state: { available: boolean; value: number | null; lastValue: number | null;
     observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null;
     displayBrightness: number | null; displayLight: "dark" | "lit" | "unknown" } = {
@@ -33,7 +36,13 @@ export class CameraModule {
     if (topic !== "heater/command/verify_temperature" || packet.retain) return;
     const id = payload.toString();
     if (!/^\d{1,10}$/.test(id) || Number(id) > 0xffffffff) return;
-    // Busy captures are ignored; the ESP32 retries. Never reuse a previous image.
+    if (id !== this.verificationId) {
+      this.verificationId = id;
+      this.verificationAttempts = 0;
+      this.verificationStartedAt = Date.now();
+    }
+    if (this.busy || this.verificationAttempts >= 3 || Date.now() - this.verificationStartedAt >= 4500) return;
+    this.verificationAttempts++;
     void this.readDisplayTemperature(false, id);
   };
 
@@ -60,7 +69,7 @@ export class CameraModule {
       throw new Error("CAMERA_POLL_MS must be 0 (manual) or at least 1000");
     if (process.env.CAMERA_URL && interval > 0) {
       const poll = async () => {
-        if (!this.busy) await this.readDisplayTemperature();
+        if (!this.busy && Date.now() - this.verificationStartedAt >= 5000) await this.readDisplayTemperature();
         if (!this.stopped) this.timer = setTimeout(poll, interval);
       };
       this.timer = setTimeout(poll, 0);

@@ -97,10 +97,8 @@ public:
                     temperatureCommandResult = "invalid";
                 else if (request.calibrate)
                     setpoint = request.target;
-                else if (!powerKnown || !power)
+                else if (powerKnown && !power)
                     temperatureCommandResult = "off";
-                else if (request.base != setpoint)
-                    temperatureCommandResult = "base_mismatch";
                 else if (!adjustment.applyTarget(request.target, setpoint))
                     temperatureCommandResult = "invalid";
             }
@@ -122,7 +120,7 @@ public:
             else if (!isTemperatureLocked())
             {
                 temperatureModule.update(observation.value);
-                if (!powerKnown && pilotIs(PilotState::Unlit) && temperatureModule.isAvailable())
+                if (!powerKnown && temperatureModule.isAvailable())
                 {
                     power = true;
                     powerKnown = true;
@@ -158,11 +156,7 @@ public:
             temperatureControlChanged = true;
             return true;
         }
-        if (powerKnown && power && !waking && !wakeFailed && !pendingPowerOff &&
-            ((adjustment.state != TemperatureAdjustment::State::Applying &&
-              adjustment.state != TemperatureAdjustment::State::Selecting &&
-              adjustment.state != TemperatureAdjustment::State::Reading) ||
-             prepareControls()))
+        if (!waking && !pendingPowerOff)
         {
             int direction = adjustment.tick(millis());
             if (direction)
@@ -172,7 +166,8 @@ public:
                     servoModuleB.tap();
                 else
                     servoModuleC.tap();
-                if (adjustment.state != TemperatureAdjustment::State::Reading)
+                if (adjustment.state != TemperatureAdjustment::State::Reading &&
+                    adjustment.state != TemperatureAdjustment::State::Opening)
                     setpoint = adjustment.estimated;
                 adjustment.completedPress(millis());
             }

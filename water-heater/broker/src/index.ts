@@ -11,6 +11,8 @@ import { classifyPilot, HeaterObservation, type PilotState } from "./heater/stat
 import { pilotCommand } from "./heater/pilot-command.js";
 import { parseTemperatureControl, type TemperatureControl } from "./heater/temperature-control.js";
 import { parseCommand } from "./websocket/command.js";
+import { TemperatureReconciliation } from "./heater/temperature-reconciliation.js";
+import { DesiredState } from "./heater/desired-state.js";
 
 interface HeaterState {
   temperatureControl: TemperatureControl | null;
@@ -33,6 +35,12 @@ const heaterState: HeaterState = {
   volume: null,
   status: null
 };
+
+const desiredState = new DesiredState(path.resolve(process.env.HEATER_DESIRED_STATE_FILE ?? ".runtime/desired-state.json"));
+
+const temperatureReconciliation = new TemperatureReconciliation();
+const savedTarget = desiredState.snapshot().temperature;
+if (savedTarget !== null) temperatureReconciliation.request(savedTarget);
 
 const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
@@ -139,7 +147,7 @@ wss.on("connection", (ws) => {
   ws.send(
     JSON.stringify({
       event: "state_snapshot",
-      data: { ...heaterState,
+      data: { ...heaterState, desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
         status: currentObservation.online ? "online" : "offline",
         power: currentObservation.power,
         flowrate: currentObservation.online ? heaterState.flowrate : null,
@@ -168,6 +176,18 @@ wss.on("connection", (ws) => {
         return;
       }
     }
+    try {
+      if (command.topic === "heater/set/power") desiredState.setPower(command.payload === "true");
+      if (command.topic === "heater/set/temperature") {
+        const values = command.payload.split(",");
+        const target = Number(values[2]);
+        desiredState.setTemperature(target);
+        temperatureReconciliation.request(target, Number(values[0]));
+      }
+    } catch {
+      ws.send(JSON.stringify({ event: "command_error", data: { error: "Could not save the requested state" } }));
+      return;
+    }
     mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
   });
 });
@@ -182,12 +202,25 @@ const cameraModule = new CameraModule(mqttClient);
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observation.snapshot(cameraModule.getState());
-  res.set("Cache-Control", "no-store").json({ ...state,
+  res.set("Cache-Control", "no-store").json({ ...state, desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
     volume: state.online ? heaterState.volume : null,
   });
 });
+
+let lastReconciliationStatus = "";
+setInterval(() => {
+  const state = observation.snapshot(cameraModule.getState());
+  const command = temperatureReconciliation.poll(heaterState.temperatureControl,
+    brokerConnected && state.online, state.power === true && state.display === "readable");
+  if (command) mqttClient.publish("heater/set/temperature", `${command.id},${command.base},${command.target}`, { qos: 0, retain: false });
+  const reconciliation = temperatureReconciliation.snapshot();
+  if (reconciliation.status !== lastReconciliationStatus) {
+    lastReconciliationStatus = reconciliation.status;
+    broadcast({ event: "temperature_result", data: reconciliation });
+  }
+}, 1000);
 
 const frontendPath = path.resolve(__dirname, "../../front");
 
