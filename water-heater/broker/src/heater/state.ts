@@ -1,3 +1,4 @@
+import { parseTemperatureControl } from "./temperature-control.js";
 export type PilotState = "heating" | "ready" | "unlit" | "unknown";
 type Color = [number, number, number, number];
 
@@ -43,6 +44,8 @@ export class HeaterObservation {
   private onlineAt = -Infinity;
   private online = false;
   private power: boolean | null = null;
+  private temperatureLocked = false;
+  private temperatureValidAfter = -Infinity;
 
   update(topic: string, value: string, retained = false, now = Date.now()) {
     // A retained snapshot cannot establish a fresh hardware observation.
@@ -60,6 +63,12 @@ export class HeaterObservation {
       const reading = value.trim() === "" ? NaN : Number(value);
       this.temperature = Number.isFinite(reading) && reading >= 0 && reading <= 100 ? reading : null;
       this.temperatureAt = now;
+    }
+    if (topic === "heater/state/temperature_control") {
+      const control = parseTemperatureControl(value);
+      const locked = control === null || control.locked;
+      if (locked || this.temperatureLocked) this.temperatureValidAfter = now;
+      this.temperatureLocked = locked;
     }
     if (topic === "heater/state/color") { this.color = value; this.colorAt = now; }
     if (topic === "heater/state/power") this.power = value === "true" ? true : value === "false" ? false : null;
@@ -86,7 +95,8 @@ export class HeaterObservation {
       // TEMPORARY: physical probe telemetry replaces the OCR temperature gate.
       temperature: this.sensorTestMode
         ? online && now - this.temperatureAt <= 30000 ? this.temperature : null
-        : cameraFresh && camera.available ? camera.value : null,
+        : cameraFresh && camera.available && !this.temperatureLocked &&
+          observedAt >= this.temperatureValidAfter ? camera.value : null,
       temperatureSource: this.sensorTestMode ? "probe" : "camera",
       reason: !online ? "No fresh controller telemetry" : this.sensorTestMode ? null : pilot === "unknown" ? "RGB unavailable, stale or not calibrated"
         : pilot === "unlit" ? "Unlit pilot does not establish power loss" : null,

@@ -5,11 +5,13 @@
 #include "config.h"
 #include "heater_module.h"
 #include "mqtt_module.h"
+#include "display_module.h"
 
 using namespace std;
 
 HeaterModule heaterModule;
 MqttModule mqttModule;
+DisplayModule displayModule(DISPLAY_ADDRESS);
 
 unsigned long last_ms;
 
@@ -27,6 +29,7 @@ void setup()
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   heaterModule.setup();
+  displayModule.setup();
   mqttModule.attach(heaterModule);
   mqttModule.setup();
 
@@ -47,5 +50,15 @@ void loop()
     if (heaterModule.monitorAutoShutdown())
       mqttModule.publishPowerState();
     mqttModule.publishState();
+    char temperature[11], state[22];
+    if (heaterModule.isTemperatureAvailable())
+      snprintf(temperature, sizeof(temperature), "%.1f C", heaterModule.getTemperature());
+    else snprintf(temperature, sizeof(temperature), "-- C");
+    const char *power = heaterModule.isPowerKnown() ? (heaterModule.getPower() ? "ON" : "OFF") : "?";
+    if (heaterModule.getSetpoint() >= MIN_TEMPERATURE_C)
+      snprintf(state, sizeof(state), "%s set %dC", power, heaterModule.getSetpoint());
+    else snprintf(state, sizeof(state), "%s set --", power);
+    displayModule.setLines(temperature, state);
   }
+  displayModule.poll();
 }

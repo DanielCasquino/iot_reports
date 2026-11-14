@@ -27,6 +27,8 @@ int main() {
     TemperatureAdjustment bounds;
     bounds.select(1, 74, 0);
     bounds.select(1, 74, 100);
+    assert(bounds.target == 30);
+    bounds.select(-1, 74, 100);
     assert(bounds.target == 75);
     assert(bounds.tick(5099) == 0);
     assert(bounds.tick(5100) == 1);
@@ -37,9 +39,15 @@ int main() {
     bounds.completedPress(11400);
     assert(bounds.needsVerification(17400));
     assert(bounds.verify(bounds.requestId, 75));
-    bounds.select(-1, 35, 20000);
-    assert(bounds.target == 35);
-    assert(bounds.tick(25000) == 0 && bounds.state == State::Idle);
+    TemperatureAdjustment lower;
+    lower.select(-1, 30, 20000);
+    assert(lower.target == 75);
+    assert(lower.tick(25000) == -1 && lower.estimated == 75);
+    lower.completedPress(25150);
+    TemperatureAdjustment upper;
+    upper.select(1, 75, 20000);
+    assert(upper.target == 30);
+    assert(upper.tick(25000) == 1 && upper.estimated == 30);
 
     TemperatureAdjustment multiple;
     multiple.select(-1, 40, 0);
@@ -91,7 +99,7 @@ int main() {
 
     TemperatureAdjustment web;
     assert(!web.applyTarget(76, 43));
-    assert(!web.applyTarget(34, 43));
+    assert(!web.applyTarget(29, 43));
     assert(web.applyTarget(46, 43) && web.locked());
     assert(!web.applyTarget(40, 43)); // A second client cannot change an active batch.
     assert(web.tick(0) == 1); web.completedPress(150);
@@ -104,4 +112,26 @@ int main() {
     assert(web.tick(9000) == -1);
     web.cancel();
     assert(web.applyTarget(45, 45) && !web.locked());
+    TemperatureAdjustment wrapDown;
+    assert(wrapDown.applyTarget(75, 30));
+    assert(wrapDown.tick(0) == -1 && wrapDown.estimated == 75);
+    TemperatureAdjustment wrapUp;
+    assert(wrapUp.applyTarget(30, 75));
+    assert(wrapUp.tick(0) == 1 && wrapUp.estimated == 30);
+    for (int base = MIN_TEMPERATURE_C; base <= MAX_TEMPERATURE_C; ++base) {
+        for (int target = MIN_TEMPERATURE_C; target <= MAX_TEMPERATURE_C; ++target) {
+            TemperatureAdjustment route;
+            assert(route.applyTarget(target, base));
+            unsigned presses = 0;
+            while (route.state == State::Applying) {
+                int direction = route.tick(presses * 1000);
+                assert(direction == 1 || direction == -1);
+                assert(route.estimated >= MIN_TEMPERATURE_C && route.estimated <= MAX_TEMPERATURE_C);
+                route.completedPress(presses * 1000 + 500);
+                assert(++presses <= 23);
+            }
+            assert(route.estimated == target);
+        }
+    }
+
 }

@@ -67,3 +67,18 @@ test("temporary probe mode keeps power and temperature usable without camera or 
   assert.equal(state.snapshot(unreadable, 2000).power, null);
   assert.equal(state.snapshot(unreadable, 2000).temperature, null);
 });
+
+
+test("setpoint captures stay hidden through adjustment and require a new settled capture", () => {
+  const state = new HeaterObservation();
+  state.update("heater/status", "online", false, 1000);
+  const control = { base: 43, target: 44, status: "applying", locked: true,
+    min: 30, max: 75, commandId: 1, result: "accepted" };
+  state.update("heater/state/temperature_control", JSON.stringify(control), false, 1100);
+  const selected = { available: true, value: 44, observedAt: new Date(1200).toISOString() };
+  assert.equal(state.snapshot(selected, 1300).temperature, null);
+  state.update("heater/state/temperature_control", JSON.stringify({ ...control, status: "idle", locked: false }), false, 2000);
+  assert.equal(state.snapshot(selected, 2100).temperature, null);
+  const measured = { available: true, value: 38, observedAt: new Date(2200).toISOString() };
+  assert.equal(state.snapshot(measured, 2300).temperature, 38);
+});

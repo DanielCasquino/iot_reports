@@ -26,7 +26,7 @@
           <form id="base-form" onsubmit="syncTemperatureBase(event)">
             <label for="base-temperature">Current setting on the heater (°C)</label>
             <p>Match the number you set on the physical heater. This does not move the servos.</p>
-            <div class="base-input-row"><input id="base-temperature" type="number" min="35" max="75" step="1" value="43" required disabled />
+            <div class="base-input-row"><input id="base-temperature" type="number" min="30" max="75" step="1" value="43" required disabled />
             <button id="sync-base" type="submit" disabled>Sync</button></div>
             <p id="base-status" role="status">Waiting for the controller</p>
           </form>
