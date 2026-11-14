@@ -14,6 +14,7 @@ MqttModule mqttModule;
 DisplayModule displayModule(DISPLAY_ADDRESS);
 
 unsigned long last_ms;
+unsigned long lastDiagnostic_ms;
 
 // Required global callback for connection events
 void onMqttConnect(esp_mqtt_client_handle_t client)
@@ -24,6 +25,7 @@ void onMqttConnect(esp_mqtt_client_handle_t client)
 void setup()
 {
   Serial.begin(115200);
+  Serial.printf("Boot reset reason: %d\n", int(esp_reset_reason()));
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -61,4 +63,11 @@ void loop()
     displayModule.setLines(temperature, state);
   }
   displayModule.poll();
+  if (curr_ms - lastDiagnostic_ms >= 5000UL)
+  {
+    lastDiagnostic_ms = curr_ms;
+    Serial.printf("Health uptime=%lu heap=%u wifi=%d rssi=%d mqtt=%d\n",
+                  curr_ms, unsigned(ESP.getFreeHeap()), int(WiFi.status()),
+                  WiFi.RSSI(), int(mqttClient.isConnected()));
+  }
 }
