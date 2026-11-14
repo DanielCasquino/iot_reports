@@ -38,9 +38,10 @@ const heaterState: HeaterState = {
 
 const desiredState = new DesiredState(path.resolve(process.env.HEATER_DESIRED_STATE_FILE ?? ".runtime/desired-state.json"));
 
-const temperatureReconciliation = new TemperatureReconciliation();
+const temperatureReconciliation = new TemperatureReconciliation(path.resolve(".runtime/temperature-operation.json"));
 const savedTarget = desiredState.snapshot().temperature;
-if (savedTarget !== null) temperatureReconciliation.request(savedTarget);
+if (savedTarget !== null && temperatureReconciliation.snapshot().target !== savedTarget)
+  temperatureReconciliation.request(savedTarget);
 
 const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
@@ -212,8 +213,14 @@ app.get("/api/heater/status", (_req, res) => {
 let lastReconciliationStatus = "";
 setInterval(() => {
   const state = observation.snapshot(cameraModule.getState());
-  const command = temperatureReconciliation.poll(heaterState.temperatureControl,
-    brokerConnected && state.online, state.power === true && state.display === "readable");
+  let command;
+  try {
+    command = temperatureReconciliation.poll(heaterState.temperatureControl,
+      brokerConnected && state.online, state.power === true && state.display === "readable");
+  } catch {
+    console.error("Could not save temperature verification state");
+    return;
+  }
   if (command) mqttClient.publish("heater/set/temperature", `${command.id},${command.base},${command.target}`, { qos: 0, retain: false });
   const reconciliation = temperatureReconciliation.snapshot();
   if (reconciliation.status !== lastReconciliationStatus) {

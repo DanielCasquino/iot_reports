@@ -1,3 +1,5 @@
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import type { TemperatureControl } from "./temperature-control.js";
 
 export class TemperatureReconciliation {
@@ -9,6 +11,49 @@ export class TemperatureReconciliation {
   private failed = false;
   private requestedAt = 0;
   private online = false;
+  private saved: string;
+
+  constructor(private readonly storagePath?: string) {
+    if (storagePath) {
+      try {
+        const state = JSON.parse(readFileSync(storagePath, "utf8"));
+        if (state && !Array.isArray(state) &&
+            (state.target === null || (Number.isInteger(state.target) && state.target >= 30 && state.target <= 75)) &&
+            Number.isInteger(state.attempts) && state.attempts >= 0 && state.attempts <= 3 &&
+            Number.isSafeInteger(state.requestedAt) && state.requestedAt >= 0 &&
+            typeof state.completed === "boolean" && typeof state.failed === "boolean" &&
+            !(state.completed && state.failed) &&
+            (state.target !== null || (state.attempts === 0 && !state.completed && !state.failed))) {
+          this.target = state.target;
+          this.attempts = state.attempts;
+          this.requestedAt = state.requestedAt;
+          this.completed = state.completed;
+          this.failed = state.failed;
+        }
+      } catch {}
+    }
+    this.saved = this.serialize();
+  }
+
+  private serialize() {
+    return JSON.stringify({ target: this.target, attempts: this.attempts, requestedAt: this.requestedAt,
+      completed: this.completed, failed: this.failed || (!this.completed && this.attempts >= 3 && this.pending === null) });
+  }
+
+  private save() {
+    if (!this.storagePath) return;
+    const serialized = this.serialize();
+    if (serialized === this.saved) return;
+    mkdirSync(dirname(this.storagePath), { recursive: true, mode: 0o700 });
+    const temporary = `${this.storagePath}.${process.pid}.tmp`;
+    try {
+      writeFileSync(temporary, serialized + "\n", { encoding: "utf8", mode: 0o600 });
+      renameSync(temporary, this.storagePath);
+      this.saved = serialized;
+    } finally {
+      rmSync(temporary, { force: true });
+    }
+  }
 
   request(target: number, commandId?: number, now = Date.now()) {
     this.target = target;
@@ -18,6 +63,7 @@ export class TemperatureReconciliation {
     this.completed = false;
     this.failed = false;
     this.requestedAt = now;
+    this.save();
   }
 
   snapshot() {
@@ -27,6 +73,14 @@ export class TemperatureReconciliation {
   }
 
   poll(control: TemperatureControl | null, online: boolean, readable: boolean, now = Date.now()) {
+    try {
+      return this.reconcile(control, online, readable, now);
+    } finally {
+      this.save();
+    }
+  }
+
+  private reconcile(control: TemperatureControl | null, online: boolean, readable: boolean, now: number) {
     if (!this.completed && this.target !== null && now - this.requestedAt >= 90000) {
       this.pending = null;
       this.failed = true;
