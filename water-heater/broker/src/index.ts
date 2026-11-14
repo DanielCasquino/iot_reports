@@ -96,6 +96,8 @@ mqttClient.on("message", (topic, payload, packet) => {
     }
     case "heater/status":
       heaterState.status = value === "online" ? "online" : "offline";
+      heaterState.flowrate = null;
+      heaterState.volume = null;
       // A (re)connecting controller starts without a known power observation.
       heaterState.power = null;
       if (heaterState.status === "offline") heaterState.temperature = null;
@@ -115,6 +117,8 @@ mqttClient.on("connect", () => {
 mqttClient.on("offline", () => {
   brokerConnected = false;
   observation.disconnect();
+  heaterState.flowrate = null;
+  heaterState.volume = null;
   heaterState.temperatureControl = null;
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
@@ -122,6 +126,8 @@ mqttClient.on("offline", () => {
 mqttClient.on("close", () => {
   brokerConnected = false;
   observation.disconnect();
+  heaterState.flowrate = null;
+  heaterState.volume = null;
   heaterState.temperatureControl = null;
   heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
@@ -136,6 +142,8 @@ wss.on("connection", (ws) => {
       data: { ...heaterState,
         status: currentObservation.online ? "online" : "offline",
         power: currentObservation.power,
+        flowrate: currentObservation.online ? heaterState.flowrate : null,
+        volume: currentObservation.online ? heaterState.volume : null,
         temperature: currentObservation.temperature === null ? null : heaterState.temperature,
       },
     }),
