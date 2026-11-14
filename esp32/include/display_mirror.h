@@ -25,6 +25,7 @@ public:
                 if (payload[1]) value = value * 10 + payload[1] - '0';
             }
         }
+        if (value == -2) return;
         Sample sample{value, now};
         if (mailbox) xQueueOverwrite(mailbox, &sample);
     }
@@ -36,7 +37,7 @@ public:
             latest = sample;
             hasSample = true;
         }
-        if (!hasSample || uint32_t(now - latest.observedAt) > 2000U || latest.value == -2)
+        if (!hasSample || uint32_t(now - latest.observedAt) > 30000U || latest.value == -2)
             std::strcpy(buffer, "--");
         else if (latest.value == -1)
             buffer[0] = '\0';
