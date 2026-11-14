@@ -113,8 +113,11 @@ public:
 #if !TEMPORARY_SENSOR_TEST_MODE
             if (observation.verification)
             {
-                if (adjustment.verify(observation.id, observation.value))
-                    temperatureModule.update(observation.value);
+                auto beforeReading = adjustment.state;
+                adjustment.verify(observation.id, observation.value, millis());
+                if (beforeReading == TemperatureAdjustment::State::Reading &&
+                    adjustment.state != beforeReading && adjustment.state != TemperatureAdjustment::State::Error)
+                    setpoint = adjustment.estimated;
             }
             else if (!isTemperatureLocked())
             {
@@ -157,7 +160,8 @@ public:
         }
         if (powerKnown && power && !waking && !wakeFailed && !pendingPowerOff &&
             ((adjustment.state != TemperatureAdjustment::State::Applying &&
-              adjustment.state != TemperatureAdjustment::State::Selecting) ||
+              adjustment.state != TemperatureAdjustment::State::Selecting &&
+              adjustment.state != TemperatureAdjustment::State::Reading) ||
              prepareControls()))
         {
             int direction = adjustment.tick(millis());
@@ -168,11 +172,13 @@ public:
                     servoModuleB.tap();
                 else
                     servoModuleC.tap();
-                setpoint = adjustment.estimated;
+                if (adjustment.state != TemperatureAdjustment::State::Reading)
+                    setpoint = adjustment.estimated;
                 adjustment.completedPress(millis());
             }
         }
         adjustment.finishWithoutCamera(millis());
+        if (adjustment.state == TemperatureAdjustment::State::Error) setpoint = -1;
         if (previousAdjustmentState != adjustment.state)
             temperatureControlChanged = true;
         return powerKnown != previousPowerKnown || power != previousPower;
@@ -269,7 +275,10 @@ public:
         enqueueObservation({value, 0, false});
     }
     void verifyTemperature(uint32_t id, float value) { enqueueObservation({value, id, true}); }
-    bool needsTemperatureVerification() { return false; }
+    bool needsTemperatureVerification() {
+        return (adjustment.state == TemperatureAdjustment::State::Reading ||
+                adjustment.state == TemperatureAdjustment::State::Confirming) && adjustment.needsVerification(millis());
+    }
     uint32_t temperatureVerificationId() { return adjustment.requestId; }
     const char *getAdjustmentStatus()
     {
