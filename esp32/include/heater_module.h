@@ -134,23 +134,26 @@ public:
         bool powerPressed = buttonA.pressed();
         bool increasePressed = buttonB.pressed();
         bool decreasePressed = buttonC.pressed();
-        if (int(powerPressed) + int(increasePressed) + int(decreasePressed) == 1 && !waking)
+        if (int(powerPressed) + int(increasePressed) + int(decreasePressed) == 1 && reserveServoPress())
         {
             resetWakeFailure();
-            if (powerPressed)
-            {
-                if (powerKnown)
-                    return setPower(!power);
-                if (!tapPowerButton())
-                    return false;
-                invalidateTemperature();
-                return true;
-            }
-            if (powerKnown && power)
-            {
-                adjustment.select(increasePressed ? 1 : -1, setpoint, millis());
-                temperatureControlChanged = true;
-            }
+            waking = pendingPowerOff = false;
+            if (powerRequests) xQueueReset(powerRequests);
+            if (temperatureRequests) xQueueReset(temperatureRequests);
+            if (observations) xQueueReset(observations);
+            if (pilotObservations) xQueueReset(pilotObservations);
+            hasPilotObservation = false;
+            adjustment.cancel();
+            if (powerPressed) servoModuleA.tap();
+            else if (increasePressed) servoModuleB.tap();
+            else servoModuleC.tap();
+            if (powerPressed) powerKnown = false;
+            setpoint = -1;
+            adjustment.target = 0;
+            adjustment.waitForDisplay(millis());
+            invalidateTemperature();
+            temperatureControlChanged = true;
+            return true;
         }
         if (powerKnown && power && !waking && !wakeFailed && !pendingPowerOff &&
             ((adjustment.state != TemperatureAdjustment::State::Applying &&
