@@ -7,8 +7,8 @@ However, access to its temperature readings and control interface is restricted 
 
 This project addresses this limitation through an external Internet of Things (IoT) system that integrates sensing,
 mechanical actuation, and wireless communication without modifying the heater's internal electrical circuitry.
-An ESP32-CAM captures images of the original temperature display for optical recognition, while a RGB sensor monitors the heating indicator.
-Additionally, a Hall-effect flow sensor measures water flow and accumulated consumption through an external pipe connection.
+An ESP32-CAM captures images of the original temperature display for optical recognition, while an RGB sensor monitors the heating indicator.
+Additionally, a Hall-effect sensor supplies a separate pulse-acquisition channel for flow and accumulated-volume calculations.
 
 An ESP32-WROOM microcontroller coordinates sensor acquisition, servo actuation, and communication through the MQTT protocol.
 A Node.js application service processes camera images, manages MQTT messages, and communicates with a web-based dashboard

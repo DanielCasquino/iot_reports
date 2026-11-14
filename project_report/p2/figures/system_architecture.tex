@@ -1,0 +1,30 @@
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners, align=center, text width=3.4cm, minimum height=1.15cm, inner sep=6pt},
+  link/.style={-{Latex[length=2mm]}, thick},
+  labeltext/.style={font=\footnotesize, align=center, fill=white, inner sep=2pt}
+]
+\node[box, text width=4cm] (heater) at (0,0) {Water heater panel\\Numeric display and pilot\\Power / increase / decrease};
+\node[box] (camera) at (-4,-2.5) {ESP32-CAM\\Display image capture};
+\node[box] (rgb) at (0,-2.5) {RGB sensor\\Pilot light acquisition};
+\node[box] (servos) at (4,-2.5) {Three servos\\Power / increase / decrease};
+\node[box] (backend) at (-4,-5.4) {Application backend\\Image preprocessing / OCR\\MQTT client};
+\node[box, text width=1.15cm, inner sep=4pt] (broker) at (-1,-5.4) {MQTT\\broker};
+\node[box] (controller) at (2,-5.4) {ESP32 controller\\RGB input / flow pulse ISR\\Queued actuator control};
+\node[box] (dashboard) at (-4,-8) {Dashboard\\Measurements and requests};
+\node[box, dashed] (flow) at (2,-8) {Separate flow channel\\Hall-effect pulse sensor};
+
+\draw[link] (heater.west) -| node[labeltext, pos=0.75, left] {Display\\image} (camera.north);
+\draw[link] (heater.south) -- node[labeltext, right] {Pilot light} (rgb.north);
+\draw[link] (servos.north) |- node[labeltext, pos=0.3, right] {Mechanical\\button press} (heater.east);
+\draw[link] (camera.south) -- node[labeltext, right] {Wi-Fi / HTTP\\JPEG capture} (backend.north);
+\draw[link] (rgb.south) -- node[labeltext, right] {I\textsuperscript{2}C} (controller.north);
+\draw[link] (controller.east) -| node[labeltext, pos=0.75, right] {PWM} (servos.south);
+\node[labeltext] at (-1,-4.3) {Wi-Fi / MQTT\\Telemetry and commands};
+\draw[thick, {Latex[length=2mm]}-{Latex[length=2mm]}] (backend.east) -- (broker.west);
+\draw[thick, {Latex[length=2mm]}-{Latex[length=2mm]}] (broker.east) -- (controller.west);
+\draw[thick, {Latex[length=2mm]}-{Latex[length=2mm]}] (backend.south) -- node[labeltext, right] {WebSocket} (dashboard.north);
+\draw[link, dashed] (flow.north) -- node[labeltext, right] {Pulse input / ISR} (controller.south);
+\end{tikzpicture}%
+}

@@ -1,0 +1,32 @@
+\Needspace{6\baselineskip}
+\subsection{Programming Logic}
+Figure~\ref{fig:control-flow} summarizes the observation and command paths. On startup, the controller does not assume a known power state or setpoint. Fresh calibrated pilot observations can establish that the heater is on; a readable display together with an unlit pilot can indicate standby. An unreadable camera image remains uncertain, since it can also result from alignment or network failure.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{0.97\linewidth}{!}{\input{figures/control_flow.tex}}
+\caption{Implemented observation, wake, and command sequence. Observations and control requests are queued; the embedded main loop owns servo movement.}
+\label{fig:control-flow}
+\end{figure}
+
+When the heater is known to be on but the pilot is unlit, the controller sends a wake press and waits for a new illuminated-pilot observation before applying an off or temperature-adjustment command. An unconfirmed wake cancels the request after the configured timeout. The wake press is not counted as a temperature increment. Explicit state requests avoid repeated toggle actions, and the controller does not automatically retry a failed physical observation.
+
+The setpoint is synchronized with the panel and tracked separately from measured temperature. The software represents the circular 30--75~$^\circ$C selection range and counts each press in the chosen direction. During adjustment and the configured settling interval, received display numbers are not accepted as water-temperature updates. The application also requires a new capture after the adjustment window. The settling interval must be matched to the observed flashing duration; its configured 6~s value is not a measured panel specification.
+
+\Needspace{6\baselineskip}
+\subsection{Interconnections and Application}
+The main controller uses GPIO25, GPIO26, and GPIO27 for servos A, B, and C, GPIO34 for the flow input, and GPIO23/22 for the TCS34725 SDA/SCL lines. Local button inputs use GPIO32, GPIO33, and GPIO18 with internal pull-ups and normally open contacts to ground. The camera is a separate Wi-Fi node; it does not send images through a signal wire to the controller.
+
+The application requests JPEG images over HTTP, validates their numerical readout, and sends the result through \texttt{heater/input/temperature}. The ESP32 publishes temperature, power, flow, volume, and raw color telemetry. MQTT callbacks enqueue control work, while the main loop performs the servo sequence and returns updated state. The dashboard exchanges commands and telemetry with the service over WebSocket.
+
+\Needspace{6\baselineskip}
+\subsection{Physical Prototype}
+Figure~\ref{fig:prototype} documents the temporary front-panel mounting. Tape fixes the optical and mechanical elements while their positions are adjusted. This arrangement makes the original panel the reference for checking digit visibility and button registration.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[height=6cm,keepaspectratio]{figures/prototype.jpg}\hspace{8mm}
+\includegraphics[width=0.5\linewidth,trim=150bp 0bp 100bp 1000bp,clip]{figures/prototype.jpg}
+\caption{Tape-mounted prototype on the reference Rheem heater: overall view and detail of the panel mounting. The original visor shows 41~$^\circ$C in this photograph. The mounting provides a physical reference for optical alignment and servo travel.}
+\label{fig:prototype}
+\end{figure}
