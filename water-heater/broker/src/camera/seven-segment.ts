@@ -28,6 +28,7 @@ function decodeDigits(mask: Uint8Array, width: number, height: number): number |
     if (ranges.length > 2 && previous && left - previous[1] <= height * .025) previous[1] = right;
     else digitRanges.push([left, right]);
   }
+  if (digitRanges.length !== 2) return null;
   const digits: number[] = [];
   for (const [left, right] of digitRanges) {
     let top = height, bottom = 0;
@@ -62,14 +63,14 @@ export async function readSevenSegmentImage(image: Buffer): Promise<{ value: num
     peak = Math.max(peak, .6 * data[i]! + .4 * data[i + 1]!);
   const readings: (number | null)[] = [];
   let preview = new Uint8Array(width * height);
-  for (const threshold of [.6, .65, .7]) {
+  for (const threshold of [.4, .45, .5]) {
     const mask = new Uint8Array(width * height);
     for (let i = 0; i < mask.length; i++) {
       const red = data[i * channels]!, green = data[i * channels + 1]!;
       mask[i] = .6 * red + .4 * green > peak * threshold && red > green * .85 ? 1 : 0;
     }
     readings.push(decodeDigits(mask, width, height));
-    if (threshold === .7) preview = mask;
+    if (threshold === .5) preview = mask;
   }
   const valid = readings.filter((value): value is number => value !== null);
   const value = valid.length >= 2 && valid.every(value => value === valid[0]) ? valid[0]! : null;
