@@ -73,7 +73,8 @@ Figure~\ref{fig:architecture} illustrates the principal components and the commu
     \centering
     \resizebox{0.96\linewidth}{!}{\input{figures/system_architecture.tex}}
     \caption{Prototype architecture. The camera-to-server recognition path adapts the optical acquisition principle of Tongbai~\cite{tongbai2024}; the control, pilot, and separate flow paths are the implementation developed here.}
-    \label{fig:architecture}
+    \Description{Block diagram of the prototype: the heater panel, the ESP32-CAM, the RGB sensor, three servos, the Node.js backend, the MQTT broker, the ESP32 controller, the dashboard, and the separate Hall-effect flow channel.}
+\label{fig:architecture}
 \end{figure*}
 
 The ESP32-WROOM operates as the central embedded controller and interfaces with the sensors and servomotors.

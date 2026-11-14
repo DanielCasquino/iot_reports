@@ -1,15 +1,15 @@
 \Needspace{6\baselineskip}
-\subsection{Panel Readout and Heater Operation}
+\subsubsection{Panel Readout and Heater Operation}
 The EW1-50RP displays the water temperature measured near the center of the tank. Its panel includes power and temperature-adjustment buttons and a heating indicator; the manual associates red with heating and green with heat preservation~\cite{rheemmanual}. When the user changes the setpoint, the selected number flashes before the panel returns to the current-temperature readout. These two quantities require separate variables in the monitoring system.
 
 A camera facing the display can acquire digits without accessing the internal electronics. Tongbai describes an ESP32-CAM instrument-readout system with server-side image recognition~\cite{tongbai2024}. The present system adopts that acquisition principle. An independent TCS34725 measures red, green, blue, and broadband clear-channel light through an I\textsuperscript{2}C interface~\cite{adafruitcolor}. An opaque sleeve limits the pilot measurement to the same optical field during calibration and use.
 
 \Needspace{6\baselineskip}
-\subsection{Flow Pulses and External Actuation}
+\subsubsection{Flow Pulses and External Actuation}
 A Hall-effect turbine sensor produces pulses as water moves its rotor. Volume follows the counted pulses divided by a pulses-per-liter factor, and flow rate also depends on the duration of the counting interval. The factor is a calibration parameter for the actual sensor and operating conditions. The prototype's firmware uses 450 pulses/L as its configured value for the separate channel.
 
 Three servo positions are assigned to power, increase, and decrease. Each mechanism has its own rest and press angles. Commercial button pushers illustrate the external mechanical approach~\cite{switchbot}. Because a power button can either wake the panel or change its state, a reliable routine distinguishes an initial wake press from the requested action.
 
 \Needspace{6\baselineskip}
-\subsection{Communication and Preprocessing}
+\subsubsection{Communication and Preprocessing}
 The ESP32 controller counts pulses and samples the RGB sensor. A separate ESP32-CAM provides JPEG images over HTTP, and the Node.js service recognizes the display outside the embedded control loop. Wi-Fi carries HTTP and MQTT traffic; WebSocket connects the service to the dashboard. Validated commands reach the controller through MQTT, while missing, stale, or ambiguous measurements remain unavailable rather than becoming numerical zero.
