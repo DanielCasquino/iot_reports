@@ -52,10 +52,16 @@ public:
                              {
                                  if (heaterModule && payload == "true")
                                  {
-                                     heaterModule->observePowerOn();
-                                     publishPowerState();
+                                     heaterModule->observePilot(HeaterModule::PilotState::Awake);
                                  }
                              });
+        mqttClient.subscribe("heater/input/pilot", [this](const std::string &payload) {
+            if (!heaterModule) return;
+            auto state = HeaterModule::PilotState::Unknown;
+            if (payload == "heating" || payload == "ready") state = HeaterModule::PilotState::Awake;
+            else if (payload == "unlit") state = HeaterModule::PilotState::Unlit;
+            heaterModule->observePilot(state);
+        });
         mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
                              { handleTemperature(payload); });
         mqttClient.subscribe("heater/input/temperature_verification", [this](const std::string &payload)
@@ -143,14 +149,10 @@ public:
         Serial.println(payload.c_str());
         if (payload == "true")
         {
-            if (heaterModule->getPower())
-                return;
             heaterModule->requestPower(true);
         }
         else if (payload == "false")
         {
-            if (!heaterModule->getPower())
-                return;
             heaterModule->requestPower(false);
         }
         else

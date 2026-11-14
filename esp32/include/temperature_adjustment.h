@@ -48,8 +48,7 @@ public:
             corrections = 0;
             state = State::Selecting;
         }
-        int next = target + direction * TEMPERATURE_STEP_C;
-        if (next >= MIN_TEMPERATURE_C && next <= MAX_TEMPERATURE_C) target = next;
+        target = nextSetpoint(target, direction);
         selectedAt = now; // Even a press at a limit restarts the window.
     }
     // Returns at most one physical press per tick, keeping other polling alive.
@@ -62,8 +61,11 @@ public:
         if (state == State::Verifying && uint32_t(now - verifyingAt) >= TEMPERATURE_VERIFY_TIMEOUT_MS)
             state = State::Error;
         if (state != State::Applying || (hasPressed && uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS)) return 0;
-        int direction = target > estimated ? 1 : -1;
-        estimated += direction * TEMPERATURE_STEP_C;
+        int count = (MAX_TEMPERATURE_C - MIN_TEMPERATURE_C) / TEMPERATURE_STEP_C + 1;
+        int increase = (target - estimated + count * TEMPERATURE_STEP_C) % (count * TEMPERATURE_STEP_C);
+        int decrease = (estimated - target + count * TEMPERATURE_STEP_C) % (count * TEMPERATURE_STEP_C);
+        int direction = increase <= decrease ? 1 : -1;
+        estimated = nextSetpoint(estimated, direction);
         pressedAt = now;
         hasPressed = true;
         return direction;
@@ -95,6 +97,12 @@ public:
         return false;
     }
 private:
+    static int nextSetpoint(int value, int direction) {
+        int next = value + direction * TEMPERATURE_STEP_C;
+        if (next < MIN_TEMPERATURE_C) return MAX_TEMPERATURE_C;
+        if (next > MAX_TEMPERATURE_C) return MIN_TEMPERATURE_C;
+        return next;
+    }
     uint32_t selectedAt = 0, pressedAt = 0, verifyingAt = 0, requestedAt = 0;
     bool hasPressed = false, requested = false;
     unsigned corrections = 0;

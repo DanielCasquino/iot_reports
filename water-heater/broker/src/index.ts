@@ -8,6 +8,7 @@ import express from "express";
 import path from "path";
 import { CameraModule } from "./camera/module.js";
 import { classifyPilot, HeaterObservation, type PilotState } from "./heater/state.js";
+import { pilotCommand } from "./heater/pilot-command.js";
 import { parseTemperatureControl, type TemperatureControl } from "./heater/temperature-control.js";
 import { parseCommand } from "./websocket/command.js";
 
@@ -81,7 +82,14 @@ mqttClient.on("message", (topic, payload, packet) => {
         console.log(`Pilot state ${lastPilot ?? "none"} -> ${pilot} (raw ${heaterState.color ?? "unavailable"})`);
         lastPilot = pilot;
       }
-      if (!sensorTestMode && heaterState.power === null && (pilot === "heating" || pilot === "ready")) {
+      const command = pilotCommand(pilot, {
+        retained: packet.retain,
+        sensorTestMode,
+        brokerConnected,
+        controllerOnline: observation.snapshot(cameraModule.getState()).online,
+      });
+      if (command) mqttClient.publish(command.topic, command.payload, command.options);
+      if (command && heaterState.power === null && (pilot === "heating" || pilot === "ready")) {
         mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
       }
       break;

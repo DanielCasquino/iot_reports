@@ -383,10 +383,10 @@ function updateFlow() {
 
 // The draft stays local. Only Save sends a target; the controller owns the lock.
 function receiveTemperatureControl(control) {
-  if (!control || !Number.isInteger(control.base) || control.base < 35 || control.base > 75 ||
+  if (!control || !Number.isInteger(control.base) || (control.base !== -1 && (control.base < 30 || control.base > 75)) ||
       !["idle", "selecting", "applying", "settling", "verifying", "error"].includes(control.status) ||
       typeof control.locked !== "boolean" || control.locked !== !["idle", "selecting"].includes(control.status) ||
-      control.min !== 35 || control.max !== 75 || !Number.isInteger(control.target) || control.target < 0 || control.target > 75 ||
+      control.min !== 30 || control.max !== 75 || !Number.isInteger(control.target) || control.target < 0 || control.target > 75 ||
       !Number.isInteger(control.commandId) || control.commandId < 0 || control.commandId > 0xffffffff) {
     temperatureControl = null;
     updateTemperatureControls();
@@ -406,17 +406,17 @@ function receiveTemperatureControl(control) {
     pendingTemperatureCommand = null;
   }
   if (desiredTemperature === null || (!temperatureDraftDirty && !pendingTemperatureCommand))
-    desiredTemperature = control.locked || control.status === "selecting" ? control.target : control.base;
+    desiredTemperature = (control.locked || control.status === "selecting") && control.target >= control.min ? control.target : control.base === -1 ? null : control.base;
   const input = document.getElementById("base-temperature");
-  if (document.activeElement !== input) input.value = control.base;
+  if (document.activeElement !== input) input.value = control.base === -1 ? "" : control.base;
   updateTemperatureControls();
 }
 function updateTemperatureControls() {
   const online = brokerConnected && heaterState.status === "online" && temperatureControl;
   const locked = Boolean(pendingTemperatureCommand || temperatureControl?.locked || temperatureControl?.status === "selecting");
-  const editable = online && heaterState.power === true && !locked;
-  document.getElementById("temperature-down").disabled = !editable || desiredTemperature <= (temperatureControl?.min ?? 35);
-  document.getElementById("temperature-up").disabled = !editable || desiredTemperature >= (temperatureControl?.max ?? 75);
+  const editable = online && heaterState.power === true && !locked && temperatureControl.base >= temperatureControl.min;
+  document.getElementById("temperature-down").disabled = !editable;
+  document.getElementById("temperature-up").disabled = !editable;
   document.getElementById("save-temperature").disabled = !editable || desiredTemperature === temperatureControl?.base;
   document.getElementById("sync-base").disabled = !online || locked;
   document.getElementById("base-temperature").disabled = !online || locked;
@@ -427,13 +427,15 @@ function updateTemperatureControls() {
     verifying: "Waiting for confirmation.", selecting: "An adjustment is being selected on the device.", error: "Adjustment failed. Check the heater before continuing." };
   document.getElementById("adjustment-status").textContent = !online ? "Waiting for the controller" :
     pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") : states[temperatureControl.status] || temperatureMessage ||
-    (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`);
-  document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : `Estimated setting: ${temperatureControl.base}°C`;
+    (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : (temperatureControl.base === -1 ? "Synchronize the current heater setting." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`));
+  document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : (temperatureControl.base === -1 ? "Current setting unknown" : `Estimated setting: ${temperatureControl.base}°C`);
   document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";
 }
 function changeTarget(direction) {
   if (document.getElementById(direction > 0 ? "temperature-up" : "temperature-down").disabled) return;
-  desiredTemperature = Math.max(temperatureControl.min, Math.min(temperatureControl.max, desiredTemperature + direction));
+  const next = desiredTemperature + direction;
+  desiredTemperature = next < temperatureControl.min ? temperatureControl.max :
+    next > temperatureControl.max ? temperatureControl.min : next;
   temperatureDraftDirty = desiredTemperature !== temperatureControl.base;
   temperatureMessage = "";
   updateTemperatureControls();
