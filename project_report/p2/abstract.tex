@@ -1,8 +1,8 @@
 This paper presents an Internet of Things (IoT) system for remote monitoring and external control of a Rheem EW1-50RP
 electric storage water heater without modifying its internal electronics or mains supply.
 The system integrates an ESP32-WROOM microcontroller, an ESP32-CAM module for optical temperature acquisition,
-a TCS34725 RGB sensor for monitoring the heating indicator, and a Hall-effect pulse input for a separate flow-measurement channel.
+a TCS34725 RGB sensor for monitoring the heating indicator, and a separate simulated flow-acquisition channel with a Hall-effect sensor interface.
 Temperature readings are extracted from images of the heater's original display using an optical character recognition (OCR)
 pipeline with Sharp preprocessing and configurable seven-segment or Tesseract.js recognition. The ESP32 processes sensor readings, controls low-voltage servomotors, and exchanges
 commands and telemetry through Wi-Fi and MQTT. A Node.js service integrates MQTT communication, image processing, and
-WebSocket messaging with a web-based dashboard for remote monitoring and control. Mounted optical calibration yielded distinct red, green, and unlit pilot responses, and a tape-mounted power servo registered a button press at a configured angle of 29 degrees. The implementation combines these observations with guarded commands and separates the displayed water temperature from the selected temperature setpoint.
+WebSocket messaging with a web-based dashboard for remote monitoring and control. Mounted optical calibration yielded distinct red, green, and unlit pilot responses, and a tape-mounted power servo registered a button press at a configured angle of 29 degrees. The implementation separates the displayed water temperature from the selected setpoint and includes an independent OLED mirror. MQTT communication and image-recognition failures during integration limit the demonstrated end-to-end operation; the flow demonstration does not measure water use at the heater.
