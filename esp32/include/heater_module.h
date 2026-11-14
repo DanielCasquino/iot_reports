@@ -64,7 +64,9 @@ public:
         if (waking && millis() - wakeStartedAt >= PILOT_WAKE_TIMEOUT_MS) failWake();
         if (pendingPowerOff && !waking && !wakeFailed && setPower(false)) return true;
         bool requestedPower;
-        if (powerRequests && xQueueReceive(powerRequests, &requestedPower, 0) == pdTRUE) {
+        if (powerRequests && xQueuePeek(powerRequests, &requestedPower, 0) == pdTRUE &&
+            (!requestedPower || power || !hasTapped || millis() - lastTap_ms >= 1000UL)) {
+            xQueueReceive(powerRequests, &requestedPower, 0);
             resetWakeFailure();
             if (setPower(requestedPower)) return true;
         }
