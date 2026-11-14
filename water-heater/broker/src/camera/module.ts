@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { readSevenSegmentImage } from "./seven-segment.js";
 import { createWorker, PSM } from "tesseract.js";
 import { parseTemperature } from "./temperature.js";
+import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
 
 const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
@@ -16,9 +17,11 @@ export class CameraModule {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private state: { available: boolean; value: number | null; lastValue: number | null;
-    observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null } = {
+    observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null;
+    displayBrightness: number | null; displayLight: "dark" | "lit" | "unknown" } = {
     available: false, value: null, lastValue: null, observedAt: null,
     text: "", confidence: null, reader: "tesseract", error: "No capture yet",
+    displayBrightness: null, displayLight: "unknown",
   };
 
   constructor(private mqtt: MqttClient) {}
@@ -65,9 +68,12 @@ export class CameraModule {
   }
 
   getState() {
-    const fresh = this.state.observedAt !== null && Date.now() - Date.parse(this.state.observedAt) <= 30000;
+    const age = this.state.observedAt === null ? NaN : Date.now() - Date.parse(this.state.observedAt);
+    const fresh = Number.isFinite(age) && age >= 0 && age <= 30000;
     return { ...this.state, available: this.state.available && fresh,
-      value: this.state.available && fresh ? this.state.value : null };
+      value: this.state.available && fresh ? this.state.value : null,
+      displayBrightness: fresh ? this.state.displayBrightness : null,
+      displayLight: fresh ? this.state.displayLight : "unknown" };
   }
 
   private async requestCameraJpeg(): Promise<Buffer> {
@@ -102,6 +108,9 @@ export class CameraModule {
       this.processed = null;
       const observedAt = new Date().toISOString();
       capturedAt = observedAt;
+      this.state = { ...this.state, displayBrightness: null, displayLight: "unknown" };
+      const displayBrightness = await measureDisplayBrightness(this.image, process.env.CAMERA_DISPLAY_REGION);
+      this.state = { ...this.state, displayBrightness, displayLight: classifyDisplayLight(displayBrightness) };
       let pipeline = sharp(this.image, { limitInputPixels: 4_000_000 });
       const crop = process.env.CAMERA_CROP;
       if (crop) {
