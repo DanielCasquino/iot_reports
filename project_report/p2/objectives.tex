@@ -1,15 +1,17 @@
+\Needspace{6\baselineskip}
 \subsection*{General Objective}
-Develop and evaluate a removable external IoT prototype for remote monitoring and on/off control of a Rheem EW1-50RP water heater, while leaving its internal controller and mains connection untouched.
+Develop and evaluate a removable external IoT prototype for monitoring the panel and controlling the existing buttons of a Rheem EW1-50RP water heater, while leaving its internal controller and mains connection untouched.
 
+\Needspace{6\baselineskip}
 \subsection*{Specific Objectives}
 \begin{enumerate}[label=SO\arabic*.]
-\item Read the temperature shown on the heater's original display with a camera and classify the heating pilot with an RGB sensor.
-\item Measure water flow and accumulated volume at an accessible external pipe connection with a Hall-effect flow sensor.
-\item Preprocess the three sensor outputs and present temperature, observed heating state, and water use in a wireless application.
-\item Press the heater's original on/off button with one removable servo mechanism after a validated user request, then check the observed result.
-\item Provide a basic voice interface that converts on/off requests and status questions into the same application actions.
-\item Compare the reported data and button response with direct observation during prototype tests.
+\item Read the heater's original temperature display with a camera and classify the pilot using shielded RGB measurements.
+\item Acquire Hall-effect sensor pulses in a separate flow channel and calculate flow rate and accumulated volume from the configured pulse factor.
+\item Present the sensor information and controller state in a wireless dashboard, including unavailable readings.
+\item Coordinate external power, increase, and decrease button mechanisms with validated commands and explicit press-and-return positions.
+\item Compare the optical calibration, recorded button response, and implemented control logic with their corresponding observations and software checks.
 \end{enumerate}
 
-\subsection*{Scope and Limits}
-The implementation targets one EW1-50RP. Its temperature setpoint is configured on the original panel; remote setpoint adjustment is outside this prototype. The camera reads the value displayed by the heater, not an independent measurement of tank or outlet temperature. If the visor is dark, a current temperature cannot be reported until a safe way to wake it is verified. The color sensor reports the visible pilot state, not electrical current or energy consumption. The flow meter reports water passing its installation point, not total household use. The prototype does not claim energy savings or calculate kWh. The servo uses low-voltage power and does not switch the 220--240 V supply. Plumbing compatibility, installation, and final sensor calibration are part of validation.
+\Needspace{6\baselineskip}
+\subsection*{Scope}
+The prototype targets one EW1-50RP and reads the temperature reported by its original sensor and display. The camera and RGB sensor observe the front panel, while low-voltage servos operate the existing buttons. The Hall-effect channel is evaluated separately from the heater plumbing. The dashboard distinguishes the current temperature, selected setpoint, pilot observation, and communication availability. The heater's own thermostat remains responsible for thermal regulation.

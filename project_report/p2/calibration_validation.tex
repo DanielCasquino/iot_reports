@@ -1,18 +1,9 @@
-\subsection{Calibration and Validation}
-The proposed enclosure uses a detachable support to keep the camera, color sensor, and servo aligned with the panel.
-Commercial button pushers such as SwitchBot Bot inform the external press-and-release mechanism~\cite{switchbot};
-their compatibility is not assumed for this heater. The support must allow removal for manual access.
-Its attachment, dimensions, and servo travel will be selected from the panel geometry and button tests.
-The detachable panel module is distinct from the flow meter, whose installation requires opening and resealing an external plumbing union.
-The proposed YF-S201 has nominal male G1/2 connections~\cite{seeedflow}; the size and thread type of the heater's flexible
-connection have not been measured. Before procurement, mating fittings, available space, pressure and temperature ratings,
-and a location clear of the relief-valve discharge must be verified. An adapter or a different meter may be required.
+\Needspace{6\baselineskip}
+\subsection{Calibration and Test Conditions}
+The camera and color sensor are aligned with the original display and pilot, respectively. The temporary mounting uses removable tape and an opaque optical sleeve around the pilot sensor. Camera framing is adjusted through a low-resolution preview; single JPEG captures are then used for recognition. Cropping and a 90-degree rotation are configurable in the image-processing service.
 
-The camera is aligned and shielded against glare. Recognized digits are compared with the visible panel over several temperatures;
-blank images and heater error codes are marked unavailable. The color classifier is checked under red, green, dark, and ambient-light
-conditions. The flow meter is calibrated with a measured water volume; pulses per liter and the installation point are recorded.
-Finally, the servo stroke and return are tested on the momentary button, and on/off requests are compared with the observed panel
-response. The electronics use a separate low-voltage supply inside a removable case.
-The case design leaves the heater's ventilation, safety discharge, and ordinary access unobstructed.
-The external water union must be checked for fitting size, rated pressure and temperature, leaks, and its position relative to
-the relief valve before installation.
+The RGB acquisition uses a 154~ms integration time and 4$\times$ gain. Raw clear-channel values first identify a dark condition. For illuminated samples, the RGB components are divided by the clear reading before comparison with the mounted red and green references. The selected normalized-distance tolerance is 0.07 and the dark cutoff is $C\leq7$. These settings were derived from the recorded calibration observations.
+
+Servo adjustment begins with the mechanism fixed in place: the rest position must release the button, and the press position must register it. Separate parameters are retained for A, B, and C because identical servos can have different mounting orientations. The mounted power-button trial and the implemented command checks are reported separately in the results.
+
+For the flow channel, the firmware converts pulses using its configured factor and measurement interval. A physical calibration would determine $K=N/V_{\mathrm{ref}}$ from an independently measured reference volume. The reported pulse factor is a configuration value, rather than an experimentally fitted coefficient for the heater installation.

@@ -1,3 +1,4 @@
+\Needspace{6\baselineskip}
 \subsection{Reference Appliance and System Components}
 
 The system was developed for the Rheem EW1-50RP electric storage water heater, which has a nominal capacity of 50 L
@@ -14,7 +15,8 @@ Table~\ref{tab:components} summarizes the components and their corresponding rol
 \centering
 \caption{Main hardware and software components of the IoT system.}
 \label{tab:components}
-\footnotesize
+\small
+\renewcommand{\arraystretch}{1.12}
 \begin{tabularx}{\textwidth}{@{}P{2.7cm} P{2.8cm} L@{}}
 \toprule
 \tblhead{Function} & \tblhead{Component} & \tblhead{Description} \\
@@ -24,29 +26,29 @@ Central controller
 & ESP32-WROOM-32
 & Coordinates sensor acquisition, servo actuation, and MQTT communication over Wi-Fi. \\
 
-Optical temperature acquisition
+Display capture
 & ESP32-CAM / OV2640
-& Captures images of the heater's original numerical display and provides them through HTTP for optical recognition. \\
+& Serves JPEG images of the original display over HTTP. \\
 
-Heating indicator monitoring
+Pilot sensing
 & TCS34725 RGB sensor
-& Acquires red, green, blue, and clear-channel measurements from the heater's indicator through an I\textsuperscript{2}C interface. \\
+& Acquires raw RGBC readings from the pilot through I\textsuperscript{2}C. \\
 
-Water consumption monitoring
-& YF-S201 Hall-effect flow sensor
-& Generates digital pulses proportional to water flow, enabling the calculation of flow rate and accumulated water volume~\cite{seeedflow}. \\
+Flow acquisition
+& SEA ZJ-S201 Hall-effect flow sensor
+& Provides the pulse-count input of the separate flow channel; a configured factor converts counts into flow rate and accumulated volume. \\
 
 Mechanical actuation
 & Low-voltage servomotors
-& Generate controlled angular movements for external mechanical interaction with the heater's physical controls. \\
+& Press and release the original panel buttons. \\
 
 Wireless communication
 & Wi-Fi and MQTT
 & Enable the exchange of control commands and telemetry between the ESP32 and application infrastructure. \\
 
 Image processing
-& Sharp and Tesseract.js
-& Perform image preprocessing and optical character recognition to extract the temperature displayed by the heater. \\
+& Sharp, seven-segment reader, Tesseract.js
+& Preprocess images and provide configurable numerical readers for the original display. \\
 
 Application service
 & Node.js and WebSocket
@@ -60,6 +62,7 @@ User interface
 \end{tabularx}
 \end{table*}
 
+\Needspace{6\baselineskip}
 \subsection{System Architecture}
 
 The system follows a distributed architecture composed of an embedded control subsystem, an image acquisition subsystem,
@@ -68,8 +71,8 @@ Figure~\ref{fig:architecture} illustrates the principal components and the commu
 
 \begin{figure*}[!t]
     \centering
-    \includegraphics[width=\textwidth]{diagrama_bloques-proyecto.drawio.png}
-    \caption{General architecture of the IoT-based water heater monitoring and control system.}
+    \resizebox{0.96\linewidth}{!}{\input{figures/system_architecture.tex}}
+    \caption{Prototype architecture. The camera-to-server recognition path adapts the optical acquisition principle of Tongbai~\cite{tongbai2024}; the control, pilot, and separate flow paths are the implementation developed here.}
     \label{fig:architecture}
 \end{figure*}
 
@@ -90,23 +93,25 @@ The application service receives these messages and communicates with the web in
 User interactions generate WebSocket messages that are processed by the application service and translated into MQTT commands.
 These commands are received by the ESP32, which executes the corresponding control routines.
 
+\Needspace{6\baselineskip}
 \subsection{Temperature Acquisition and Processing}
 
 Temperature information is acquired from the heater's original digital display using the ESP32-CAM.
 The camera provides JPEG images through its HTTP interface, which are requested and processed by the Node.js application service.
 
 The image processing pipeline uses Sharp to perform operations such as cropping, resizing, grayscale conversion, and intensity adjustments.
-These operations improve the representation of the numerical display before recognition.
+The selected operations align and isolate the digits before recognition.
 
-Tesseract.js is subsequently used to identify the numerical characters in the processed image.
+The application selects either a geometric seven-segment reader or Tesseract.js to identify the numerical characters. The geometric reader compares the illuminated segment pattern with digit patterns; the Tesseract route applies its configured text-confidence threshold.
 The recognized value is validated before being transmitted through MQTT using the topic \texttt{heater/input/temperature}.
 
 The ESP32 receives the temperature value, updates its internal representation, and publishes the corresponding state through
 \texttt{heater/state/temperature}. This information is then transmitted to the web interface.
 
+\Needspace{6\baselineskip}
 \subsection{Water Flow and Indicator Monitoring}
 
-Water flow is measured using a Hall-effect turbine sensor connected to the ESP32.
+The separate flow-acquisition channel connects a Hall-effect turbine sensor to the ESP32.
 Each pulse generated by the sensor is registered through an interrupt-based counting mechanism.
 
 For a measurement interval, the water volume is obtained from the pulse count and the configured pulses-per-liter calibration factor:
@@ -119,7 +124,7 @@ For a measurement interval, the water volume is obtained from the pulse count an
 where $V$ represents the water volume in liters, $N$ is the number of registered pulses, and $K$ is the calibration factor
 expressed in pulses per liter.
 
-The instantaneous flow rate is calculated as:
+The average flow rate over the measurement interval is calculated as:
 
 \begin{equation}
     Q = \frac{60V}{\Delta t},
@@ -133,19 +138,6 @@ The TCS34725 sensor acquires RGB and clear-channel measurements from the heater'
 Communication with the ESP32 is established through I\textsuperscript{2}C.
 The acquired values provide optical information about the indicator and are included in the system's telemetry.
 
+\Needspace{6\baselineskip}
 \subsection{Communication and Application Integration}
-
-The system uses MQTT as its primary communication protocol for the embedded controller.
-A Mosquitto broker manages the distribution of messages through a publish-subscribe architecture.
-
-The ESP32 subscribes to control topics, including \texttt{heater/set/power} and \texttt{heater/set/autoshutdown}.
-The firmware processes the received payloads and updates its corresponding control variables.
-
-Telemetry is published through state topics such as \texttt{heater/state/temperature}, allowing the application service
-to receive updated measurements.
-
-The application service is implemented in Node.js and integrates an MQTT client, an HTTP server, and a WebSocket server.
-The web interface exchanges commands and state information with the application service through WebSocket messages.
-
-This communication architecture separates the embedded control logic from the user interface and allows sensor
-measurements and control information to be exchanged over the local network.
+A Mosquitto broker distributes MQTT commands and telemetry. The ESP32 subscribes to validated control requests, including \texttt{heater/set/power} and \texttt{heater/set/autoshutdown}, and publishes readings through state topics. The Node.js service combines this MQTT client with HTTP image acquisition and a WebSocket server. The dashboard uses that WebSocket connection for requests and status updates, keeping image recognition separate from the embedded control loop.

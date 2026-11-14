@@ -1,10 +1,16 @@
-\documentclass[manuscript,screen,review]{acmart}
+\documentclass[manuscript,screen,nonacm]{acmart}
 \usepackage{graphicx}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{ragged2e}
 \usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{needspace}
+\usepackage{placeins}
+\clubpenalty=10000
+\widowpenalty=10000
 \newcolumntype{L}{>{\RaggedRight\arraybackslash}X}
 \newcolumntype{P}[1]{>{\RaggedRight\arraybackslash}p{#1}}
 \newcommand{\tblhead}[1]{\textbf{#1}}
@@ -29,27 +35,38 @@
 \end{abstract}
 \keywords{Internet of Things, water heater, ESP32, remote monitoring, optical character recognition, MQTT}
 \maketitle
+\Needspace{9\baselineskip}
 \section{Introduction}
 \input{introduction.tex}
+\Needspace{9\baselineskip}
 \section{Problem Statement}
 \input{problem_statement.tex}
+\Needspace{9\baselineskip}
 \section{Theoretical Framework}
 \input{theoretical_framework.tex}
+\Needspace{9\baselineskip}
 \section{State of the Art}
 \input{state_of_the_art.tex}
+\Needspace{9\baselineskip}
 \section{Objectives}
 \input{objectives.tex}
+\Needspace{9\baselineskip}
 \section{Methodology}
 \input{methodology.tex}
 \input{calibration_validation.tex}
-%% \section{Implementation}
-%% \input{implementation.tex}
-%% \section{Results}
-%% \input{results.tex}
+\Needspace{9\baselineskip}
+\section{Implementation}
+\input{implementation.tex}
+\FloatBarrier
+\Needspace{9\baselineskip}
+\section{Results}
+\input{results.tex}
+\Needspace{9\baselineskip}
 \section{Market Description}
-\input{market_descrp.tex}
-%% \section{Conclusion}
-%% \input{conclusion.tex}
-\bibliographystyle{ACM-Reference-Format}
+\input{market_descrip.tex}
+\Needspace{9\baselineskip}
+\section{Conclusions and Recommendations}
+\input{conclusion.tex}
+\bibliographystyle{IEEEtran}
 \bibliography{references}
 \end{document}

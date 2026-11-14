@@ -1,0 +1,39 @@
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,text width=3.2cm,minimum height=1cm,inner sep=5pt},
+  decision/.style={draw,diamond,aspect=2,align=center,text width=1.9cm,inner sep=2pt},
+  link/.style={-{Latex[length=2mm]},thick},
+  labeltext/.style={font=\footnotesize,fill=white,inner sep=2pt}
+]
+\node[box] (capture) at (0,0) {Acquire a new\\display image};
+\node[decision] (ocr) at (5,0) {Valid OCR\\reading?};
+\node[box] (measured) at (10,0) {Accept measurement\\outside adjustment window};
+\node[box] (unavailable) at (5,-2) {Temperature unavailable};
+\draw[link] (capture) -- (ocr);
+\draw[link] (ocr) -- node[labeltext,above] {Yes} (measured);
+\draw[link] (ocr) -- node[labeltext,right] {No} (unavailable);
+\node[above=3mm of capture,font=\bfseries] {Observation path};
+
+\node[box] (request) at (0,-4.1) {Queued request\\Power or target setpoint};
+\node[decision] (valid) at (5,-4.1) {Known state?\\Valid request?};
+\node[decision] (awake) at (10,-4.1) {Awake, or\\turning on?};
+\node[box] (reject) at (5,-6.5) {Reject or wait\\No button press};
+\node[decision] (unlit) at (10,-6.5) {Unlit\\pilot?};
+\node[box] (wake) at (10,-8.9) {Press power once\\to wake controls};
+\node[decision] (confirm) at (5,-8.9) {New lit pilot\\before timeout?};
+\node[box] (cancel) at (0,-8.9) {Cancel pending action};
+\node[box] (apply) at (10,-11.3) {Apply requested action\\Servo press and return};
+\node[box] (settle) at (5,-11.3) {Wait for display to settle\\Publish state; accept a\\new measured-temperature capture};
+\node[above=3mm of request,font=\bfseries] {Command path};
+\draw[link] (request) -- (valid);
+\draw[link] (valid) -- node[labeltext,above] {Yes} (awake);
+\draw[link] (valid) -- node[labeltext,right] {No} (reject);
+\draw[link] (awake.east) -- (13,-4.1) |- node[labeltext,pos=0.2,right] {Yes} (apply.east);
+\draw[link] (awake) -- node[labeltext,right] {No} (unlit);
+\draw[link] (unlit) -- node[labeltext,above] {No} (reject);
+\draw[link] (unlit) -- node[labeltext,right] {Yes} (wake);
+\draw[link] (wake) -- (confirm);
+\draw[link] (confirm) -- node[labeltext,above] {No} (cancel);
+\draw[link] (confirm.south) -- (5,-10.1) -- node[labeltext,above] {Yes} (10,-10.1) -- (apply.north);
+\draw[link] (apply) -- (settle);
+\end{tikzpicture}
