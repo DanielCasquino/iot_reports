@@ -10,6 +10,8 @@ class CameraModule
 public:
     bool setup()
     {
+        digitalWrite(4, LOW);
+        pinMode(4, OUTPUT);
         camera_config_t config = {};
         config.ledc_channel = LEDC_CHANNEL_0;
         config.ledc_timer = LEDC_TIMER_0;
@@ -84,6 +86,7 @@ private:
         while (true)
         {
             if (xSemaphoreTake(camera->cameraMutex, pdMS_TO_TICKS(1000)) != pdTRUE) return ESP_FAIL;
+            digitalWrite(4, LOW);
             unsigned long started = millis();
             camera_fb_t *frame = esp_camera_fb_get();
             if (!frame) { xSemaphoreGive(camera->cameraMutex); return ESP_FAIL; }
@@ -152,6 +155,7 @@ private:
     {
         if (xSemaphoreTake(cameraMutex, pdMS_TO_TICKS(1000)) != pdTRUE)
         { server.send(503, "text/plain", "Camera busy"); return; }
+        digitalWrite(4, LOW);
         unsigned long captureStarted = millis();
         camera_fb_t *frame = esp_camera_fb_get();
         unsigned long captureMs = millis() - captureStarted;
