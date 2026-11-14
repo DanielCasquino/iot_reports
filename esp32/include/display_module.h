@@ -50,9 +50,16 @@ public:
     void poll()
     {
 #if DISPLAY_ENABLED
-        if (!available)
-            return;
         unsigned long now = millis();
+        if (!available)
+        {
+            if (now - last_ms >= 5000UL)
+            {
+                last_ms = now;
+                setup();
+            }
+            return;
+        }
         if (now - last_ms < 500UL)
             return;
         last_ms = now;
