@@ -29,7 +29,7 @@ void setup()
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   heaterModule.setup();
-  displayModule.setup();
+  Serial.println(displayModule.setup() ? "Display initialized at 0x3C" : "Display initialization failed at 0x3C");
   mqttModule.attach(heaterModule);
   mqttModule.setup();
 
