@@ -17,6 +17,15 @@ misma. El streaming se utiliza para encuadrar y se detiene para medir. Giro90 y
 recorte opcional se hacen en el backend. Un resultado ilegible se publica como
 `unavailable`, nunca como cero. Lecturas antiguas dejan de estar disponibles.
 
+`CAMERA_DISPLAY_REGION` permite medir una región fija del JPEG original. El campo
+`displayBrightness` es el percentil 90 de la intensidad de los canales rojo/verde,
+en una escala de píxeles de 0 a 255. `displayLight` sólo distingue `dark`, `lit` y
+`unknown` si se configuran los límites medidos `CAMERA_DISPLAY_DARK_MAX` y
+`CAMERA_DISPLAY_LIT_MIN`; queda una zona incierta entre ambos. El visor tenue con
+la terma encendida debe incluirse en esa calibración. Esta medición es diagnóstico
+óptico y por sí sola no cambia Power ni confirma una orden. Si falta una captura
+nueva o la región es inválida, no se reutiliza la intensidad anterior.
+
 ## Encendido y piloto
 
 Al arrancar el controlador, el estado de encendido es desconocido. No se envía
