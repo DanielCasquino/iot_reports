@@ -7,7 +7,7 @@
 class TemperatureAdjustment
 {
 public:
-    enum class State { Idle, Selecting, Reading, Applying, Confirming, Verifying, Error };
+    enum class State { Idle, Selecting, Opening, Reading, Applying, Confirming, Verifying, Error };
     State state = State::Idle;
     int target = 0;
     int estimated = 0;
@@ -17,6 +17,7 @@ public:
     const char *status() const {
         switch (state) {
         case State::Selecting: return "selecting";
+        case State::Opening: return "verifying";
         case State::Reading: return "verifying";
         case State::Confirming: return "verifying";
         case State::Applying: return "applying";
@@ -28,19 +29,19 @@ public:
     void cancel() { state = State::Idle; }
     bool applyTarget(int value, int base) {
         if (state != State::Idle || value < MIN_TEMPERATURE_C || value > MAX_TEMPERATURE_C ||
-            base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C) return false;
+            (base != -1 && (base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return false;
         target = value;
         estimated = base;
         corrections = 0;
         hasPressed = false;
-        state = State::Reading;
+        state = State::Opening;
         requested = false;
         readingStarted = false;
         ++requestId;
         return true;
     }
     bool finishWithoutCamera(uint32_t now) {
-        if (state != State::Verifying || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
+        if ((state != State::Verifying && state != State::Error) || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
         state = State::Idle;
         return true;
     }
@@ -58,7 +59,11 @@ public:
     }
     // Returns at most one physical press per tick, keeping other polling alive.
     int tick(uint32_t now) {
-        if (state == State::Reading && !readingStarted) {
+        if (state == State::Opening) {
+            if (!hasPressed) { hasPressed = true; pressedAt = now; return 1; }
+            if (uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS) return 0;
+            if (uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) { state = State::Error; verifyingAt = now; return 0; }
+            state = State::Reading;
             readingStarted = true;
             pressedAt = now;
             return 1;
@@ -66,6 +71,7 @@ public:
         if ((state == State::Reading || state == State::Confirming) &&
             uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) {
             state = State::Error;
+            verifyingAt = now;
             return 0;
         }
         if (state == State::Selecting && uint32_t(now - selectedAt) >= TEMPERATURE_SELECT_MS) {
@@ -78,6 +84,7 @@ public:
         if (state != State::Applying || (hasPressed && uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS)) return 0;
         if (hasPressed && uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) {
             state = State::Error;
+            verifyingAt = now;
             return 0;
         }
         int count = (MAX_TEMPERATURE_C - MIN_TEMPERATURE_C) / TEMPERATURE_STEP_C + 1;
@@ -92,7 +99,7 @@ public:
     // Call after the servo has returned, so settle time starts after completion.
     void completedPress(uint32_t now) {
         pressedAt = now;
-        if (state == State::Reading) return;
+        if (state == State::Opening || state == State::Reading) return;
         if (estimated == target) {
             state = State::Confirming;
             requested = false;
@@ -124,7 +131,7 @@ public:
             if (!requested || id != requestId || !isfinite(observed) ||
                 observed < MIN_TEMPERATURE_C || observed > MAX_TEMPERATURE_C || observed != roundf(observed) ||
                 uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) return false;
-            if (state == State::Confirming && int(observed) != target) { state = State::Error; return false; }
+            if (state == State::Confirming && int(observed) != target) { state = State::Error; verifyingAt = now; return false; }
             estimated = int(observed);
             hasPressed = true;
             if (estimated == target) waitForDisplay(now);
@@ -134,7 +141,7 @@ public:
         if (state != State::Verifying || !requested || id != requestId || !isfinite(observed) ||
             observed < MIN_TEMPERATURE_C || observed > MAX_TEMPERATURE_C || observed != roundf(observed)) return false;
         if (observed == target) { state = State::Idle; return true; }
-        if (++corrections > TEMPERATURE_MAX_CORRECTIONS) { state = State::Error; return false; }
+        if (++corrections > TEMPERATURE_MAX_CORRECTIONS) { state = State::Error; verifyingAt = now; return false; }
         estimated = int(observed);
         state = State::Applying;
         hasPressed = false;

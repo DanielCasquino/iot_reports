@@ -6,7 +6,6 @@ export function parseCommand(raw: string): { topic: string; payload: string } | 
       const { target, base, requestId } = message.data ?? {};
       if (!Number.isInteger(target) || target < 30 || target > 75 ||
           !Number.isInteger(base) || (base !== -1 && (base < 30 || base > 75)) ||
-          (message.event === "set_temperature" && base === -1) ||
           !Number.isInteger(requestId) || requestId <= 0 || requestId > 0xffffffff) return null;
       return { topic: message.event === "set_temperature" ? "heater/set/temperature" : "heater/set/temperature_base",
         payload: `${requestId},${base},${target}` };
