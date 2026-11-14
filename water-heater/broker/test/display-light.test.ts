@@ -31,8 +31,8 @@ test("a valid dark frame stays distinct from lost, stale and malformed captures"
   const fetch = globalThis.fetch;
   const now = Date.now;
   const messages: string[] = [];
-  const mqtt = { connected: true, publish(_topic: string, value: string, _options: unknown, done?: () => void) {
-    messages.push(value); done?.();
+  const mqtt = { connected: true, publish(topic: string, value: string, _options: unknown, done?: () => void) {
+    if (topic === "heater/input/temperature") messages.push(value); done?.();
   } };
   const camera = new CameraModule(mqtt as unknown as import("mqtt").MqttClient);
   try {

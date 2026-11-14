@@ -80,3 +80,35 @@ test("white glare outside the digits does not merge the amber digit columns", as
   const image = await sharp(await display(44)).composite([{ input: glare }]).png().toBuffer();
   assert.equal((await readSevenSegmentImage(image)).value, 44);
 });
+
+test("OLED mirror forwards visible digits and blank phases without replacing water telemetry", async () => {
+  const { CameraModule } = await import("../src/camera/module.js");
+  const keys = ["CAMERA_URL", "CAMERA_ROTATION", "CAMERA_CROP", "CAMERA_SEVEN_SEGMENT"];
+  const previous = keys.map(key => process.env[key]);
+  const previousFetch = globalThis.fetch;
+  process.env.CAMERA_URL = "http://camera.test";
+  process.env.CAMERA_ROTATION = "0";
+  process.env.CAMERA_SEVEN_SEGMENT = "true";
+  delete process.env.CAMERA_CROP;
+  let image = await display(44);
+  globalThis.fetch = async () => new Response(image, { headers: { "content-type": "image/jpeg" } });
+  const messages: [string, string][] = [];
+  const mqtt = { connected: true, publish(topic: string, value: string) { messages.push([topic, value]); } };
+  const module = new CameraModule(mqtt as unknown as import("mqtt").MqttClient);
+  try {
+    assert.equal(await module.readDisplayTemperature(false, undefined, true), true);
+    assert.deepEqual(messages, [["heater/input/display", "44"]]);
+    assert.equal(module.getState().value, null);
+    assert.equal(module.getState().observedAt, null);
+    image = await sharp({ create: { width: 300, height: 245, channels: 3, background: "black" } }).png().toBuffer();
+    assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
+    assert.deepEqual(messages.at(-1), ["heater/input/display", "blank"]);
+    image = await display(44, "", "c");
+    assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
+    assert.deepEqual(messages.at(-1), ["heater/input/display", "unknown"]);
+    assert.ok(messages.every(([topic]) => topic === "heater/input/display"));
+  } finally {
+    await module.close(); globalThis.fetch = previousFetch;
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+  }
+});

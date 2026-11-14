@@ -21,14 +21,18 @@ test("capture publishes non-retained OCR; unreadable image or HTTP failure inval
   try {
     assert.equal(await module.readDisplayTemperature(), true);
     assert.equal(reads, 2);
+    mockWorker.recognize = async () => ({ data: { text: "43", confidence: 95 } });
     assert.equal(await module.readDisplayTemperature(false, "123"), true);
+    assert.equal(module.getState().value, 48);
+    assert.equal(module.getState().displayMirror.text, "43");
+    assert.equal(messages.filter(message => message.topic === "heater/input/temperature").length, 1);
     assert.equal(reads, 4); // Verification takes new frames, rather than reusing the last value.
-    assert.deepEqual(messages.at(-1), { topic: "heater/input/temperature_verification", payload: "123,48", options: { qos: 0, retain: false } });
+    assert.deepEqual(messages.at(-1), { topic: "heater/input/temperature_verification", payload: "123,43", options: { qos: 0, retain: false } });
     const delivered = messages.length;
     assert.equal(await module.readDisplayTemperature(true), false);
     assert.equal(module.getState().available, true);
     assert.equal(messages.length, delivered);
-    assert.deepEqual(messages[0], { topic: "heater/input/temperature", payload: "48", options: { qos: 0, retain: false } });
+    assert.deepEqual(messages.find(message => message.topic === "heater/input/temperature"), { topic: "heater/input/temperature", payload: "48", options: { qos: 0, retain: false } });
     mockWorker.recognize = async () => ({ data: { text: "", confidence: 0 } });
     assert.equal(await module.readDisplayTemperature(), false);
     assert.equal(messages.at(-1)?.payload, "unavailable");

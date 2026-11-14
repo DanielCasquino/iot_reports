@@ -54,13 +54,17 @@ function decodeDigits(mask: Uint8Array, width: number, height: number): number |
   return digits.length === 2 ? Number(digits.join("")) : null;
 }
 
-export async function readSevenSegmentImage(image: Buffer): Promise<{ value: number | null; image: Buffer }> {
+export async function readSevenSegmentImage(image: Buffer): Promise<{ value: number | null; image: Buffer; visible: boolean }> {
   const { data, info } = await sharp(image).resize({ width: 600 }).removeAlpha().toColourspace("srgb")
     .raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
   let peak = 0;
-  for (let i = 0; i < data.length; i += channels)
-    peak = Math.max(peak, .6 * data[i]! + .4 * data[i + 1]!);
+  let amberPixels = 0;
+  for (let i = 0; i < data.length; i += channels) {
+    const brightness = .6 * data[i]! + .4 * data[i + 1]!;
+    peak = Math.max(peak, brightness);
+    if (brightness > 60 && data[i]! > data[i + 1]! * .85 && data[i]! > data[i + 2]! * 1.1) amberPixels++;
+  }
   const readings: (number | null)[] = [];
   let preview = new Uint8Array(width * height);
   for (const threshold of [.4, .45, .5]) {
@@ -76,5 +80,5 @@ export async function readSevenSegmentImage(image: Buffer): Promise<{ value: num
   const value = valid.length >= 2 && valid.every(value => value === valid[0]) ? valid[0]! : null;
   const pixels = Buffer.from(preview.map(pixel => pixel ? 0 : 255));
   const processed = await sharp(pixels, { raw: { width, height, channels: 1 } }).png().toBuffer();
-  return { value, image: processed };
+  return { value, image: processed, visible: amberPixels / (width * height) >= .005 };
 }

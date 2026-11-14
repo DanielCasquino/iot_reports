@@ -60,7 +60,7 @@ public:
             }
             return;
         }
-        if (now - last_ms < 500UL)
+        if (now - last_ms < 100UL)
             return;
         last_ms = now;
         if (!responds())
@@ -72,8 +72,9 @@ public:
             strcmp(stateLine, renderedState) == 0)
             return;
         screen.clearDisplay();
-        screen.setTextSize(2);
-        screen.setCursor(0, 4);
+        screen.setTextSize(stateLine[0] ? 2 : 4);
+        screen.setCursor(stateLine[0] ? 0 : (128 - int(strlen(temperatureLine)) * 24) / 2,
+                         stateLine[0] ? 4 : 16);
         screen.print(temperatureLine);
         screen.setTextSize(1);
         screen.setCursor(0, 40);

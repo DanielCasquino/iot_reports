@@ -12,6 +12,7 @@ using namespace std;
 HeaterModule heaterModule;
 MqttModule mqttModule;
 DisplayModule displayModule(DISPLAY_ADDRESS);
+DisplayMirror displayMirror;
 
 unsigned long last_ms;
 unsigned long lastDiagnostic_ms;
@@ -32,8 +33,10 @@ void setup()
   WiFi.setSleep(false);
 
   heaterModule.setup();
+  displayMirror.setup();
   Serial.println(displayModule.setup() ? "Display initialized at 0x3C" : "Display initialization failed at 0x3C");
   mqttModule.attach(heaterModule);
+  mqttModule.attachDisplay(displayMirror);
   mqttModule.setup();
 
   last_ms = millis();
@@ -53,16 +56,8 @@ void loop()
     if (heaterModule.monitorAutoShutdown())
       mqttModule.publishPowerState();
     mqttModule.publishState();
-    char temperature[11], state[22];
-    if (heaterModule.isTemperatureAvailable())
-      snprintf(temperature, sizeof(temperature), "%.1f C", heaterModule.getTemperature());
-    else snprintf(temperature, sizeof(temperature), "-- C");
-    const char *power = heaterModule.isPowerKnown() ? (heaterModule.getPower() ? "ON" : "OFF") : "?";
-    if (heaterModule.getSetpoint() >= MIN_TEMPERATURE_C)
-      snprintf(state, sizeof(state), "%s set %dC", power, heaterModule.getSetpoint());
-    else snprintf(state, sizeof(state), "%s set --", power);
-    displayModule.setLines(temperature, state);
   }
+  displayModule.setLines(displayMirror.text(curr_ms), "");
   displayModule.poll();
   if (curr_ms - lastDiagnostic_ms >= 5000UL)
   {

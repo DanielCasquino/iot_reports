@@ -1,6 +1,7 @@
 #pragma once
 #include "ESP32MQTTClient.h"
 #include "heater_module.h"
+#include "display_mirror.h"
 #include "config.h"
 #include <cstdlib>
 #include <cmath>
@@ -46,8 +47,12 @@ public:
         mqttClient.loopStart();
     }
     void attach(HeaterModule &h) { this->heaterModule = &h; }
+    void attachDisplay(DisplayMirror &display) { displayMirror = &display; }
     void subscribe()
     {
+        mqttClient.subscribe("heater/input/display", [this](const std::string &payload) {
+            if (displayMirror) displayMirror->receive(payload.c_str(), millis());
+        });
         mqttClient.subscribe("heater/input/power", [this](const std::string &payload)
                              {
                                  if (heaterModule && payload == "true")
@@ -250,6 +255,7 @@ public:
 private:
     static MqttModule *instance;
     HeaterModule *heaterModule = nullptr;
+    DisplayMirror *displayMirror = nullptr;
 };
 
 MqttModule *MqttModule::instance = nullptr;

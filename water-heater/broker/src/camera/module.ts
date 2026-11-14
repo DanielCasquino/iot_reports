@@ -6,6 +6,7 @@ import { createWorker, PSM } from "tesseract.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
 
+const MIRROR_TOPIC = "heater/input/display";
 const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
 
@@ -16,6 +17,8 @@ export class CameraModule {
   private processed: Buffer | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
+  private mirrorState: { text: string; observedAt: string | null } = { text: "unknown", observedAt: null };
+  private lastTemperaturePollAt = 0;
   private verificationId: string | null = null;
   private verificationAttempts = 0;
   private verificationStartedAt = 0;
@@ -67,10 +70,18 @@ export class CameraModule {
     const interval = Number(process.env.CAMERA_POLL_MS ?? 5000);
     if (!Number.isFinite(interval) || interval < 0 || (interval > 0 && interval < 1000))
       throw new Error("CAMERA_POLL_MS must be 0 (manual) or at least 1000");
-    if (process.env.CAMERA_URL && interval > 0) {
+    const mirrorInterval = Number(process.env.CAMERA_MIRROR_POLL_MS ?? 0);
+    if (!Number.isFinite(mirrorInterval) || mirrorInterval < 0 || (mirrorInterval > 0 && mirrorInterval < 200))
+      throw new Error("CAMERA_MIRROR_POLL_MS must be 0 or at least 200");
+    if (process.env.CAMERA_URL && (interval > 0 || mirrorInterval > 0)) {
       const poll = async () => {
-        if (!this.busy && Date.now() - this.verificationStartedAt >= 5000) await this.readDisplayTemperature();
-        if (!this.stopped) this.timer = setTimeout(poll, interval);
+        const normalDue = interval > 0 && Date.now() - this.lastTemperaturePollAt >= interval &&
+          Date.now() - this.verificationStartedAt >= 5000;
+        if (!this.busy && (normalDue || mirrorInterval > 0)) {
+          if (normalDue) this.lastTemperaturePollAt = Date.now();
+          await this.readDisplayTemperature(false, undefined, !normalDue);
+        }
+        if (!this.stopped) this.timer = setTimeout(poll, mirrorInterval > 0 ? mirrorInterval : interval);
       };
       this.timer = setTimeout(poll, 0);
     }
@@ -79,7 +90,7 @@ export class CameraModule {
   getState() {
     const age = this.state.observedAt === null ? NaN : Date.now() - Date.parse(this.state.observedAt);
     const fresh = Number.isFinite(age) && age >= 0 && age <= 30000;
-    return { ...this.state, available: this.state.available && fresh,
+    return { ...this.state, displayMirror: { ...this.mirrorState }, available: this.state.available && fresh,
       value: this.state.available && fresh ? this.state.value : null,
       displayBrightness: fresh ? this.state.displayBrightness : null,
       displayLight: fresh ? this.state.displayLight : "unknown" };
@@ -103,23 +114,26 @@ export class CameraModule {
     return Buffer.concat(chunks);
   }
 
-  async readDisplayTemperature(wake = false, verificationId?: string): Promise<boolean> {
+  async readDisplayTemperature(wake = false, verificationId?: string, mirrorOnly = false): Promise<boolean> {
     if (this.busy || this.stopped) return false;
     if (wake) {
       this.state.error = "Display wake taps are disabled; capture without pressing power";
       return false;
     }
     this.busy = true;
+    let readingState = { ...this.state };
+    const waterReading = !mirrorOnly && verificationId === undefined;
     let capturedAt: string | null = null;
+    let mirrored = false;
     try {
-      await this.requestCameraJpeg();
+      if (!mirrorOnly) await this.requestCameraJpeg();
       this.image = await this.requestCameraJpeg();
       this.processed = null;
       const observedAt = new Date().toISOString();
       capturedAt = observedAt;
-      this.state = { ...this.state, displayBrightness: null, displayLight: "unknown" };
+      readingState = { ...readingState, displayBrightness: null, displayLight: "unknown" };
       const displayBrightness = await measureDisplayBrightness(this.image, process.env.CAMERA_DISPLAY_REGION);
-      this.state = { ...this.state, displayBrightness, displayLight: classifyDisplayLight(displayBrightness) };
+      readingState = { ...readingState, displayBrightness, displayLight: classifyDisplayLight(displayBrightness) };
       let pipeline = sharp(this.image, { limitInputPixels: 4_000_000 });
       const crop = process.env.CAMERA_CROP;
       if (crop) {
@@ -136,10 +150,12 @@ export class CameraModule {
       let value: number | null;
       let text: string;
       let confidence: number | null = null;
+      let displayVisible = true;
       if (sevenSegment) {
         const reading = await readSevenSegmentImage(await pipeline.png().toBuffer());
         this.processed = reading.image;
         value = reading.value;
+        displayVisible = reading.visible;
         text = value === null ? "" : String(value);
       } else {
         pipeline = pipeline.resize({ width: 800 }).grayscale().normalise();
@@ -165,24 +181,37 @@ export class CameraModule {
         confidence = data.confidence;
       }
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
-      this.state = { ...this.state, available: value !== null, value, observedAt,
+      readingState = { ...readingState, available: value !== null, value, observedAt,
         text, confidence, reader: sevenSegment ? "seven-segment" : "tesseract", error: value === null ? (sevenSegment ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
-      if (value === null) throw new Error(this.state.error!);
+      this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
+      if (this.mqtt.connected) {
+        this.mqtt.publish(MIRROR_TOPIC, this.mirrorState.text, { qos: 0, retain: false });
+        mirrored = true;
+      }
+      if (value === null) throw new Error(readingState.error!);
+      if (mirrorOnly) return true;
       if (!this.mqtt.connected) throw new Error("MQTT disconnected; reading not delivered");
-      await new Promise<void>((resolve, reject) => {
+      if (waterReading) await new Promise<void>((resolve, reject) => {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
       if (verificationId !== undefined) {
         this.mqtt.publish("heater/input/temperature_verification", `${verificationId},${value}`, { qos: 0, retain: false });
       }
-      this.state.lastValue = value;
+      readingState.lastValue = value;
       return true;
     } catch (error) {
-      this.state = { ...this.state, available: false, value: null, observedAt: capturedAt,
+      readingState = { ...readingState, available: false, value: null, observedAt: capturedAt,
         error: error instanceof Error ? error.message : "Capture failed" };
-      if (this.mqtt.connected) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
+      if (this.mqtt.connected) {
+        if (!mirrored) this.mqtt.publish(MIRROR_TOPIC, "unknown", { qos: 0, retain: false });
+        if (waterReading) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
+      }
       return false;
-    } finally { this.busy = false; }
+    } finally {
+      if (!mirrored && capturedAt === null) this.mirrorState = { text: "unknown", observedAt: null };
+      if (waterReading) this.state = readingState;
+      this.busy = false;
+    }
   }
 
   async close() {
