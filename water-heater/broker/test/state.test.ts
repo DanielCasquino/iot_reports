@@ -2,6 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyPilot, HeaterObservation } from "../src/heater/state.js";
 
+test("ambient light can leave an unlit pilot brighter than a lit green reference", () => {
+  const env = { COLOR_RED_REFERENCE: "301,25,34,331", COLOR_GREEN_REFERENCE: "10,17,4,31",
+    COLOR_UNLIT_REFERENCE: "15,15,17,30", COLOR_MAX_DISTANCE: "0.07", COLOR_DARK_MAX_CLEAR: "47" };
+  for (const raw of ["15,15,17,30", "23,23,26,47", "12,12,14,26"])
+    assert.equal(classifyPilot(raw, env), "unlit");
+  assert.equal(classifyPilot("10,17,4,31", env), "ready");
+  assert.equal(classifyPilot("301,25,34,331", env), "heating");
+});
+
+test("overlapping lit and unlit references remain unknown", () => {
+  const env = { COLOR_GREEN_REFERENCE: "10,17,4,31", COLOR_UNLIT_REFERENCE: "10,17,4,31",
+    COLOR_MAX_DISTANCE: "0.07" };
+  assert.equal(classifyPilot("10,17,4,31", env), "unknown");
+});
+
+test("an ambient reference does not turn a missing signal into a known pilot", () => {
+  const env = { COLOR_UNLIT_REFERENCE: "15,15,17,30", COLOR_MAX_DISTANCE: "0.07" };
+  for (const raw of [null, "unavailable", "0,0,0,0", "15,15,17,0"])
+    assert.equal(classifyPilot(raw, env), "unknown");
+});
+
 test("pilot requires calibration; low light is not proof of OFF or power failure", () => {
   const env = { COLOR_RED_REFERENCE: "80,10,10,100", COLOR_GREEN_REFERENCE: "10,80,10,100",
     COLOR_MAX_DISTANCE: "0.1", COLOR_DARK_MAX_CLEAR: "3" };

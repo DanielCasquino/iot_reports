@@ -28,6 +28,17 @@ puede apagarse en reposo mientras el visor continúa encendido y tenue. Una lect
 numérica nueva del visor junto a un piloto oscuro permite recuperar ON al arrancar;
 un fallo de OCR no demuestra que el visor esté apagado.
 
+Con luz ambiente se puede medir también `COLOR_UNLIT_REFERENCE=R,G,B,C` con el
+piloto apagado. El backend compara las tres referencias normalizadas y exige una
+coincidencia única dentro de `COLOR_MAX_DISTANCE`. Si dos estados coinciden,
+devuelve `unknown`. Todas las referencias deben medirse con el mismo montaje,
+ganancia, integración e iluminación.
+
+Con una referencia apagada válida, `COLOR_DARK_MAX_CLEAR` deja de decidir el
+estado: la luz exterior puede hacer que el apagado tenga más cuentas que un
+piloto verde tenue. Sin `COLOR_UNLIT_REFERENCE` se conserva el corte de oscuridad
+anterior. `npm run calibrate:color unlit` imprime ahora la referencia RGB medida.
+
 El comandoPower es idempotente respecto al estado conocido y tiene un intervalo
 mínimo entre pulsaciones. Aún se debe comprobar físicamente que el servo registra
 el botón: el estado esperado tras una orden no sustituye una confirmación óptica
