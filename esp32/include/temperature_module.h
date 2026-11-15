@@ -29,7 +29,7 @@ public:
     // Nonblocking conversion: buttons and power remain responsive.
     void poll() {
 #if TEMPORARY_SENSOR_TEST_MODE
-        unsigned long now = millis();
+        uint32_t now = millis();
         if (converting && now - conversionAt >= 750UL) {
             float reading = sensors.getTempCByIndex(0);
             if (reading == DEVICE_DISCONNECTED_C) invalidate();
@@ -64,10 +64,10 @@ private:
 #if TEMPORARY_SENSOR_TEST_MODE
     OneWire oneWire{TEMPERATURE_SENSOR_PIN};
     DallasTemperature sensors{&oneWire};
-    unsigned long conversionAt = 0;
+    uint32_t conversionAt = 0;
     bool converting = false;
 #endif
     float value = NAN;
-    unsigned long observedAt = 0;
+    uint32_t observedAt = 0;
     bool available = false;
 };

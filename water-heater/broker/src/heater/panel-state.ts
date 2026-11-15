@@ -32,6 +32,17 @@ export class HeaterPanelState {
 
   constructor(private readonly startedAt = Date.now()) {}
 
+  disconnect() {
+    // A recovery belongs to one controller session. Keep its attempt budget,
+    // but never let its delayed capture survive a reconnect.
+    this.mode = "unknown";
+    this.power = null;
+    this.observedAt = this.waterAt = this.targetAt = this.frameAt = -Infinity;
+    this.visible = false;
+    this.unreadableSince = null;
+    this.phase = "idle";
+  }
+
   buttonEffect(button: PanelButton): ButtonEffect {
     return buttonEffects[this.mode][button];
   }

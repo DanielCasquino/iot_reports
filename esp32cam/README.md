@@ -31,7 +31,7 @@ hardware test; building alone does not validate the board or its power supply.
 ## Capture settings and diagnostics
 
 Startup uses QVGA (320×240), JPEG quality20, one frame buffer, and the white
-GPIO4 LED off. PSRAM is used when detected. The HTML capture page is unchanged.
+GPIO4 LED off. PSRAM is used when detected.
 
 - `/config?resolution=qvga&quality=20`: set capture resolution and JPEG compression.
 - `/config?resolution=qqvga`:160×120; `/config?resolution=vga`:640×480 (requires PSRAM).
@@ -48,11 +48,41 @@ keep the camera on the trusted local demo network.
 
 ## Live framing preview
 
-Open `/` and select **Encuadrar**. It sets QQVGA160×120 and JPEG quality25,
-then opens MJPEG at `http://<camera-IP>:81/stream`, capped at about5fps.
+Open `/` and select **Encuadrar**. It opens MJPEG at
+`http://<camera-IP>:81/stream`, capped at about5fps, using the current resolution
+and quality. Preview does not silently change the capture settings or OCR crop.
 Only one streaming viewer is supported. **Detener** disconnects the preview;
 **Foto** requests a single image at the current resolution. Settings are shared
-by streaming and snapshots. Before OCR, stop preview and use
-`/config?resolution=qvga&quality=20` (or VGA if required), then recalibrate crop.
+by streaming and snapshots. To deliberately change them, use `/config`; restore
+the calibrated settings before OCR. Stop preview while measuring to avoid camera
+mutex contention and additional Wi-Fi traffic.
 Use preview for positioning, not to judge final OCR detail. Port81 must be
 reachable locally. Streaming, capture and configuration serialize camera access.
+
+## Snapshot freshness and software checks
+
+The camera driver may already hold a frame captured before an HTTP request.
+`/capture` returns that queued frame to the driver, obtains the next frame while
+holding the camera mutex, and sends `X-Capture-Fresh: 1` with the JPEG. The header
+means that this firmware discarded its prior buffer; it does not certify network
+latency or OCR accuracy. Acquisition failures remain HTTP503 without that header.
+See [Espressif's camera FAQ](https://documentation.espressif.com/projects/esp-faq/en/latest/application-solution/camera-application.html).
+
+The backend can use one JPEG request when that header is present. With older
+camera firmware it must still discard the first HTTP image before using a second,
+including OLED mirror polling. Updating the backend therefore does not require
+assuming the camera firmware has already been flashed.
+
+Tests use the production helper and the JavaScript extracted from the actual
+camera page; they do not access a device:
+
+```sh
+g++ -std=c++11 -Wall -Wextra -Werror -I esp32cam/test/fakes -I esp32cam/include \
+  esp32cam/test/fresh_frame_test.cpp -o /tmp/camera_fresh_frame_test
+/tmp/camera_fresh_frame_test
+node --test esp32cam/test/preview.test.mjs
+```
+
+They cover buffer discard/ownership and both acquisition failures, plus preview,
+stop and capture preserving settings. A firmware build checks the real SDK API;
+neither check measures frame age, image quality or Wi-Fi performance on hardware.

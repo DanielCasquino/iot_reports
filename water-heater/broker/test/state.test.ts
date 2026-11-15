@@ -103,3 +103,17 @@ test("setpoint captures stay hidden through adjustment and require a new settled
   const measured = { available: true, value: 38, observedAt: new Date(2200).toISOString() };
   assert.equal(state.snapshot(measured, 2300).temperature, 38);
 });
+
+test("a controller restart cannot reuse an otherwise recent camera capture", () => {
+  const state = new HeaterObservation();
+  const water = { available: true, value: 47, observedAt: new Date(1500).toISOString() };
+  state.update("heater/status", "online", false, 1000);
+  state.update("heater/state/power", "true", false, 1600);
+  assert.equal(state.snapshot(water, 1700).temperature, 47);
+  state.disconnect(2000);
+  state.update("heater/status", "online", false, 2500);
+  state.update("heater/state/power", "true", false, 2600);
+  assert.equal(state.snapshot(water, 2700).temperature, null);
+  assert.equal(state.snapshot(water, 2700).display, "unknown");
+  assert.equal(state.snapshot({ ...water, observedAt: new Date(2800).toISOString() }, 2900).temperature, 47);
+});

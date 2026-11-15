@@ -28,7 +28,7 @@ public:
 
     void poll()
     {
-        unsigned long curr_ms = millis();
+        uint32_t curr_ms = millis();
         if (!available)
         {
             if (curr_ms - last_ms >= 5000UL)
@@ -66,7 +66,7 @@ public:
 
 private:
     Adafruit_TCS34725 sensor{TCS34725_INTEGRATIONTIME_154MS, TCS34725_GAIN_4X};
-    unsigned long last_ms = 0;
+    uint32_t last_ms = 0;
     bool available = false;
     bool hasSample = false;
     uint16_t red = 0;

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { MqttClient } from "mqtt";
 import sharp from "sharp";
 import { readSevenSegmentImage } from "./seven-segment.js";
-import { createWorker, PSM } from "tesseract.js";
+import { IsolatedOcr, type OcrReader } from "./ocr.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
 
@@ -16,7 +16,7 @@ const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
 
 export class CameraModule {
-  private ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
+  private ocrWorker: OcrReader | null = null;
   private busy = false;
   private image: Buffer | null = null;
   private processed: Buffer | null = null;
@@ -27,6 +27,7 @@ export class CameraModule {
   private verificationId: string | null = null;
   private verificationAttempts = 0;
   private verificationStartedAt = 0;
+  private mqttGeneration = 0;
   private state: { available: boolean; value: number | null; lastValue: number | null;
     observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null;
     displayBrightness: number | null; displayLight: "dark" | "lit" | "unknown" } = {
@@ -35,12 +36,23 @@ export class CameraModule {
     displayBrightness: null, displayLight: "unknown",
   };
 
-  constructor(private mqtt: MqttClient, private readonly onDisplayFrame?: (frame: DisplayFrame) => void) {}
+  constructor(private mqtt: MqttClient, private readonly onDisplayFrame?: (frame: DisplayFrame) => boolean | void) {}
 
   private subscribeVerification = () => {
+    this.invalidateMqttSession();
     this.mqtt.subscribe("heater/command/verify_temperature");
   };
-  private handleVerification = (topic: string, payload: Buffer, packet: { retain?: boolean }) => {
+  private invalidateMqttSession = () => {
+    this.mqttGeneration++;
+    this.verificationId = null;
+    this.verificationAttempts = 0;
+    this.verificationStartedAt = 0;
+  };
+  private handleMqttMessage = (topic: string, payload: Buffer, packet: { retain?: boolean }) => {
+    if (topic === "heater/status" && (!packet.retain || payload.toString() === "offline")) {
+      this.invalidateMqttSession();
+      return;
+    }
     if (topic !== "heater/command/verify_temperature" || packet.retain) return;
     const id = payload.toString();
     if (!/^\d{1,10}$/.test(id) || Number(id) > 0xffffffff) return;
@@ -56,7 +68,9 @@ export class CameraModule {
 
   setup(app: Express) {
     this.mqtt.on("connect", this.subscribeVerification);
-    this.mqtt.on("message", this.handleVerification);
+    this.mqtt.on("offline", this.invalidateMqttSession);
+    this.mqtt.on("close", this.invalidateMqttSession);
+    this.mqtt.on("message", this.handleMqttMessage);
     if (this.mqtt.connected) this.subscribeVerification();
     app.get("/api/camera/status", (_req, res) => res.set("Cache-Control", "no-store").json(this.getState()));
     app.get("/api/camera/image", (_req, res) => {
@@ -101,7 +115,7 @@ export class CameraModule {
       displayLight: fresh ? this.state.displayLight : "unknown" };
   }
 
-  private async requestCameraJpeg(): Promise<Buffer> {
+  private async requestCameraJpeg(): Promise<{ image: Buffer; fresh: boolean }> {
     const base = process.env.CAMERA_URL;
     if (!base) throw new Error("Set CAMERA_URL=http://<camera-IP> in broker/.env");
     const url = new URL("/capture", base);
@@ -116,7 +130,7 @@ export class CameraModule {
       if (bytes > MAX_IMAGE_BYTES) { await response.body.cancel().catch(() => {}); throw new Error("Camera image too large"); }
       chunks.push(chunk);
     }
-    return Buffer.concat(chunks);
+    return { image: Buffer.concat(chunks), fresh: response.headers.get("x-capture-fresh") === "1" };
   }
 
   async readDisplayTemperature(wake = false, verificationId?: string, mirrorOnly = false): Promise<boolean> {
@@ -126,13 +140,16 @@ export class CameraModule {
       return false;
     }
     this.busy = true;
+    const mqttGeneration = this.mqttGeneration;
     let readingState = { ...this.state };
     const waterReading = !mirrorOnly && verificationId === undefined;
     let capturedAt: string | null = null;
     let mirrored = false;
     try {
-      if (!mirrorOnly) await this.requestCameraJpeg();
-      this.image = await this.requestCameraJpeg();
+      const firstFrame = await this.requestCameraJpeg();
+      // New firmware flushes its queued buffer inside /capture. Keep a bounded
+      // two-request fallback for older cameras, including mirror-only reads.
+      this.image = firstFrame.fresh ? firstFrame.image : (await this.requestCameraJpeg()).image;
       this.processed = null;
       const observedAt = new Date().toISOString();
       capturedAt = observedAt;
@@ -155,7 +172,9 @@ export class CameraModule {
       let value: number | null;
       let text: string;
       let confidence: number | null = null;
-      let displayVisible = true;
+      // OCR failure alone does not establish a visibly lit display. Without
+      // calibrated light or readable digits it must not authorize a wake tap.
+      let displayVisible = readingState.displayLight === "lit";
       if (sevenSegment) {
         const reading = await readSevenSegmentImage(await pipeline.png().toBuffer());
         this.processed = reading.image;
@@ -172,11 +191,7 @@ export class CameraModule {
           pipeline = pipeline.threshold(threshold);
         }
         this.processed = await pipeline.png().toBuffer();
-        if (!this.ocrWorker) {
-          this.ocrWorker = await createWorker("eng", 1, process.env.OCR_LANG_PATH ? { langPath: process.env.OCR_LANG_PATH } : {});
-          await this.ocrWorker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE,
-            tessedit_char_whitelist: "0123456789.,Cc°" });
-        }
+        this.ocrWorker ??= new IsolatedOcr();
         const { data } = await this.ocrWorker.recognize(this.processed);
         const minimumConfidence = Number(process.env.CAMERA_MIN_CONFIDENCE ?? 80);
         if (!Number.isFinite(minimumConfidence) || minimumConfidence < 0 || minimumConfidence > 100)
@@ -188,14 +203,19 @@ export class CameraModule {
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
       readingState = { ...readingState, available: value !== null, value, observedAt,
         text, confidence, reader: sevenSegment ? "seven-segment" : "tesseract", error: value === null ? (sevenSegment ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
-      this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
+      if (this.stopped || mqttGeneration !== this.mqttGeneration)
+        throw new Error("Controller connection changed during capture; capture again");
+      const waterAccepted = this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
         purpose: verificationId !== undefined ? "target" : mirrorOnly ? "mirror" : "water" });
       this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
-      if (this.mqtt.connected) {
+      if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         this.mqtt.publish(MIRROR_TOPIC, this.mirrorState.text, { qos: 0, retain: false });
         mirrored = true;
       }
       if (value === null) throw new Error(readingState.error!);
+      // A readable number may still be a setpoint/blink/recovery frame. The
+      // panel/controller must accept it as water before it enters the control path.
+      if (waterReading && waterAccepted === false) throw new Error("Display not confirmed as water temperature");
       if (mirrorOnly) return true;
       if (!this.mqtt.connected) throw new Error("MQTT disconnected; reading not delivered");
       if (waterReading) await new Promise<void>((resolve, reject) => {
@@ -209,7 +229,7 @@ export class CameraModule {
     } catch (error) {
       readingState = { ...readingState, available: false, value: null, observedAt: capturedAt,
         error: error instanceof Error ? error.message : "Capture failed" };
-      if (this.mqtt.connected) {
+      if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         if (!mirrored) this.mqtt.publish(MIRROR_TOPIC, "unknown", { qos: 0, retain: false });
         if (waterReading) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
       }
@@ -223,8 +243,11 @@ export class CameraModule {
 
   async close() {
     this.stopped = true;
+    this.invalidateMqttSession();
     this.mqtt.removeListener?.("connect", this.subscribeVerification);
-    this.mqtt.removeListener?.("message", this.handleVerification);
+    this.mqtt.removeListener?.("offline", this.invalidateMqttSession);
+    this.mqtt.removeListener?.("close", this.invalidateMqttSession);
+    this.mqtt.removeListener?.("message", this.handleMqttMessage);
     if (this.timer) clearTimeout(this.timer);
     if (this.ocrWorker) await this.ocrWorker.terminate();
   }

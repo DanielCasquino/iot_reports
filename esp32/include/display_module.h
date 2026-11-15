@@ -50,7 +50,7 @@ public:
     void poll()
     {
 #if DISPLAY_ENABLED
-        unsigned long now = millis();
+        uint32_t now = millis();
         if (!available)
         {
             if (now - last_ms >= 5000UL)
@@ -99,7 +99,7 @@ private:
     uint8_t address;
     bool available = false;
     bool hasRendered = false;
-    unsigned long last_ms = 0;
+    uint32_t last_ms = 0;
     char temperatureLine[11] = {};
     char stateLine[22] = {};
     char renderedTemperature[11] = {};

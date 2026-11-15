@@ -1,6 +1,6 @@
 #include <cassert>
 #include "temperature_module.h"
-unsigned long testNow = 0;
+uint32_t testNow = 0;
 TestSerial Serial;
 float probeValue = 28.5;
 unsigned conversions = 0, probeReads = 0;
@@ -41,5 +41,7 @@ int main() {
     assert(ocr.read() == 48 && conversions == 0);
     ocr.invalidate();
     assert(!ocr.isAvailable());
+    testNow=UINT32_MAX-1000U;ocr.update(48);testNow=0;assert(ocr.isAvailable());
+    testNow=30000;assert(!ocr.isAvailable());
 #endif
 }

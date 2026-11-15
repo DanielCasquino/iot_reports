@@ -7,16 +7,16 @@ class FlowModule
 public:
     static void IRAM_ATTR onPulse(void *arg)
     {
-        // ts is deprecated
         FlowModule *self = static_cast<FlowModule *>(arg);
-        self->count++;
+        self->count = self->count + 1;
     }
 
     FlowModule() {}
 
     void setup()
     {
-        pinMode(FLOW_PIN, INPUT_PULLUP);
+        // GPIO34 has no internal pull-up; the electrical bias is external.
+        pinMode(FLOW_PIN, INPUT);
         attachInterruptArg(digitalPinToInterrupt(FLOW_PIN), onPulse, this, FALLING);
         last_ms = millis();
         Serial.println("Flow module initialized");
@@ -24,7 +24,7 @@ public:
 
     void poll()
     {
-        unsigned long curr_ms = millis();
+        uint32_t curr_ms = millis();
         if (curr_ms - last_ms < TICK_INTERVAL_MS)
             return;
 
@@ -32,7 +32,7 @@ public:
         last_ms = curr_ms;
 
         noInterrupts();
-        unsigned long pulses = count;
+        uint32_t pulses = count;
         count = 0;
         interrupts();
 
@@ -54,8 +54,8 @@ public:
 
 private:
     static constexpr float PPL = 450.0; // pulses per litre
-    unsigned long last_ms = 0;
-    volatile unsigned long count = 0;
+    uint32_t last_ms = 0;
+    volatile uint32_t count = 0;
     float flowRate = 0.0;
     float totalVolume = 0.0;
 };

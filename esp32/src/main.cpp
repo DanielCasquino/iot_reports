@@ -1,5 +1,4 @@
-#include <iostream>
-#include <HardwareSerial.h>
+#include <Arduino.h>
 #include <WiFi.h>
 #include "secrets.h"
 #include "config.h"
@@ -7,7 +6,6 @@
 #include "mqtt_module.h"
 #include "display_module.h"
 
-using namespace std;
 
 HeaterModule heaterModule;
 MqttModule mqttModule;
@@ -44,6 +42,7 @@ void setup()
 
 void loop()
 {
+  mqttModule.loop();
   if (heaterModule.loop())
     mqttModule.publishPowerState();
   if (heaterModule.takeTemperatureControlChanged())

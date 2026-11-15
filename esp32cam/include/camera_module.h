@@ -3,6 +3,7 @@
 #include <WebServer.h>
 #include "esp_camera.h"
 #include "esp_http_server.h"
+#include "fresh_frame.h"
 
 // AI-Thinker ESP32-CAM pinout.
 class CameraModule
@@ -52,7 +53,7 @@ public:
         server.on("/config", HTTP_GET, [this]() { configure(); });
         server.on("/status", HTTP_GET, [this]() { status(); });
         server.on("/", HTTP_GET, [this]() {
-            server.send(200, "text/html", R"HTML(<!doctype html><meta name="viewport" content="width=device-width"><title>Camera test</title><style>body{font-family:system-ui;background:#151515;color:white;margin:16px}img{display:block;max-width:100%;image-rendering:auto}button{padding:10px;margin:8px 8px 8px 0}</style><h1>ESP32-CAM</h1><img id="frame"><button onclick="preview()">Encuadrar</button><button onclick="stop()">Detener</button><button onclick="capture()">Foto</button><script>const frame=document.getElementById('frame');function stop(){frame.removeAttribute('src')}async function preview(){stop();const response=await fetch('/config?resolution=qqvga&quality=25');if(response.ok)frame.src='http://'+location.hostname+':81/stream'}function capture(){stop();frame.src='/capture?t='+Date.now()}</script>)HTML");
+            server.send(200, "text/html", R"HTML(<!doctype html><meta name="viewport" content="width=device-width"><title>Camera test</title><style>body{font-family:system-ui;background:#151515;color:white;margin:16px}img{display:block;max-width:100%;image-rendering:auto}button{padding:10px;margin:8px 8px 8px 0}</style><h1>ESP32-CAM</h1><img id="frame"><button onclick="preview()">Encuadrar</button><button onclick="stop()">Detener</button><button onclick="capture()">Foto</button><script>const frame=document.getElementById('frame');function stop(){frame.removeAttribute('src')}function preview(){stop();frame.src='http://'+location.hostname+':81/stream'}function capture(){stop();frame.src='/capture?t='+Date.now()}</script>)HTML");
         });
         server.on("/capture", HTTP_GET, [this]() { capture(); });
         server.begin();
@@ -157,7 +158,7 @@ private:
         { server.send(503, "text/plain", "Camera busy"); return; }
         digitalWrite(4, LOW);
         unsigned long captureStarted = millis();
-        camera_fb_t *frame = esp_camera_fb_get();
+        camera_fb_t *frame = captureFreshFrame();
         unsigned long captureMs = millis() - captureStarted;
         if (!frame)
         {
@@ -166,6 +167,7 @@ private:
             return;
         }
         server.sendHeader("Cache-Control", "no-store");
+        server.sendHeader("X-Capture-Fresh", "1");
         server.setContentLength(frame->len);
         server.send(200, "image/jpeg", "");
         auto client = server.client();

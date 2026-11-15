@@ -38,8 +38,8 @@ int main() {
                     assert(a.needsVerification(now - 900));
                     assert(!a.verify(a.requestId, target, now - 900));
                 }
-                assert(a.state == State::Verifying && a.locked());
-                assert(a.finishWithoutCamera(now + 6000));
+                assert(a.state == State::Settling && a.locked());
+                assert(a.finishSettling(now + 6000));
                 assert(!a.locked());
             }
         }
@@ -48,8 +48,8 @@ int main() {
     timeout.applyTarget(44, 43); open(timeout);
     assert(timeout.tick(11500) == 0 && timeout.state == State::Error);
     assert(!timeout.verify(timeout.requestId, 43, 11501));
-    assert(!timeout.finishWithoutCamera(17499));
-    assert(timeout.finishWithoutCamera(17500));
+    assert(!timeout.finishSettling(17499));
+    assert(timeout.finishSettling(17500));
     assert(timeout.applyTarget(44, 43));
     TemperatureAdjustment late;
     late.applyTarget(44, 43); open(late);

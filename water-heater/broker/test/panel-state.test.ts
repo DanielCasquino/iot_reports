@@ -86,3 +86,20 @@ test("limited recovery attempts end in a recoverable failure without repeated bu
   assert.equal(panel.snapshot(200001).recovery, "idle");
   assert.equal(panel.snapshot(200001).attempts, 0);
 });
+
+test("disconnect cancels delayed recovery without replenishing its retry budget", () => {
+  const panel = new HeaterPanelState(0);
+  panel.observeMode("water", 47, 0);
+  panel.observeFrame(frame(null, 0), true);
+  panel.observeFrame(frame(null, 6000), true);
+  assert.equal(panel.tick(6000, true), "press_plus");
+  panel.disconnect();
+  assert.equal(panel.snapshot(12000).power, null);
+  assert.equal(panel.snapshot(12000).fresh, false);
+  assert.equal(panel.snapshot(12000).waterFresh, false);
+  assert.equal(panel.snapshot(12000).attempts, 1);
+  assert.equal(panel.tick(12000, true), null);
+  panel.observeFrame(frame(47, 12001, true, "water"), true);
+  assert.equal(panel.snapshot(12001).waterFresh, true);
+  assert.equal(panel.snapshot(12001).attempts, 0);
+});

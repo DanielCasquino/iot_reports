@@ -49,7 +49,7 @@ export class HeaterObservation {
 
   update(topic: string, value: string, retained = false, now = Date.now()) {
     // A retained snapshot cannot establish a fresh hardware observation.
-    if (retained) { if (topic === "heater/status" && value === "offline") this.disconnect(); return; }
+    if (retained) { if (topic === "heater/status" && value === "offline") this.disconnect(now); return; }
     if (topic === "heater/status") {
       this.online = value === "online";
       this.onlineAt = now;
@@ -58,6 +58,8 @@ export class HeaterObservation {
       this.power = null;
       this.temperature = null;
       this.temperatureAt = -Infinity;
+      this.temperatureLocked = false;
+      this.temperatureValidAfter = now;
     }
     if (topic === "heater/state/temperature") {
       const reading = value.trim() === "" ? NaN : Number(value);
@@ -66,7 +68,7 @@ export class HeaterObservation {
     }
     if (topic === "heater/state/temperature_control") {
       const control = parseTemperatureControl(value);
-      const locked = control === null || control.locked;
+      const locked = control === null || control.locked || control.status !== "idle";
       if (locked || this.temperatureLocked) this.temperatureValidAfter = now;
       this.temperatureLocked = locked;
     }
@@ -75,19 +77,22 @@ export class HeaterObservation {
     if (topic.startsWith("heater/state/")) { this.online = true; this.onlineAt = now; }
   }
 
-  disconnect() {
+  disconnect(now = Date.now()) {
     this.temperature = null;
     this.temperatureAt = -Infinity;
     this.online = false;
     this.power = null;
     this.color = null;
     this.colorAt = -Infinity;
+    this.temperatureLocked = false;
+    this.temperatureValidAfter = now;
   }
 
   snapshot(camera: { available: boolean; value: number | null; observedAt: string | null }, now = Date.now()) {
     const online = this.online && now - this.onlineAt <= 10000;
     const observedAt = camera.observedAt === null ? NaN : Date.parse(camera.observedAt);
-    const cameraFresh = online && Number.isFinite(observedAt) && now - observedAt >= 0 && now - observedAt <= 30000;
+    const cameraFresh = online && Number.isFinite(observedAt) && observedAt >= this.temperatureValidAfter &&
+      now - observedAt >= 0 && now - observedAt <= 30000;
     const pilot = online && now - this.colorAt <= 10000 ? classifyPilot(this.color) : "unknown";
     return {
       online, power: online ? this.power : null, pilot,
@@ -95,8 +100,7 @@ export class HeaterObservation {
       // TEMPORARY: physical probe telemetry replaces the OCR temperature gate.
       temperature: this.sensorTestMode
         ? online && now - this.temperatureAt <= 30000 ? this.temperature : null
-        : cameraFresh && camera.available && !this.temperatureLocked &&
-          observedAt >= this.temperatureValidAfter ? camera.value : null,
+        : cameraFresh && camera.available && !this.temperatureLocked ? camera.value : null,
       temperatureSource: this.sensorTestMode ? "probe" : "camera",
       reason: !online ? "No fresh controller telemetry" : this.sensorTestMode ? null : pilot === "unknown" ? "RGB unavailable, stale or not calibrated"
         : pilot === "unlit" ? "Unlit pilot does not establish power loss" : null,

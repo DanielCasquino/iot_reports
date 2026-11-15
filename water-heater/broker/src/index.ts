@@ -17,10 +17,7 @@ import { DesiredState } from "./heater/desired-state.js";
 
 interface HeaterState {
   temperatureControl: TemperatureControl | null;
-  power: boolean | null;
   autoShutdown: boolean | null;
-  temperature: number | null;
-  status: "online" | "offline" | null;
   color: string | null;
   flowrate: number | null;
   volume: number | null;
@@ -28,13 +25,10 @@ interface HeaterState {
 
 const heaterState: HeaterState = {
   temperatureControl: null,
-  power: null,
   autoShutdown: null,
-  temperature: null,
   color: null,
   flowrate: null,
-  volume: null,
-  status: null
+  volume: null
 };
 
 const desiredState = new DesiredState(path.resolve(process.env.HEATER_DESIRED_STATE_FILE ?? ".runtime/desired-state.json"));
@@ -49,6 +43,13 @@ const observation = new HeaterObservation(sensorTestMode);
 const panel = new HeaterPanelState();
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
+
+function observedState() {
+  const state = observation.snapshot(cameraModule.getState());
+  const control = heaterState.temperatureControl;
+  const waterAccepted = sensorTestMode || (control?.status === "idle" && !control.locked && panel.snapshot().waterFresh);
+  return { ...state, temperature: waterAccepted ? state.temperature : null };
+}
 
 if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !process.env.COLOR_UNLIT_REFERENCE) {
   console.warn(
@@ -65,20 +66,14 @@ if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !p
 mqttClient.on("message", (topic, payload, packet) => {
   const value = payload.toString();
   observation.update(topic, value, packet.retain);
-  if (packet.retain && value !== "offline") return;
+  if (packet.retain && !(topic === "heater/status" && value === "offline")) return;
 
   switch (topic) {
     case "heater/state/temperature_control":
       heaterState.temperatureControl = parseTemperatureControl(value);
       break;
-    case "heater/state/power":
-      heaterState.power = value === "true" ? true : value === "false" ? false : null;
-      break;
     case "heater/state/autoshutdown":
-      heaterState.autoShutdown = value === "true";
-      break;
-    case "heater/state/temperature":
-      heaterState.temperature = value.trim() !== "" && Number.isFinite(Number(value)) ? Number(value) : null;
+      heaterState.autoShutdown = value === "true" ? true : value === "false" ? false : null;
       break;
     case "heater/state/flowrate":
     case "heater/state/volume": {
@@ -93,25 +88,27 @@ mqttClient.on("message", (topic, payload, packet) => {
         console.log(`Pilot state ${lastPilot ?? "none"} -> ${pilot} (raw ${heaterState.color ?? "unavailable"})`);
         lastPilot = pilot;
       }
+      const observed = observedState();
       const command = pilotCommand(pilot, {
         retained: packet.retain,
         sensorTestMode,
         brokerConnected,
-        controllerOnline: observation.snapshot(cameraModule.getState()).online,
+        controllerOnline: observed.online,
       });
       if (command) mqttClient.publish(command.topic, command.payload, command.options);
-      if (command && heaterState.power === null && (pilot === "heating" || pilot === "ready")) {
+      if (command && observed.power === null && (pilot === "heating" || pilot === "ready")) {
         mqttClient.publish("heater/input/power", "true", { qos: 0, retain: false });
       }
       break;
     }
     case "heater/status":
-      heaterState.status = value === "online" ? "online" : "offline";
+      panel.disconnect();
       heaterState.flowrate = null;
       heaterState.volume = null;
       // A (re)connecting controller starts without a known power observation.
-      heaterState.power = null;
-      if (heaterState.status === "offline") heaterState.temperature = null;
+      heaterState.temperatureControl = null;
+      heaterState.autoShutdown = null;
+      heaterState.color = null;
       break;
   }
 
@@ -125,28 +122,23 @@ mqttClient.on("message", (topic, payload, packet) => {
 mqttClient.on("connect", () => {
   brokerConnected = true;
 })
-mqttClient.on("offline", () => {
+function disconnectController() {
   brokerConnected = false;
   observation.disconnect();
+  panel.disconnect();
+  heaterState.autoShutdown = null;
+  heaterState.color = null;
   heaterState.flowrate = null;
   heaterState.volume = null;
   heaterState.temperatureControl = null;
-  heaterState.temperature = null;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
-})
-mqttClient.on("close", () => {
-  brokerConnected = false;
-  observation.disconnect();
-  heaterState.flowrate = null;
-  heaterState.volume = null;
-  heaterState.temperatureControl = null;
-  heaterState.temperature = null;
-  broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
-})
+}
+mqttClient.on("offline", disconnectController);
+mqttClient.on("close", disconnectController);
 
 // sends state to front when they connect
 wss.on("connection", (ws) => {
-  const currentObservation = observation.snapshot(cameraModule.getState());
+  const currentObservation = observedState();
   ws.send(
     JSON.stringify({
       event: "state_snapshot",
@@ -169,7 +161,7 @@ wss.on("connection", (ws) => {
     const requestId = command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base"
       ? Number(command.payload.split(",")[0]) : undefined;
     const reject = (error: string) => ws.send(JSON.stringify({ event: "command_error", data: { error, requestId } }));
-    const currentObservation = observation.snapshot(cameraModule.getState());
+    const currentObservation = observedState();
     if (["settling", "reading"].includes(panel.snapshot().recovery)) {
       reject("Display is waking; please wait");
       return;
@@ -209,14 +201,18 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 function controllerIdle() {
-  const state = observation.snapshot(cameraModule.getState());
+  const state = observedState();
   return brokerConnected && state.online && heaterState.temperatureControl?.status === "idle" &&
     !heaterState.temperatureControl.locked;
 }
-const cameraModule = new CameraModule(mqttClient, frame => panel.observeFrame(frame, controllerIdle()));
+const cameraModule = new CameraModule(mqttClient, frame => {
+  const idle = controllerIdle();
+  panel.observeFrame(frame, idle);
+  return idle && panel.snapshot(frame.observedAt).waterFresh;
+});
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
-  const state = observation.snapshot(cameraModule.getState());
+  const state = observedState();
   res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
@@ -233,11 +229,11 @@ let lastReconciliationStatus = "";
 setInterval(() => {
   const effect = panel.tick(Date.now(), controllerIdle());
   if (effect) panelEffects[effect]();
-  const state = observation.snapshot(cameraModule.getState());
+  const state = observedState();
   let command;
   try {
     command = temperatureReconciliation.poll(heaterState.temperatureControl,
-      brokerConnected && state.online, state.power === true && state.display === "readable" &&
+      brokerConnected && state.online, state.power === true && state.temperature !== null && state.display === "readable" &&
         panel.snapshot().recovery === "idle");
   } catch {
     console.error("Could not save temperature verification state");

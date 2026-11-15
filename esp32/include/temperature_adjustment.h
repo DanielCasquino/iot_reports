@@ -7,21 +7,20 @@
 class TemperatureAdjustment
 {
 public:
-    enum class State { Idle, Selecting, Opening, Reading, Applying, Confirming, Verifying, Error };
+    enum class State { Idle, Opening, Reading, Applying, Confirming, Settling, Error };
     State state = State::Idle;
     int target = 0;
     int estimated = 0;
     uint32_t requestId = 0;
 
-    bool locked() const { return state != State::Idle && state != State::Selecting; }
+    bool locked() const { return state != State::Idle; }
     const char *status() const {
         switch (state) {
-        case State::Selecting: return "selecting";
         case State::Opening: return "verifying";
         case State::Reading: return "verifying";
         case State::Confirming: return "verifying";
         case State::Applying: return "applying";
-        case State::Verifying: return "verifying";
+        case State::Settling: return "settling";
         case State::Error: return "error";
         default: return "idle";
         }
@@ -32,7 +31,6 @@ public:
             (base != -1 && (base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return false;
         target = value;
         estimated = base;
-        corrections = 0;
         hasPressed = false;
         state = State::Opening;
         requested = false;
@@ -40,22 +38,10 @@ public:
         ++requestId;
         return true;
     }
-    bool finishWithoutCamera(uint32_t now) {
-        if ((state != State::Verifying && state != State::Error) || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
+    bool finishSettling(uint32_t now) {
+        if ((state != State::Settling && state != State::Error) || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
         state = State::Idle;
         return true;
-    }
-    void select(int direction, float observed, uint32_t now) {
-        if (locked()) return;
-        if (state == State::Idle) {
-            if (!isfinite(observed) || observed < MIN_TEMPERATURE_C ||
-                observed > MAX_TEMPERATURE_C || observed != roundf(observed)) return;
-            estimated = target = int(observed);
-            corrections = 0;
-            state = State::Selecting;
-        }
-        target = nextSetpoint(target, direction);
-        selectedAt = now; // Even a press at a limit restarts the window.
     }
     // Returns at most one physical press per tick, keeping other polling alive.
     int tick(uint32_t now) {
@@ -74,13 +60,6 @@ public:
             verifyingAt = now;
             return 0;
         }
-        if (state == State::Selecting && uint32_t(now - selectedAt) >= TEMPERATURE_SELECT_MS) {
-            if (target == estimated) { state = State::Idle; return 0; }
-            state = State::Applying;
-            hasPressed = false;
-        }
-        if (state == State::Verifying && uint32_t(now - verifyingAt) >= TEMPERATURE_VERIFY_TIMEOUT_MS)
-            state = State::Error;
         if (state != State::Applying || (hasPressed && uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS)) return 0;
         if (hasPressed && uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) {
             state = State::Error;
@@ -107,7 +86,7 @@ public:
         }
     }
     void waitForDisplay(uint32_t now) {
-        state = State::Verifying;
+        state = State::Settling;
         verifyingAt = now;
         requested = false;
         ++requestId;
@@ -120,11 +99,7 @@ public:
             requestedAt = now;
             return true;
         }
-        if (state != State::Verifying || uint32_t(now - verifyingAt) < TEMPERATURE_ADJUST_SETTLE_MS) return false;
-        if (requested && uint32_t(now - requestedAt) < TEMPERATURE_VERIFY_RETRY_MS) return false;
-        requested = true;
-        requestedAt = now;
-        return true;
+        return false;
     }
     bool verify(uint32_t id, float observed, uint32_t now = 0) {
         if (state == State::Reading || state == State::Confirming) {
@@ -138,13 +113,6 @@ public:
             else state = State::Applying;
             return false;
         }
-        if (state != State::Verifying || !requested || id != requestId || !isfinite(observed) ||
-            observed < MIN_TEMPERATURE_C || observed > MAX_TEMPERATURE_C || observed != roundf(observed)) return false;
-        if (observed == target) { state = State::Idle; return true; }
-        if (++corrections > TEMPERATURE_MAX_CORRECTIONS) { state = State::Error; verifyingAt = now; return false; }
-        estimated = int(observed);
-        state = State::Applying;
-        hasPressed = false;
         return false;
     }
 private:
@@ -154,7 +122,6 @@ private:
         if (next > MAX_TEMPERATURE_C) return MIN_TEMPERATURE_C;
         return next;
     }
-    uint32_t selectedAt = 0, pressedAt = 0, verifyingAt = 0, requestedAt = 0;
+    uint32_t pressedAt = 0, verifyingAt = 0, requestedAt = 0;
     bool hasPressed = false, requested = false, readingStarted = false;
-    unsigned corrections = 0;
 };
