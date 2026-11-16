@@ -58,7 +58,19 @@ public:
 
         mqttClient.loopStart();
     }
-    void attach(HeaterModule &h) { this->heaterModule = &h; }
+    void attach(HeaterModule &h) { this->heaterModule = &h; h.attachTapSink(publishTap); }
+    static void publishTap(const ServoModule::TapEvent &tap)
+    {
+        if (!mqttClient.isConnected()) return;
+        std::string payload = "{\"pin\":" + std::to_string(tap.pin) +
+            ",\"button\":\"" + (tap.pin == SERVO_PIN_A ? "power" : tap.pin == SERVO_PIN_B ? "plus" : "minus") +
+            "\",\"reason\":\"" + tap.reason + "\",\"commandId\":" + std::to_string(tap.commandId) +
+            ",\"estimatedBefore\":" + std::to_string(tap.estimatedBefore) + ",\"estimatedAfter\":" + std::to_string(tap.estimatedAfter) +
+            ",\"target\":" + std::to_string(tap.target) + ",\"press\":" + std::to_string(tap.press) + ",\"rest\":" + std::to_string(tap.rest) +
+            ",\"startedAt\":" + std::to_string(tap.startedAt) + ",\"completedAt\":" + std::to_string(tap.completedAt) +
+            ",\"mechanicalConfirmed\":false}";
+        mqttClient.publish("heater/diagnostic/servo", payload, 0, false);
+    }
     void attachDisplay(DisplayMirror &display) { displayMirror = &display; }
     // Called only by the MQTT task. No HeaterModule getters or mutation here.
     void subscribe()

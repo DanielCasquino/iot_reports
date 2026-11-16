@@ -14,6 +14,7 @@ import * as command from "../src/websocket/command.js";
 import * as reconciliation from "../src/heater/temperature-reconciliation.js";
 import * as panel from "../src/heater/panel-state.js";
 import * as powerOps from "../src/heater/power-operation.js";
+import * as diagnostics from "../src/heater/control-log.js";
 import * as optical from "../src/heater/display-power.js";
 import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
@@ -44,7 +45,7 @@ function fixture() {
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
     "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
-    "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
+    "./heater/control-log.js": diagnostics, "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
   };
   const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8")
     .replaceAll("import.meta.url", JSON.stringify("file:///fixture/src/index.js"));

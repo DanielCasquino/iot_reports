@@ -6,6 +6,7 @@ import { IsolatedOcr, type OcrReader } from "./ocr.js";
 import { SsocrReader } from "./ssocr.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
+import { controlLog } from "../heater/control-log.js";
 
 export interface DisplayFrame {
   value: number | null; visible: boolean; observedAt: number;
@@ -73,6 +74,8 @@ export class CameraModule {
       this.verificationAttempts = 0;
       this.verificationStartedAt = Date.now();
       this.targetBlankSeen = false;
+      controlLog("camera_verification_started", { verificationId: id, purpose,
+        required: purpose === "target" ? "fresh_selection_blank_then_digits" : "fresh_visible_digits" });
     }
     const limit = purpose === "target" ? 6 : 3;
     if (this.busy || this.verificationAttempts >= limit || Date.now() - this.verificationStartedAt >= 4500) return;
@@ -232,6 +235,14 @@ export class CameraModule {
           captureStartedAt >= this.verificationStartedAt && Date.now() - this.verificationStartedAt < 4500 &&
           value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
         this.targetBlankSeen = true;
+      if (sameSession && this.verificationPurpose === "target" && captureStartedAt >= this.verificationStartedAt &&
+          Date.now() - this.verificationStartedAt < 4500) {
+        controlLog("camera_target_frame", { verificationId: this.verificationId, value, visible: displayVisible,
+          light: readingState.displayLight, captureStartedAt, capturedAt, selectionBlankSeen: this.targetBlankSeen,
+          decision: verificationId !== undefined && verificationId !== this.verificationId ? "stale_verification_capture" :
+            value === null ? "waiting_for_digits" : verificationId === undefined ? "mirror_only" :
+            this.targetBlankSeen ? "eligible_for_verification" : "blocked_missing_selection_blink" });
+      }
       frameReported = true;
       const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
         light: readingState.displayLight, brightness: readingState.displayBrightness, captureStartedAt,
@@ -263,6 +274,8 @@ export class CameraModule {
         if (!wakeVerification && verificationId === this.verificationId && !this.targetBlankSeen) return true;
         this.mqtt.publish(wakeVerification ? "heater/input/wake_verification" : "heater/input/temperature_verification",
           `${verificationId},${value}`, { qos: 0, retain: false });
+        controlLog("camera_candidate_sent", { verificationId, value, purpose: wakeVerification ? "wake" : "target",
+          selectionBlankSeen: wakeVerification ? null : this.targetBlankSeen, controllerConfirmationPending: true });
       }
       return true;
     } catch (error) {

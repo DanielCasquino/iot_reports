@@ -220,6 +220,9 @@ test("optical capture works without MQTT and controller water acceptance", async
 
 
 test("active target verification requires fresh selection blink, not two stable water captures", async () => {
+  const logEntries: Record<string, unknown>[] = [];
+  const previousLog = console.log;
+  console.log = line => { try { logEntries.push(JSON.parse(line)); } catch {} };
   const { EventEmitter } = await import("node:events");
   const previous = { ...process.env };
   const oldFetch = globalThis.fetch;
@@ -244,12 +247,15 @@ test("active target verification requires fresh selection blink, not two stable 
   try {
     request("9"); await pending; request("9"); await pending;
     assert.equal(messages.some(m => m.topic === "heater/input/temperature_verification"), false);
+    assert.ok(logEntries.some(entry => entry.decision === "blocked_missing_selection_blink"));
     blank = true;
     await camera.readDisplayTemperature(false, undefined, true); // Fresh blank after request, even during mirror polling.
     blank = false;
     request("9"); await pending;
     assert.equal(messages.at(-1)?.topic, "heater/input/temperature_verification");
     assert.equal(messages.at(-1)?.payload, "9,57");
+    assert.ok(logEntries.some(entry => entry.event === "camera_candidate_sent" && entry.verificationId === "9" &&
+      entry.selectionBlankSeen === true && entry.controllerConfirmationPending === true));
     const delivered = messages.filter(m => m.topic === "heater/input/temperature_verification").length;
     request("10"); await pending;
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered);
@@ -257,6 +263,7 @@ test("active target verification requires fresh selection blink, not two stable 
     request("10"); await pending;
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered);
   } finally {
+    console.log = previousLog;
     await camera.close(); globalThis.fetch = oldFetch;
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);

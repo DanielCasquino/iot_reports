@@ -15,6 +15,7 @@ import { TemperatureReconciliation } from "./heater/temperature-reconciliation.j
 import { HeaterPanelState, type PanelEffect } from "./heater/panel-state.js";
 import { DisplayPowerObservation } from "./heater/display-power.js";
 import { PowerOperation } from "./heater/power-operation.js";
+import { controlLog, logServoSequence } from "./heater/control-log.js";
 import { DesiredState } from "./heater/desired-state.js";
 
 interface HeaterState {
@@ -47,6 +48,7 @@ const displayPower = new DisplayPowerObservation();
 const powerOperation = new PowerOperation();
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
+let lastControlDiagnostic = "";
 
 function observedState() {
   const water = panel.snapshot();
@@ -71,6 +73,10 @@ if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !p
 
 mqttClient.on("message", (topic, payload, packet) => {
   const value = payload.toString();
+  if (topic === "heater/diagnostic/servo") {
+    if (!packet.retain) logServoSequence(value);
+    return;
+  }
   observation.update(topic, value, packet.retain);
   if (packet.retain && !(topic === "heater/status" && value === "offline")) return;
 
@@ -80,6 +86,11 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
     case "heater/state/temperature_control":
       heaterState.temperatureControl = parseTemperatureControl(value);
+      if (heaterState.temperatureControl && value !== lastControlDiagnostic) {
+        lastControlDiagnostic = value;
+        controlLog("temperature_controller_state", { ...heaterState.temperatureControl,
+          requestAcceptedOnly: heaterState.temperatureControl.result === "accepted" });
+      }
       if (heaterState.temperatureControl?.status !== "idle" || heaterState.temperatureControl.locked) displayPower.reset();
       break;
     case "heater/state/autoshutdown":
@@ -212,6 +223,9 @@ wss.on("connection", (ws) => {
         const target = Number(values[2]);
         desiredState.setTemperature(target);
         temperatureReconciliation.request(target, Number(values[0]));
+        controlLog("temperature_requested", { commandId: Number(values[0]), target,
+          base: heaterState.temperatureControl?.base ?? -1, directionPolicy: "shortest_wrap",
+          opening: "plus_wake_or_open_then_wait_6s_then_plus_open_target", physicalConfirmed: false });
       }
     } catch {
       reject("Could not save the requested state");
@@ -281,6 +295,7 @@ setInterval(() => {
   if (powerSignature !== lastPowerResult) {
     lastPowerResult = powerSignature;
     broadcast({ event: "power_result", data: powerResult });
+    controlLog("power_operation", { ...powerResult, manualCheckRequired: powerResult.status === "failed" });
   }
   let command;
   try {
@@ -291,11 +306,16 @@ setInterval(() => {
     console.error("Could not save temperature verification state");
     return;
   }
-  if (command) mqttClient.publish("heater/set/temperature", `${command.id},${command.base},${command.target}`, { qos: 0, retain: false });
+  if (command) {
+    controlLog("temperature_retry", { ...temperatureReconciliation.snapshot(), commandId: command.id,
+      base: command.base, directionPolicy: "shortest_wrap", reacquireTarget: true });
+    mqttClient.publish("heater/set/temperature", `${command.id},${command.base},${command.target}`, { qos: 0, retain: false });
+  }
   const reconciliation = temperatureReconciliation.snapshot();
   if (reconciliation.status !== lastReconciliationStatus) {
     lastReconciliationStatus = reconciliation.status;
     broadcast({ event: "temperature_result", data: reconciliation });
+    controlLog("temperature_operation", { ...reconciliation, manualCheckRequired: reconciliation.status === "failed" });
   }
 }, 1000);
 

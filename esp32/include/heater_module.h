@@ -56,6 +56,12 @@ public:
         transportRevision = &revision;
         acceptedTransportRevision = revision.load();
     }
+    void attachTapSink(ServoModule::TapSink sink)
+    {
+        servoModuleA.setTapSink(sink);
+        servoModuleB.setTapSink(sink);
+        servoModuleC.setTapSink(sink);
+    }
     bool loop()
     {
         synchronizeTransport();
@@ -203,9 +209,9 @@ public:
             if (pilotObservations) xQueueReset(pilotObservations);
             hasPilotObservation = false;
             adjustment.cancel();
-            if (powerPressed) servoModuleA.tap();
-            else if (increasePressed) servoModuleB.tap();
-            else servoModuleC.tap();
+            if (powerPressed) servoModuleA.tap("manual_power");
+            else if (increasePressed) servoModuleB.tap(displayWakeRequested ? "display_wake" : "manual_plus");
+            else servoModuleC.tap("manual_minus");
             if (powerPressed) powerKnown = false;
             setpoint = -1;
             adjustment.target = 0;
@@ -216,14 +222,19 @@ public:
         }
         if (!waking && !pendingPowerOff)
         {
+            auto pressState = adjustment.state;
+            int estimatedBefore = adjustment.estimated;
             int direction = adjustment.tick(millis());
             if (direction && !synchronizeTransport())
             {
                 invalidateTemperature();
+                const char *reason = pressState == TemperatureAdjustment::State::Opening
+                    ? (adjustment.state == TemperatureAdjustment::State::Reading ? "open_target" : "wake_or_open")
+                    : "adjust_target_shortest_wrap";
                 if (direction > 0)
-                    servoModuleB.tap();
+                    servoModuleB.tap(reason, lastTemperatureCommandId, estimatedBefore, adjustment.estimated, adjustment.target);
                 else
-                    servoModuleC.tap();
+                    servoModuleC.tap(reason, lastTemperatureCommandId, estimatedBefore, adjustment.estimated, adjustment.target);
                 if (adjustment.state != TemperatureAdjustment::State::Reading &&
                     adjustment.state != TemperatureAdjustment::State::Opening)
                     setpoint = adjustment.estimated;
@@ -454,7 +465,7 @@ private:
         // The first + only wakes standby or opens selection. Never probe with
         // Power: that could switch an already-awake heater off.
         if (!reserveServoPress()) return false;
-        servoModuleB.tap();
+        servoModuleB.tap("wake_before_power");
         waking = true;
         wakeStartedAt = millis();
         if (++wakeRequestId == 0) ++wakeRequestId;
@@ -503,7 +514,7 @@ private:
     {
         if (!reserveServoPress())
             return false;
-        servoModuleA.tap();
+        servoModuleA.tap("power_toggle");
         return true;
     }
 

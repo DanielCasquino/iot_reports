@@ -389,3 +389,11 @@ An ESP32 unknown-power acknowledgement also starts a1s post-motion capture
 barrier and clears old RGB history. Frames begun before that barrier cannot
 restore power or enter water telemetry, even when they arrive after the servo
 returned. Optical camera preview remains available independently.
+
+## Control diagnostics
+
+Lines with `"source":"heater-control"` carry an ISO timestamp and correlated command/request IDs. `temperature_requested`/`temperature_retry` show intent and `shortest_wrap` policy; MCU `servo_sequence_sent` reports actual GPIO PWM sequence, reason, before/after **estimates**, calibrated angles and MCU start/end uptime. `mechanicalConfirmed:false` is deliberate: a command or PWM sequence never proves button contact. Reasons `wake_or_open` and `open_target` distinguish the two opening + taps separated by6s from `adjust_target_shortest_wrap`, `wake_before_power`, `power_toggle`, or manual controls. From56 to30 the current shortest route is20plus presses through75→30 instead of26minus presses; it does not mean the target was changed upward.
+
+`camera_verification_started` states the required evidence; `camera_target_frame` shows value, visibility/light, blank proof and `blocked_missing_selection_blink` or `eligible_for_verification`. `camera_candidate_sent` means a fresh candidate went to the controller, still pending its two-image/final-target checks. `temperature_controller_state` reports phase/estimate; its `result:accepted` admits a request only. `temperature_operation`/`power_operation` carries final confirmed/failed status and `manualCheckRequired`. Missing contact cannot always be distinguished from camera visibility; the terminal message asks for inspection rather than naming a proven faulty servo. Telemetry is non-retained and never feeds control observations.
+
+On the Raspberry, from `water-heater/broker`, inspect with `tail -f dev.log | grep '"source":"heater-control"'`. Firmware diagnostics require the matching mainESP32 firmware; old firmware continues without that additional topic. Calibration angles,250ms press/return and bounded recovery are unchanged.

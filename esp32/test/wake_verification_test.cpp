@@ -37,6 +37,8 @@ int main() {
         MqttModule::onConnect(nullptr); mqtt.loop(); heater.loop();
         movements.clear(); mqttClient.published.clear();
         auto start = startWake(heater);
+        assert(mqttClient.published.size() == 1 && mqttClient.published.back().first == "heater/diagnostic/servo");
+        mqttClient.published.clear(); // Tap telemetry is separate from wake verification.
         auto id = std::to_string(heater.wakeVerificationId());
         testNow = start + TEMPERATURE_ADJUST_SETTLE_MS - 1;
         mqtt.requestWakeVerification();
