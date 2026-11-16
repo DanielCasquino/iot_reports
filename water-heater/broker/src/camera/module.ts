@@ -241,7 +241,8 @@ export class CameraModule {
         controlLog("camera_target_frame", { verificationId: this.verificationId, value, visible: displayVisible,
           light: readingState.displayLight, captureStartedAt, capturedAt, selectionBlankSeen: this.targetBlankSeen,
           decision: verificationId !== undefined && verificationId !== this.verificationId ? "stale_verification_capture" :
-            value === null ? "waiting_for_digits" : verificationId === undefined && !mirrorOnly ? "water_poll_only" :
+            value === null ? "waiting_for_digits" : value < 30 || value > 75 ? "blocked_outside_target_range" :
+            verificationId === undefined && !mirrorOnly ? "water_poll_only" :
             this.targetBlankSeen ? "eligible_for_verification" : "blocked_missing_selection_blink" });
       }
       frameReported = true;
@@ -304,6 +305,10 @@ export class CameraModule {
   }
 
   private sendVerificationCandidate(verificationId: string, value: number, wake: boolean, origin: "mirror" | "verification") {
+    if (!wake && (value < 30 || value > 75)) {
+      controlLog("camera_candidate_rejected", { verificationId, value, origin, reason: "outside_target_range" });
+      return;
+    }
     this.mqtt.publish(wake ? "heater/input/wake_verification" : "heater/input/temperature_verification",
       `${verificationId},${value}`, { qos: 0, retain: false });
     controlLog("camera_candidate_sent", { verificationId, value, purpose: wake ? "wake" : "target", origin,

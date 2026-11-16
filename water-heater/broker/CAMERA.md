@@ -399,3 +399,5 @@ Lines with `"source":"heater-control"` carry an ISO timestamp and correlated com
 On the Raspberry, from `water-heater/broker`, inspect with `tail -f dev.log | grep '"source":"heater-control"'`. Firmware diagnostics require the matching mainESP32 firmware; old firmware continues without that additional topic. Calibration angles,250ms press/return and bounded recovery are unchanged.
 
 During an active target request, fresh continuous/mirror captures may also deliver candidates **after that request’s blank proof**. This avoids synchronization with the display blink when explicit verification captures repeatedly see blanks. Captures that began before the request, new IDs/reconnects without new proof, and expired windows cannot supply mirror candidates. The MCU still requires two agreeing readings and its original selection deadline; no control timing or recovery budget changes. Candidate logs include `origin:mirror` or `origin:verification`.
+
+Target candidates outside30–75 are logged as `camera_candidate_rejected / outside_target_range` and are not delivered as target observations; wake readings retain their separate valid range.

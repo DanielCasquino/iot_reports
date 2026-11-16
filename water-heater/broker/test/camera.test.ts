@@ -231,13 +231,14 @@ test("active target verification requires fresh selection blink, not two stable 
   const white = await sharp({ create: { width: 80, height: 40, channels: 3, background: "white" } }).jpeg().toBuffer();
   const black = await sharp({ create: { width: 80, height: 40, channels: 3, background: "black" } }).jpeg().toBuffer();
   let blank = false;
+  let digits = "57";
   globalThis.fetch = async () => new Response(blank ? black : white, { headers: { "content-type": "image/jpeg", "x-capture-fresh": "1" } });
   const messages: { topic: string; payload: string }[] = [];
   const mqtt = Object.assign(new EventEmitter(), { connected: true, subscribe() {},
     publish(topic: string, payload: string) { messages.push({ topic, payload }); } });
   const camera = new CameraModule(mqtt as unknown as MqttClient);
   (camera as unknown as { ocrWorker: unknown }).ocrWorker = {
-    recognize: async () => ({ data: { text: blank ? "" : "57", confidence: 95 } }), terminate: async () => {},
+    recognize: async () => ({ data: { text: blank ? "" : digits, confidence: 95 } }), terminate: async () => {},
   };
   const read = camera.readDisplayTemperature.bind(camera);
   let pending: Promise<boolean> = Promise.resolve(false);
@@ -271,6 +272,11 @@ test("active target verification requires fresh selection blink, not two stable 
     await camera.readDisplayTemperature(false, undefined, true);
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
     assert.ok(logEntries.some(entry => entry.event === "camera_candidate_sent" && entry.origin === "mirror" && entry.verificationId === "10"));
+    digits = "98";
+    await camera.readDisplayTemperature(false, undefined, true);
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
+    assert.ok(logEntries.some(entry => entry.event === "camera_candidate_rejected" && entry.reason === "outside_target_range"));
+    digits = "57";
     request("11"); await pending;
     await camera.readDisplayTemperature(false, undefined, true);
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
