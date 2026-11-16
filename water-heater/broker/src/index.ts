@@ -95,7 +95,8 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
     case "heater/state/autoshutdown":
       heaterState.autoShutdown = value === "true" ? true : value === "false" ? false : null;
-      controlLog("auto_shutdown_state", { enabled: heaterState.autoShutdown });
+      controlLog("auto_shutdown_state", { enabled: heaterState.autoShutdown,
+        target: heaterState.temperatureControl?.autoShutdownTarget ?? null });
       break;
     case "heater/state/flowrate":
     case "heater/state/volume": {
@@ -271,6 +272,8 @@ app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
   res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
     autoShutdown: state.online ? heaterState.autoShutdown : null,
+    autoShutdownTarget: state.online && (heaterState.temperatureControl?.autoShutdownTarget ?? -1) >= 30
+      ? heaterState.temperatureControl!.autoShutdownTarget : null,
     camera: cameraModule.getState(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,

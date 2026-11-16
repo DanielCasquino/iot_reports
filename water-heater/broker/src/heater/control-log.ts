@@ -9,7 +9,7 @@ export function logServoSequence(raw: string): boolean {
     const buttons: Record<number, string> = { 25: "power", 27: "plus", 26: "minus" };
     if (!tap || !Number.isInteger(tap.pin) || tap.button !== buttons[tap.pin] || !buttons[tap.pin] || tap.mechanicalConfirmed !== false ||
         !["manual_power", "manual_plus", "manual_minus", "display_wake", "wake_or_open", "open_target",
-          "adjust_target_shortest_wrap", "wake_before_power", "power_toggle"].includes(tap.reason) ||
+          "adjust_target_shortest_wrap", "wake_before_power", "power_toggle", "auto_shutdown_at_target"].includes(tap.reason) ||
         !["commandId", "startedAt", "completedAt"].every(key => Number.isInteger(tap[key]) && tap[key] >= 0 && tap[key] <= 0xffffffff) ||
         !["press", "rest"].every(key => Number.isInteger(tap[key]) && tap[key] >= 0 && tap[key] <= 180) ||
         !["estimatedBefore", "estimatedAfter", "target"].every(key => Number.isInteger(tap[key]) && (tap[key] === -1 || tap[key] >= 0 && tap[key] <= 75))) return false;

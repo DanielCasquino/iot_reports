@@ -144,6 +144,8 @@ public:
                     temperatureCommandResult = "off";
                 else if (!adjustment.applyTarget(request.target, setpoint))
                     temperatureCommandResult = "invalid";
+                else
+                    autoShutdownTarget = request.target;
             }
             temperatureControlChanged = true;
         }
@@ -252,9 +254,11 @@ public:
     bool monitorAutoShutdown()
     {
         float temp = temperatureModule.read();
-        if (!waking && !wakeFailed && !pendingPowerOff && isAutoShutdownEnabled && temperatureModule.isAvailable() && temp >= AUTO_SHUTDOWN_TEMPERATURE_C && powerKnown && power)
+        if (!isTemperatureLocked() && isAutoShutdownEnabled &&
+            autoShutdownTarget >= MIN_TEMPERATURE_C && autoShutdownTarget <= MAX_TEMPERATURE_C &&
+            temperatureModule.isAvailable() && temp >= autoShutdownTarget && powerKnown && power)
         {
-            return setPower(false);
+            return setPower(false, "auto_shutdown_at_target");
         }
         return false;
     }
@@ -291,8 +295,9 @@ public:
         if (powerRequests)
             xQueueSend(powerRequests, &p, 0);
     }
-    bool setPower(bool p)
+    bool setPower(bool p, const char *reason = "power_toggle")
     {
+        if (!pendingPowerOff) pendingPowerReason = reason;
         if (!powerKnown || wakeFailed)
             return false;
         if (power == p)
@@ -344,6 +349,7 @@ public:
         if (displayWakeRequests) xQueueOverwrite(displayWakeRequests, &requested);
     }
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
+    int getAutoShutdownTarget() const { return autoShutdownTarget; }
     void setIsAutoShutdownEnabled(bool iase)
     {
         isAutoShutdownEnabled = iase;
@@ -514,7 +520,7 @@ private:
     {
         if (!reserveServoPress())
             return false;
-        servoModuleA.tap("power_toggle");
+        servoModuleA.tap(pendingPowerReason, 0, -1, -1, autoShutdownTarget);
         return true;
     }
 
@@ -580,4 +586,8 @@ private:
     bool powerKnown = false;
     bool power = false;
     bool isAutoShutdownEnabled = false;
+    // Last admitted user target, separate from intermediate servo estimates or
+    // a manual base calibration. Unknown after boot until a target is selected.
+    int autoShutdownTarget = -1;
+    const char *pendingPowerReason = "power_toggle";
 };

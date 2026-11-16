@@ -22,7 +22,7 @@ Power son datos distintos. Una lectura de OLED retenida es exclusivamente visual
 - Desconectar/reconectar MQTT invalida observaciones y acciones remotas pendientes.
   Los mensajes retenidos, demasiado grandes, con NUL o con más de5s en la cola
   local se rechazan. Los botones locales siguen atendidos desde el loop.
-- El autoapagado opcional usa sólo temperatura vigente yON observado; umbral40°C.
+- El autoapagado opcional usa sólo temperatura vigente yON observado; apaga al alcanzar/superar el último objetivo seleccionado y admitido por el controlador (sin límite fijo de40°C). Si no hay objetivo conocido, espera una selección. El valor retenido del OLED no se usa para decidirlo.
   No sustituye los controles térmicos originales del equipo.
 
 La máquina de temperatura es Idle→Opening→Reading→Applying→Confirming→Settling→Idle,

@@ -8,7 +8,6 @@
 #define TEMPERATURE_PROBE_INTERVAL_MS 2000UL
 #define TEMPERATURE_SENSOR_PIN 4
 #define MAX_TEMPERATURE_C 75
-#define AUTO_SHUTDOWN_TEMPERATURE_C 40.0
 #define MIN_TEMPERATURE_C 30
 #define SERVO_PIN_A 25
 // Mounted buttons: logical B is plus on GPIO27; C is minus on GPIO26.

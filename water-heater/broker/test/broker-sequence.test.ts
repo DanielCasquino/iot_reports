@@ -126,10 +126,15 @@ test("HTTP auto-off flag follows the controller and becomes unknown on disconnec
     f.mqtt.emit("connect"); f.send("heater/status", "online");
     f.send("heater/state/autoshutdown", "true");
     assert.equal(f.status().autoShutdown, true);
+    assert.equal(f.status().autoShutdownTarget, null);
+    f.send("heater/state/temperature_control", JSON.stringify({ base: 50, target: 60, status: "idle", locked: false,
+      min: 30, max: 75, commandId: 1, result: "accepted", autoShutdownTarget: 60 }));
+    assert.equal(f.status().autoShutdownTarget, 60);
     f.send("heater/state/autoshutdown", "false");
     assert.equal(f.status().autoShutdown, false);
     f.send("heater/status", "offline");
     assert.equal(f.status().autoShutdown, null);
+    assert.equal(f.status().autoShutdownTarget, null);
   } finally { f.cleanup(); }
 });
 

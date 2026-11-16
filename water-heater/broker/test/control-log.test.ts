@@ -22,5 +22,7 @@ test("servo log distinguishes a PWM sequence from physical confirmation and reje
       assert.equal(logServoSequence(JSON.stringify(invalid)), false);
     assert.equal(logServoSequence("not JSON"), false);
     assert.equal(entries.length, 1);
+    assert.equal(logServoSequence(JSON.stringify({ ...tap, pin: 25, button: "power", reason: "auto_shutdown_at_target", target: 42 })), true);
+    assert.equal(JSON.parse(entries[1]!).reason, "auto_shutdown_at_target");
   } finally { console.log = previous; }
 });

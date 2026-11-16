@@ -198,7 +198,8 @@ public:
             (heaterModule->isTemperatureLocked() ? "true" : "false") +
             ",\"min\":" + std::to_string(int(MIN_TEMPERATURE_C)) + ",\"max\":" + std::to_string(int(MAX_TEMPERATURE_C)) +
             ",\"commandId\":" + std::to_string(heaterModule->getTemperatureCommandId()) +
-            ",\"result\":\"" + heaterModule->getTemperatureCommandResult() + "\"}";
+            ",\"result\":\"" + heaterModule->getTemperatureCommandResult() +
+            "\",\"autoShutdownTarget\":" + std::to_string(heaterModule->getAutoShutdownTarget()) + "}";
         mqttClient.publish("heater/state/temperature_control", payload, 0, false);
     }
     void handlePower(const std::string &payload)
