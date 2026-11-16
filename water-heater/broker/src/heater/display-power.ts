@@ -12,6 +12,8 @@ export class DisplayPowerObservation {
   private darkFrames = 0;
   private litSince: number | null = null;
   private brightness: number | null = null;
+  private readySeen = false;
+  private standbySince: number | null = null;
 
   reset(captureAfter = Date.now()) {
     this.power = null;
@@ -19,6 +21,8 @@ export class DisplayPowerObservation {
     this.captureAfter = Math.max(this.captureAfter, captureAfter);
     this.darkSince = this.litSince = null;
     this.darkFrames = 0;
+    this.readySeen = false;
+    this.standbySince = null;
   }
 
   observe(frame: DisplayFrame, controllerIdle: boolean, pilot: PilotState, now = Date.now()) {
@@ -31,12 +35,15 @@ export class DisplayPowerObservation {
     if (!continuous) {
       this.darkSince = this.litSince = null;
       this.darkFrames = 0;
+      this.standbySince = null;
     }
     if (!controllerIdle || frame.purpose === "target" || frame.purpose === "wake") {
       this.reset(at);
       return;
     }
     const number = frame.value !== null && Number.isInteger(frame.value) && frame.value >= 0 && frame.value <= 100;
+    if (pilot === "ready") this.readySeen = true;
+    if (pilot === "heating") { this.readySeen = false; this.standbySince = null; }
     if (number || (frame.visible && frame.light === "lit")) {
       this.darkSince = null;
       this.darkFrames = 0;
@@ -45,7 +52,13 @@ export class DisplayPowerObservation {
         this.power = true;
         this.confirmedAt = at;
       }
+      // GREEN -> dim remains ON. A calibrated dim visor with an unlit pilot
+      // also recovers standby after startup, when its earlier GREEN was unseen.
+      if (this.brightness !== null && this.brightness < 180 && pilot !== "heating" && (this.readySeen || pilot === "unlit"))
+        this.standbySince ??= at;
+      else this.standbySince = null;
     } else if (frame.light === "dark" && !frame.visible && pilot !== "heating" && pilot !== "ready") {
+      this.standbySince = null;
       this.litSince = null;
       this.darkSince ??= at;
       this.darkFrames++;
@@ -54,8 +67,10 @@ export class DisplayPowerObservation {
       if (this.darkFrames >= 4 && at - this.darkSince >= 6500) {
         this.power = false;
         this.confirmedAt = at;
+        this.readySeen = false;
       }
     } else {
+      this.standbySince = null;
       if (pilot === "heating" || pilot === "ready") {
         this.power = null;
         this.confirmedAt = -Infinity;
@@ -68,7 +83,9 @@ export class DisplayPowerObservation {
   snapshot(now = Date.now()) {
     const fresh = now >= this.confirmedAt && now - this.confirmedAt <= 3000;
     const power = fresh ? this.power : null;
-    return { power, display: power === false ? "off" : power === true
+    const mode = power === false ? "off" : power === true
+      ? this.standbySince !== null && now - this.standbySince >= 1000 ? "standby" : "on" : "unknown";
+    return { power, mode, display: power === false ? "off" : power === true
       ? this.brightness !== null && this.brightness < 180 ? "dim" : "lit" : "unknown",
       observedAt: fresh ? this.confirmedAt : null };
   }

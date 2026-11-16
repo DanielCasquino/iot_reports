@@ -47,6 +47,15 @@ export class HeaterPanelState {
     return buttonEffects[this.mode][button];
   }
 
+  observeStandby(now: number) {
+    this.mode = "standby";
+    this.power = true;
+    this.observedAt = now;
+    this.unreadableSince = null;
+    this.phase = "idle";
+    // Knowing the visor mode does not refresh a previous water measurement.
+  }
+
   observeMode(mode: Exclude<PanelMode, "unknown">, value: number | null, now: number) {
     if (mode === "target" && (value === null || value < 30 || value > 75)) return;
     if (mode !== "off" && (value === null || !Number.isInteger(value) || value < 0 || value > 100)) return;
@@ -85,10 +94,12 @@ export class HeaterPanelState {
   }
 
   tick(now: number, controllerIdle: boolean): PanelEffect | null {
+    // Normal, optically confirmed standby needs no periodic wake taps. Pending
+    // user controls already execute their own wake/selection sequence.
+    if (this.mode === "standby") return null;
     switch (this.phase) {
       case "idle": {
-        const needsWake = this.mode === "standby" ||
-          (this.unreadableSince !== null && now - this.unreadableSince >= 3000);
+        const needsWake = this.unreadableSince !== null && now - this.unreadableSince >= 3000;
         const freshVisibleFrame = this.visible && now >= this.frameAt && now - this.frameAt <= 2000;
         if (now - this.startedAt < 6000 || this.mode === "off" || !controllerIdle || !needsWake || !freshVisibleFrame || now - this.lastBlankAt < 6000 ||
             now - this.lastWakeAt < 60000 || this.attempts >= 3) return null;

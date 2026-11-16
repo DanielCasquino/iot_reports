@@ -359,3 +359,18 @@ request began. Ordinary fresh water readings cannot acknowledge a target until
 that phase is observed; new IDs/reconnects clear the proof. Capture errors do
 not count as a blank phase. This prevents failed opening taps from being followed
 by a plan calculated from water temperature.
+
+### GREEN to standby
+
+The explicit panel state follows observed GREEN to a persistent dim visor
+with power stillON. A calibrated dim visor plus an unlit pilot also recovers
+standby after startup without fabricating an earlier GREEN observation. Heating
+clears that transition. Confirmed standby triggers no periodic recovery taps and
+does not refresh cached water temperature. A pending user command retains its
+own wake/settle/target-reading sequence. No3minute timer infersOFF.
+
+Current bench sequence16Nov: target56 verified on the third bounded attempt,
+water60, GREEN. About3minutes after final target confirmation, raw visor
+brightness fell244→145, pilot becameunlit and the visor still read59 with
+powerON. This is one measured sequence under current mounting/light; raw images
+remain private and the interval is not a guaranteed device specification.

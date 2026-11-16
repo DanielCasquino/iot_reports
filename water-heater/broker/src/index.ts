@@ -219,7 +219,10 @@ const cameraModule = new CameraModule(mqttClient, frame => {
   panel.observeFrame(frame, idle);
   const state = observedState();
   displayPower.observe(frame, idle, state.pilot);
-  const power = displayPower.snapshot().power;
+  const displayObservation = displayPower.snapshot();
+  const power = displayObservation.power;
+  if (idle && displayObservation.mode === "standby" && displayObservation.observedAt === frame.observedAt)
+    panel.observeStandby(frame.observedAt);
   if (idle && !sensorTestMode && power !== null && state.power !== power) {
     if (!power) panel.observeMode("off", null, frame.observedAt);
     mqttClient.publish("heater/input/power", String(power), { qos: 0, retain: false });

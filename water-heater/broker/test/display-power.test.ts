@@ -6,6 +6,19 @@ import type { DisplayFrame } from "../src/camera/module.js";
 const dark = (at: number): DisplayFrame => ({ value: null, visible: false, light: "dark", brightness: 16,
   observedAt: at, captureStartedAt: at, purpose: "mirror" });
 
+test("GREEN to dim/unlit enters standby and startup can recover the calibrated dim state", () => {
+  const observation = new DisplayPowerObservation();
+  observation.observe({ ...dark(0), value: 60, visible: true, light: "lit", brightness: 244 }, true, "ready", 0);
+  for (const at of [1000, 2000]) observation.observe({ ...dark(at), value: 59, visible: true, light: "lit", brightness: 145 }, true, "unlit", at);
+  assert.equal(observation.snapshot(2000).mode, "standby");
+  assert.equal(observation.snapshot(2000).power, true);
+  observation.reset(3000);
+  for (const at of [3000, 4000]) observation.observe({ ...dark(at), visible: true, light: "lit", brightness: 145 }, true, "unlit", at);
+  assert.equal(observation.snapshot(4000).mode, "standby");
+  for (const at of [5000, 6000]) observation.observe({ ...dark(at), value: 59, visible: true, light: "lit", brightness: 145 }, true, "heating", at);
+  assert.equal(observation.snapshot(6000).mode, "on");
+});
+
 test("OFF needs a continuous window longer than the full blink train and multiple fresh captures", () => {
   const observation = new DisplayPowerObservation();
   for (const at of [0, 1000, 2000, 3000, 4000, 5000, 6000]) {

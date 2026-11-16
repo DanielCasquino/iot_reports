@@ -87,7 +87,13 @@ export class TemperatureReconciliation {
     }
     if (this.failed) return null;
     if (!online) { this.online = false; this.pending = null; return null; }
-    if (!this.online) { this.online = true; if (this.completed) { this.completed = false; this.attempts = 0; this.requestedAt = now; } }
+    if (!this.online) {
+      if (this.completed && !control) return null;
+      this.online = true;
+      if (this.completed && !(control?.status === "idle" && !control.locked && control.base === this.target)) {
+        this.completed = false; this.attempts = 0; this.requestedAt = now;
+      }
+    }
     if (!control || this.target === null || this.completed) return null;
     if (this.pending !== null) {
       if (control.commandId === this.pending && control.status === "idle" && control.base === this.target) {

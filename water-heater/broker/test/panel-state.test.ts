@@ -14,6 +14,20 @@ test("wake confirmation cannot replace accepted water with a selection-window re
   assert.equal(panel.snapshot(6000).target, null);
 });
 
+test("confirmed standby preserves ON without waking it automatically or refreshing old water", () => {
+  const panel = new HeaterPanelState(0);
+  panel.observeMode("water", 60, 0);
+  panel.observeStandby(180000);
+  const state = panel.snapshot(180000);
+  assert.equal(state.mode, "standby");
+  assert.equal(state.power, true);
+  assert.equal(state.water, 60);
+  assert.equal(state.waterObservedAt, 0);
+  assert.equal(state.waterFresh, false);
+  assert.equal(panel.buttonEffect("power"), "wake");
+  assert.equal(panel.tick(180000, true), null);
+});
+
 test("buttons follow joint heater and display state, not pilot darkness", () => {
   const panel = new HeaterPanelState(0);
   panel.observeMode("off", null, 0);
