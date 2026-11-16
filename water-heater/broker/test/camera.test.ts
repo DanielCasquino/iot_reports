@@ -4,6 +4,54 @@ import sharp from "sharp";
 import type { MqttClient } from "mqtt";
 import { CameraModule } from "../src/camera/module.js";
 
+test("OLED retains its last coherent number through98, blink and capture failure without reusing it as control data", async () => {
+  const previous = { ...process.env };
+  const oldFetch = globalThis.fetch, oldLog = console.log;
+  Object.assign(process.env, { CAMERA_URL: "http://camera.test", CAMERA_READER: "tesseract", CAMERA_CROP: "",
+    CAMERA_DISPLAY_REGION: "0,0,80,40", CAMERA_DISPLAY_DARK_MAX: "40", CAMERA_DISPLAY_LIT_MIN: "70" });
+  const white = await sharp({ create: { width: 80, height: 40, channels: 3, background: "white" } }).jpeg().toBuffer();
+  const black = await sharp({ create: { width: 80, height: 40, channels: 3, background: "black" } }).jpeg().toBuffer();
+  let digits = "22", failed = false;
+  globalThis.fetch = async () => failed ? new Response("failed", { status: 503 }) :
+    new Response(digits ? white : black, { headers: { "x-capture-fresh": "1", "content-type": "image/jpeg" } });
+  const messages: { topic: string; payload: string }[] = [], logs: Record<string, unknown>[] = [];
+  const frames: { value: number | null }[] = [];
+  const mqtt = { connected: true, publish(topic: string, payload: string, _options: unknown, callback?: () => void) {
+    messages.push({ topic, payload }); callback?.();
+  } } as unknown as MqttClient;
+  const camera = new CameraModule(mqtt, frame => { frames.push(frame); return true; });
+  (camera as unknown as { ocrWorker: unknown }).ocrWorker = {
+    recognize: async () => ({ data: { text: digits, confidence: 95 } }), terminate: async () => {},
+  };
+  console.log = line => { try { logs.push(JSON.parse(line)); } catch {} };
+  try {
+    assert.equal(await camera.readDisplayTemperature(), true); // Cold water below30 stays valid.
+    const observedAt = camera.getState().displayMirror.observedAt;
+    digits = "98";
+    assert.equal(await camera.readDisplayTemperature(), false);
+    assert.equal(frames.at(-1)?.value, null);
+    assert.equal(camera.getState().lastValue, 22);
+    digits = "";
+    assert.equal(await camera.readDisplayTemperature(), false);
+    failed = true;
+    assert.equal(await camera.readDisplayTemperature(), false);
+    assert.equal(camera.getState().displayMirror.text, "22");
+    assert.equal(camera.getState().displayMirror.observedAt, observedAt);
+    assert.deepEqual(messages.filter(m => m.topic === "heater/input/display").map(m => m.payload), ["22", "22", "22", "22"]);
+    assert.deepEqual(messages.filter(m => m.topic === "heater/input/temperature").map(m => m.payload),
+      ["22", "unavailable", "unavailable", "unavailable"]);
+    assert.ok(logs.some(entry => entry.event === "display_mirror_sent" && entry.held === true && entry.rejectedValue === 98));
+    assert.ok(logs.some(entry => entry.event === "display_mirror_sent" && entry.rawText === "blank" && entry.text === "22"));
+    failed = false; digits = "23";
+    assert.equal(await camera.readDisplayTemperature(), true);
+    assert.equal(camera.getState().displayMirror.text, "23");
+  } finally {
+    console.log = oldLog; await camera.close(); globalThis.fetch = oldFetch;
+    for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
+    Object.assign(process.env, previous);
+  }
+});
+
 test("capture publishes non-retained OCR; unreadable image or HTTP failure invalidates it", async () => {
   const oldFetch = globalThis.fetch;
   const oldUrl = process.env.CAMERA_URL;
@@ -275,7 +323,7 @@ test("active target verification requires fresh selection blink, not two stable 
     digits = "98";
     await camera.readDisplayTemperature(false, undefined, true);
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
-    assert.ok(logEntries.some(entry => entry.event === "camera_candidate_rejected" && entry.reason === "outside_target_range"));
+    assert.ok(logEntries.some(entry => entry.event === "camera_reading_rejected" && entry.reason === "outside_heater_range"));
     digits = "57";
     request("11"); await pending;
     await camera.readDisplayTemperature(false, undefined, true);

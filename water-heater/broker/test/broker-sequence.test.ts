@@ -120,6 +120,19 @@ test("HTTP and WebSocket expose the camera while controller commands remain unav
   } finally { f.cleanup(); }
 });
 
+test("HTTP auto-off flag follows the controller and becomes unknown on disconnect", () => {
+  const f = fixture();
+  try {
+    f.mqtt.emit("connect"); f.send("heater/status", "online");
+    f.send("heater/state/autoshutdown", "true");
+    assert.equal(f.status().autoShutdown, true);
+    f.send("heater/state/autoshutdown", "false");
+    assert.equal(f.status().autoShutdown, false);
+    f.send("heater/status", "offline");
+    assert.equal(f.status().autoShutdown, null);
+  } finally { f.cleanup(); }
+});
+
 test("a newer raw mirror frame cannot replace the panel's confirmed water reading", () => {
   const f = fixture();
   try {

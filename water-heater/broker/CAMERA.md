@@ -170,7 +170,7 @@ calibration are unchanged.
 
 - Manual request: `POST /api/camera/capture`.
 - Camera: existing `GET /capture` JPEG (one queued frame is discarded first).
-- OCR: single numeric reading0..100°C, configured confidence threshold.
+- OCR: single numeric reading0..75°C, configured confidence threshold; cold water below30 remains valid.
 - Backend → MQTT: `heater/input/temperature`, numeric text or `unavailable`,
   **not retained**, QoS0, no offline queue. This prevents old queued OCR readings
   from becoming fresh after reconnect. An OCR failure is not encoded as zero.
@@ -401,3 +401,13 @@ On the Raspberry, from `water-heater/broker`, inspect with `tail -f dev.log | gr
 During an active target request, fresh continuous/mirror captures may also deliver candidates **after that request’s blank proof**. This avoids synchronization with the display blink when explicit verification captures repeatedly see blanks. Captures that began before the request, new IDs/reconnects without new proof, and expired windows cannot supply mirror candidates. The MCU still requires two agreeing readings and its original selection deadline; no control timing or recovery budget changes. Candidate logs include `origin:mirror` or `origin:verification`.
 
 Target candidates outside30–75 are logged as `camera_candidate_rejected / outside_target_range` and are not delivered as target observations; wake readings retain their separate valid range.
+
+## Last coherent OLED reading and water presentation
+
+The OLED receives `heater/input/display`. The broker now sends its last coherent0–75number through selection blanks, unreadable captures and capture failures; the next valid number replaces it. This is presentation retention only: blank proof is still derived from raw camera frames, while failed current-water reads continue to publish `unavailable`. An OCR98 is rejected before it reaches mirror, water or verification control; it cannot replace the last valid number. No OLED firmware update is required. The in-memory mirror starts unknown until its first valid capture after broker startup. If the broker/MQTT stops entirely, the existing OLED30s expiry still applies.
+
+`display_mirror_sent` logs actual published `text`, `rawText`, `held`, original coherent `observedAt`, current `capturedAt`, rejected numeric value, and water eligibility. `show_new_reading` versus `show_last_coherent` distinguishes live camera values from held presentation. This records what is sent to the OLED, not optical proof of its physical pixels. Stable repeated payloads are still sent but only changes generate log lines.
+
+When the ESP32 is online, the web temperature/heat effect uses accepted current water, or its last valid water reading while selection/control is active. Raw camera digits can be target settings and cannot overwrite that water display. Camera-only display with the ESP32 offline remains available. The interpolation formula is unchanged.
+
+Current auto-off policy, unchanged: when enabled, an available water reading>=40C and observedON trigger the existing Power path; wake/control and stale-data guards still apply. This is a fixed40C threshold, not the selected target. `auto_shutdown_requested` and `auto_shutdown_state` distinguish a UI request from the MCU flag; `/api/heater/status.autoShutdown` reports the flag ornull offline. No automatic-off actuation test is performed just by inspecting these diagnostics.

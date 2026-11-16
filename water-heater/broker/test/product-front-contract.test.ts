@@ -97,6 +97,22 @@ test("failed readings retain the last valid display through unit changes and dis
   assert.equal(f.sent.length, 0);
 });
 
+test("manual target digits never replace hot water in the web reading or heat effect", () => {
+  const f = front();
+  f.snapshot({ temperature: 60, camera: { available: true, value: 60 } });
+  f.snapshot({ temperature: null, camera: { available: true, value: 49 },
+    temperatureControl: { ...idle, base: -1, target: 0, status: "settling", locked: true } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "60.0°C");
+  assert.match(f.elements.get("temp-display")!.title, /not current/);
+  assert.equal(f.run("heaterState.lastTemperature"), 60);
+  assert.equal(f.elements.get("fg")!.style.opacity, 0.6);
+  f.snapshot({ temperature: null, camera: { available: true, value: 42 } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "60.0°C");
+  f.snapshot({ temperature: 59, camera: { available: true, value: 59 } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "59.0°C");
+  assert.equal(f.sent.length, 0);
+});
+
 test("camera display is visible with ESP32 offline and actuator controls stay disabled", () => {
   const f = front();
   f.snapshot({ status: "offline", power: null, temperature: null, temperatureControl: null,

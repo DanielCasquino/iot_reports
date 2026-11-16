@@ -29,6 +29,7 @@ export class CameraModule {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   private mirrorState: { text: string; observedAt: string | null } = { text: "unknown", observedAt: null };
+  private mirrorLogSignature = "";
   private lastTemperaturePollAt = 0;
   private verificationId: string | null = null;
   private verificationPurpose: "target" | "wake" | null = null;
@@ -228,8 +229,16 @@ export class CameraModule {
         confidence = data.confidence;
       }
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
+      // The heater can show cold water below its minimum setpoint, but an OCR
+      // value above its75C maximum must not flash on the mirror or enter control.
+      const rejectedValue = value !== null && value > 75 ? value : null;
+      if (rejectedValue !== null) {
+        controlLog("camera_reading_rejected", { value: rejectedValue, reason: "outside_heater_range", maximum: 75 });
+        value = null;
+      }
       readingState = { ...readingState, available: value !== null, value, observedAt,
-        text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
+        text, confidence, reader, error: rejectedValue !== null ? "Reading outside heater range (0-75C)" :
+          value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
       const sameSession = mqttGeneration === this.mqttGeneration;
       const activeTarget = sameSession && this.verificationPurpose === "target" && this.verificationId !== null &&
@@ -251,9 +260,10 @@ export class CameraModule {
         purpose: verificationId !== undefined ? wakeVerification ? "wake" : "target" : mirrorOnly ? "mirror" : "water" }) : false;
       captureSucceeded = value !== null;
       if (value !== null) readingState.lastValue = value;
-      this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
+      if (value !== null) this.mirrorState = { text: String(value), observedAt };
+      const rawMirrorText = value !== null ? String(value) : displayVisible ? "unknown" : "blank";
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
-        this.mqtt.publish(MIRROR_TOPIC, this.mirrorState.text, { qos: 0, retain: false });
+        this.publishMirror(rawMirrorText, observedAt, rejectedValue, value !== null && waterReading && waterAccepted !== false);
         mirrored = true;
       }
       if (value === null) throw new Error(readingState.error!);
@@ -293,15 +303,28 @@ export class CameraModule {
         value: captureSucceeded ? readingState.value : null, observedAt: capturedAt,
         error: captureSucceeded ? null : error instanceof Error ? error.message : "Capture failed" };
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
-        if (!mirrored) this.mqtt.publish(MIRROR_TOPIC, "unknown", { qos: 0, retain: false });
+        if (!mirrored) this.publishMirror("unknown", capturedAt, null);
         if (waterReading) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
       }
       return captureSucceeded;
     } finally {
-      if (!mirrored && capturedAt === null) this.mirrorState = { text: "unknown", observedAt: null };
       this.state = readingState;
       this.busy = false;
     }
+  }
+
+  private publishMirror(rawText: string, capturedAt: string | null, rejectedValue: number | null, waterEligible = false) {
+    // Retain only the OLED presentation. Blank/failed captures remain invalid
+    // for temperature/control and still establish selection blink separately.
+    const { text, observedAt } = this.mirrorState;
+    const held = rawText !== text;
+    this.mqtt.publish(MIRROR_TOPIC, text, { qos: 0, retain: false });
+    const signature = JSON.stringify([text, rawText, rejectedValue, held, waterEligible]);
+    if (signature === this.mirrorLogSignature) return;
+    this.mirrorLogSignature = signature;
+    controlLog("display_mirror_sent", { topic: MIRROR_TOPIC, text, rawText, observedAt, capturedAt, rejectedValue, held, waterEligible,
+      effect: text === "unknown" ? "no_valid_reading_yet" : held ? "show_last_coherent" : "show_new_reading",
+      delivery: "published_to_mqtt" });
   }
 
   private sendVerificationCandidate(verificationId: string, value: number, wake: boolean, origin: "mirror" | "verification") {

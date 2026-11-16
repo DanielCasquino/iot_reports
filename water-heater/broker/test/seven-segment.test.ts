@@ -81,7 +81,7 @@ test("white glare outside the digits does not merge the amber digit columns", as
   assert.equal((await readSevenSegmentImage(image)).value, 44);
 });
 
-test("OLED mirror forwards visible digits and blank phases without replacing water telemetry", async () => {
+test("OLED mirror retains visible digits across blank phases without replacing water telemetry", async () => {
   const { CameraModule } = await import("../src/camera/module.js");
   const keys = ["CAMERA_URL", "CAMERA_ROTATION", "CAMERA_CROP", "CAMERA_SEVEN_SEGMENT"];
   const previous = keys.map(key => process.env[key]);
@@ -102,10 +102,10 @@ test("OLED mirror forwards visible digits and blank phases without replacing wat
     assert.notEqual(module.getState().observedAt, null);
     image = await sharp({ create: { width: 300, height: 245, channels: 3, background: "black" } }).png().toBuffer();
     assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
-    assert.deepEqual(messages.at(-1), ["heater/input/display", "blank"]);
+    assert.deepEqual(messages.at(-1), ["heater/input/display", "44"]);
     image = await display(44, "", "c");
     assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
-    assert.deepEqual(messages.at(-1), ["heater/input/display", "unknown"]);
+    assert.deepEqual(messages.at(-1), ["heater/input/display", "44"]);
     assert.ok(messages.every(([topic]) => topic === "heater/input/display"));
   } finally {
     await module.close(); globalThis.fetch = previousFetch;

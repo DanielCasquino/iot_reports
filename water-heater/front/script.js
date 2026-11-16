@@ -64,7 +64,9 @@ function updateAutoShutdown() {
 function updateTemperature() {
   const display = document.getElementById("temp-display");
   const fg = document.getElementById("fg");
-  const reading = heaterState.temperature ?? heaterState.cameraTemperature;
+  // While the controller is online, raw camera digits can be its setpoint.
+  // Use validated water or retain it until a new water measurement arrives.
+  const reading = heaterState.temperature ?? (heaterState.status === "offline" ? heaterState.cameraTemperature : null);
   const effectTemperature = reading ?? heaterState.lastTemperature;
 
   if (fg && effectTemperature !== null) {
@@ -216,10 +218,10 @@ function receiveHeaterSnapshot(state) {
   heaterState.status = online ? "online" : "offline";
   heaterState.power = online && typeof state.power === "boolean" ? state.power : null;
   heaterState.temperature = online && typeof state.temperature === "number" &&
-    Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 100 ? state.temperature : null;
+    Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 75 ? state.temperature : null;
   const camera = state.camera;
   heaterState.cameraTemperature = camera?.available === true && typeof camera.value === "number" &&
-    Number.isFinite(camera.value) && camera.value >= 0 && camera.value <= 100 ? camera.value : null;
+    Number.isFinite(camera.value) && camera.value >= 0 && camera.value <= 75 ? camera.value : null;
   for (const field of ["flowrate", "volume"]) {
     const value = state[field];
     heaterState[field] = online && typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;

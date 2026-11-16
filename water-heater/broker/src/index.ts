@@ -95,6 +95,7 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
     case "heater/state/autoshutdown":
       heaterState.autoShutdown = value === "true" ? true : value === "false" ? false : null;
+      controlLog("auto_shutdown_state", { enabled: heaterState.autoShutdown });
       break;
     case "heater/state/flowrate":
     case "heater/state/volume": {
@@ -214,6 +215,8 @@ wss.on("connection", (ws) => {
       }
     }
     try {
+      if (command.topic === "heater/set/autoshutdown")
+        controlLog("auto_shutdown_requested", { enabled: command.payload === "true" });
       if (command.topic === "heater/set/power") {
         desiredState.setPower(command.payload === "true");
         powerOperation.request(command.payload === "true");
@@ -267,6 +270,7 @@ cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
   res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
+    autoShutdown: state.online ? heaterState.autoShutdown : null,
     camera: cameraModule.getState(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
