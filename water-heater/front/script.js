@@ -223,8 +223,9 @@ function receiveHeaterSnapshot(state) {
   receiveTemperatureResult(state.reconciliation);
   if ("pilot" in state || "display" in state) {
     const pilot = { heating: "Heating reference matched", ready: "Ready reference matched", unlit: "Pilot unlit", unknown: "Pilot not confirmed" };
-    const display = { readable: "display readable", unreadable: "display unreadable", unknown: "display not confirmed" };
-    observationText = online ? `${pilot[state.pilot] || pilot.unknown} · ${display[state.display] || display.unknown}` : "Waiting for fresh device readings";
+    const display = { readable: "display readable", unreadable: "display unreadable", off: "display off", dim: "display dim", lit: "display on", unknown: "display not confirmed" };
+    const visor = state.displayState && state.displayState.display !== "unknown" ? state.displayState.display : state.display;
+    observationText = online ? `${pilot[state.pilot] || pilot.unknown} · ${display[visor] || display.unknown}` : "Waiting for fresh device readings";
   }
   updateAutoShutdown();
   updateTemperature();

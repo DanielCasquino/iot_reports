@@ -40,6 +40,12 @@ function finish() {
   }
 
   const reference = [0, 1, 2, 3].map(i => median(samples.map(sample => sample[i])));
+  if (label === "unlit" && reference[3] < 8) {
+    console.log(`\n${samples.length} dark samples; Clear range ${Math.min(...samples.map(s => s[3]))}..${Math.max(...samples.map(s => s[3]))}`);
+    console.log(`COLOR_DARK_MAX_CLEAR=${Math.max(...samples.map(s => s[3])) + 1}`);
+    console.log("Clear is too low for useful normalized colour. Clear COLOR_UNLIT_REFERENCE instead of treating quantized ratios as a trained colour.");
+    return;
+  }
   const spread = Math.max(...samples.map(sample => distance(sample, reference)));
 
   console.log(`\n${samples.length} samples for "${label}"`);
@@ -72,9 +78,9 @@ client.on("message", (topic, payload, packet) => {
   const parts = value.split(",").map(Number);
   if (parts.length !== 4 || parts.some(v => !Number.isInteger(v) || v < 0 || v > 65535) || parts[3] === 0)
     return;
+  if (label !== "unlit" && parts[3] < 8) return;
   samples.push(parts);
   console.log(`sample ${samples.length}: ${value}  normalized ${normalize(parts).map(v => v.toFixed(3)).join(",")}`);
-  if (samples.length >= 8) finish();
 });
 
 console.log(`Listening for ${label} pilot samples on ${url} ...`);

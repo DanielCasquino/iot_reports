@@ -10,6 +10,9 @@ import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.
 export interface DisplayFrame {
   value: number | null; visible: boolean; observedAt: number;
   purpose: "water" | "target" | "mirror" | "wake";
+  light?: "dark" | "lit" | "unknown";
+  brightness?: number | null;
+  captureStartedAt?: number;
 }
 
 const MIRROR_TOPIC = "heater/input/display";
@@ -147,6 +150,8 @@ export class CameraModule {
       return false;
     }
     this.busy = true;
+    const captureStartedAt = Date.now();
+    let frameReported = false;
     const mqttGeneration = this.mqttGeneration;
     let readingState = { ...this.state };
     const waterReading = !mirrorOnly && verificationId === undefined;
@@ -219,7 +224,9 @@ export class CameraModule {
         text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
       const sameSession = mqttGeneration === this.mqttGeneration;
+      frameReported = true;
       const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
+        light: readingState.displayLight, brightness: readingState.displayBrightness, captureStartedAt,
         purpose: verificationId !== undefined ? wakeVerification ? "wake" : "target" : mirrorOnly ? "mirror" : "water" }) : false;
       captureSucceeded = value !== null;
       if (value !== null) readingState.lastValue = value;
@@ -248,6 +255,9 @@ export class CameraModule {
       }
       return true;
     } catch (error) {
+      if (!frameReported && mqttGeneration === this.mqttGeneration && !this.stopped)
+        this.onDisplayFrame?.({ value: null, visible: false, observedAt: Date.now(),
+          light: "unknown", brightness: null, captureStartedAt, purpose: "mirror" });
       readingState = { ...readingState, available: captureSucceeded,
         value: captureSucceeded ? readingState.value : null, observedAt: capturedAt,
         error: captureSucceeded ? null : error instanceof Error ? error.message : "Capture failed" };

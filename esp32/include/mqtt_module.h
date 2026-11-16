@@ -116,7 +116,9 @@ public:
                 if (displayMirror) displayMirror->receive(message.payload, message.receivedAt);
                 break;
             case Kind::PowerObservation:
-                if (payload == "true") heaterModule->observePilot(HeaterModule::PilotState::Awake, message.receivedAt);
+                if (payload == "true" || payload == "false")
+                    heaterModule->observePilot(payload == "true" ? HeaterModule::PilotState::ObservedOn :
+                        HeaterModule::PilotState::ObservedOff, message.receivedAt);
                 break;
             case Kind::Pilot:
                 heaterModule->observePilot(payload == "heating" || payload == "ready" ? HeaterModule::PilotState::Awake :

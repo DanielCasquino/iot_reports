@@ -114,6 +114,7 @@ int main(){
   HeaterModule heater;heater.setup();MqttModule mqtt;mqtt.attach(heater);mqtt.setup();
   MqttModule::onConnect(nullptr);mqtt.loop();heater.loop();movements.clear();
   receive("heater/input/power","true");mqtt.loop();heater.loop();
+  receive("heater/input/pilot","heating");mqtt.loop();heater.loop(); // Explicit awake-pilot evidence for this direct-press case.
   receive("heater/set/power","false");receive("heater/set/temperature","3,-1,44");
   mqtt.loop();heater.loop();testNow+=2000;heater.loop();
   assert(movements.size()==2 && movements[0].first==SERVO_PIN_A);

@@ -124,6 +124,36 @@ it does not establish that a display slept or that the heater switched off.
 
 ## Data path
 
+### Calibrated optical power observation
+
+`CAMERA_DISPLAY_REGION`, `CAMERA_DISPLAY_DARK_MAX` and
+`CAMERA_DISPLAY_LIT_MIN` enable raw light classification before OCR normalization.
+Calibrate them on the installed OFF, dim and bright visor with the same crop.
+A readable number, or persistent visible segments in a lit region, establishes
+ON without assigning an unreadable frame a water temperature. API
+`displayState` reports this independent observation and its capture time.
+
+OFF requires at least four valid dark frames spanning6.5s, no capture gap over3s,
+an idle controller and no fresh red/green pilot contradicting it. Failed, stale,
+ambiguous or pre-command captures reset/interrupt this evidence. Target/wake
+verification frames cannot establish OFF. Use continuous mirror capture with
+`CAMERA_MIRROR_POLL_MS=250`; occasional manual photos are insufficient.
+The confirmation concerns the heater panel's operating state, not mains isolation.
+Stable mounting and representative ambient-light calibration remain necessary.
+
+The broker sends fresh non-retained `heater/input/power=true|false`; updated
+main firmware applies those observations on its main loop, outside active button
+or selection operations. Observed OFF lets the existing web button request ON
+again. A servo write alone still does not confirm the result. Updating backend
+alone does not add false-power reception to older firmware.
+
+The RGB pilot uses a three-sample median and two matching classifications, with
+a wider exit tolerance to avoid oscillation near a boundary. Invalid data or a
+long gap resets its history. Low Clear values are not normalized into a colour.
+`npm run calibrate:color red|green|unlit` now samples for the full chosen duration;
+dark captures produce a Clear ceiling instead of an unreliable RGB reference.
+Do not carry an old ambient-light reference into a different mounting/lighting.
+
 Wake confirmation uses a separate exchange: after the controller's existing
 6s settle period, `heater/command/verify_wake` requests a **new capture** with a
 request ID. The broker replies on `heater/input/wake_verification` as `id,value`,

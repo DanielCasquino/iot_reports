@@ -18,7 +18,9 @@ public:
     {
         Unknown,
         Unlit,
-        Awake
+        Awake,
+        ObservedOn,
+        ObservedOff
     };
     HeaterModule() {}
     void setup()
@@ -64,6 +66,31 @@ public:
         while (pilotObservations && xQueueReceive(pilotObservations, &pilot, 0) == pdTRUE)
         {
             if (!acceptsObservation(pilot.at)) continue;
+            if (pilot.state == PilotState::ObservedOn || pilot.state == PilotState::ObservedOff)
+            {
+                // Optical state is not a command. Apply it only outside a
+                // button/selection operation, on the controller's main loop.
+                if (waking || pendingPowerOff || adjustment.locked()) continue;
+                if (pilot.state == PilotState::ObservedOn)
+                {
+                    power = true;
+                    powerKnown = true;
+                    digitalWrite(LED_BUILTIN, HIGH);
+                    // A dim/readable visor proves ON, not awake controls.
+                }
+                else
+                {
+                    power = false;
+                    powerKnown = true;
+                    hasPilotObservation = hasWakeConfirmation = false;
+                    resetWakeFailure();
+                    setpoint = -1;
+                    invalidateTemperature();
+                    digitalWrite(LED_BUILTIN, LOW);
+                    temperatureControlChanged = true;
+                }
+                continue;
+            }
             pilotState = pilot.state;
             pilotObservedAt = pilot.at;
             hasPilotObservation = true;

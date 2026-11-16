@@ -13,6 +13,8 @@ import * as control from "../src/heater/temperature-control.js";
 import * as command from "../src/websocket/command.js";
 import * as reconciliation from "../src/heater/temperature-reconciliation.js";
 import * as panel from "../src/heater/panel-state.js";
+import * as optical from "../src/heater/display-power.js";
+import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
 
 // Run the real application wiring against in-memory transports: no broker,
@@ -27,7 +29,7 @@ function fixture() {
   const ticks: (() => void)[] = [];
   const app = { get: (route: string, handler: (...args: any[]) => void) => routes.set(route, handler), use() {}, listen() {} };
   let cameraState: { available: boolean; value: number | null; observedAt: string | null } = { available: false, value: null, observedAt: null };
-  let observeFrame: (frame: { value: number | null; visible: boolean; observedAt: number; purpose: "water" | "mirror" }) => boolean;
+  let observeFrame: (frame: DisplayFrame) => boolean;
   class Camera {
     constructor(_mqtt: unknown, onFrame: typeof observeFrame) { observeFrame = onFrame; }
     setup() {}
@@ -41,7 +43,7 @@ function fixture() {
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
     "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
-    "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
+    "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
   };
   const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8")
     .replaceAll("import.meta.url", JSON.stringify("file:///fixture/src/index.js"));
@@ -66,10 +68,10 @@ function fixture() {
       routes.get("/api/heater/status")!({}, { set() { return this; }, json(value: unknown) { body = value; } });
       return body;
     },
-    frame: (value: number, purpose: "water" | "mirror" = "water") => {
+    frame: (value: number | null, purpose: "water" | "mirror" = "water", light: "dark" | "lit" | "unknown" = "unknown") => {
       const now = Date.now();
-      const accepted = observeFrame({ value, visible: true, observedAt: now, purpose });
-      cameraState = { available: true, value, observedAt: new Date(now).toISOString() };
+      const accepted = observeFrame({ value, visible: value !== null, observedAt: now, captureStartedAt: now, purpose, light });
+      cameraState = { available: value !== null, value, observedAt: new Date(now).toISOString() };
       return accepted;
     },
     request: (event: string, enabled: boolean) => socket.emit("message", Buffer.from(JSON.stringify({ event, data: { enabled } }))),
@@ -165,4 +167,34 @@ test("application snapshots hide cached water immediately when a target-selectio
     f.connectSocket();
     assert.equal(f.replies.at(-1).data.temperature, null);
   } finally { f.cleanup(); }
+});
+
+
+test("calibrated OFF reaches the controller and its false acknowledgement re-enables web ON", () => {
+  const originalNow = Date.now;
+  let now = 100000;
+  Date.now = () => now;
+  const f = fixture();
+  const idle = JSON.stringify({ base: -1, target: 0, status: "idle", locked: false, min: 30, max: 75, commandId: 0, result: "none" });
+  try {
+    f.mqtt.emit("connect"); f.send("heater/status", "online");
+    f.send("heater/state/power", "unknown"); f.send("heater/state/temperature_control", idle);
+    for (const elapsed of [0, 1000, 2000, 3000, 4000, 5000, 6000]) {
+      now = 100000 + elapsed; f.frame(null, "mirror", "dark");
+    }
+    assert.equal(f.publishes.some(m => m[0] === "heater/input/power"), false);
+    now = 106500; f.frame(null, "mirror", "dark");
+    assert.equal(JSON.stringify(f.publishes.at(-1)), JSON.stringify(["heater/input/power", "false", { qos: 0, retain: false }]));
+    f.send("heater/state/power", "false");
+    f.connectSocket();
+    assert.equal(f.replies.at(-1).data.power, false);
+    f.request("set_heater_power", true);
+    assert.equal(JSON.stringify(f.publishes.at(-1)), JSON.stringify(["heater/set/power", "true", { qos: 0, retain: false }]));
+    const count = f.publishes.filter(m => m[0] === "heater/input/power").length;
+    now += 1000; f.frame(null, "mirror", "dark");
+    assert.equal(f.publishes.filter(m => m[0] === "heater/input/power").length, count);
+    f.send("heater/status", "offline"); f.send("heater/status", "online");
+    now += 7000; f.frame(null, "mirror", "dark");
+    assert.equal(f.publishes.filter(m => m[0] === "heater/input/power").length, count);
+  } finally { f.cleanup(); Date.now = originalNow; }
 });
