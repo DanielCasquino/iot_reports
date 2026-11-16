@@ -10,29 +10,29 @@ Figure~\ref{fig:control-flow} summarizes the observation and command paths. On s
 \label{fig:control-flow}
 \end{figure}
 
-When the heater is known to be on but the pilot is unlit, the controller sends a wake press and waits for a new illuminated-pilot observation before applying an off or temperature-adjustment command. An unconfirmed wake cancels the request after the configured timeout. The wake press is not counted as a temperature increment. Explicit state requests avoid repeated toggle actions, and the controller does not automatically retry a failed physical observation.
+When the heater is known to be on but its display needs waking, the current control routine uses one increase-button press to wake the display before continuing the requested action. A fresh panel observation is required to confirm the resulting state. An unconfirmed wake cancels the request after the configured timeout. The wake press is treated separately from the requested setpoint change; the panel response must be checked rather than inferred from the command alone. Explicit state requests avoid repeated toggle actions, and the controller does not automatically retry a failed physical observation.
 
 The setpoint is synchronized with the panel and tracked separately from measured temperature. The software represents the circular 30--75~$^\circ$C selection range and counts each press in the chosen direction. During adjustment and the configured settling interval, received display numbers are not accepted as water-temperature updates. The application also requires a new capture after the adjustment window. The settling interval must be matched to the observed flashing duration; its configured 6~s value is not a measured panel specification.
 
 \Needspace{6\baselineskip}
 \subsection{Interconnections Between Components}
-Figure~\ref{fig:interconnections} shows the signal interconnections implemented around the embedded controller. The main controller uses GPIO25, GPIO26, and GPIO27 for servos A, B, and C, GPIO34 for the flow input, and GPIO23/22 for the TCS34725 SDA/SCL lines. Local button inputs use GPIO32, GPIO33, and GPIO18 with internal pull-ups and normally open contacts to ground. The camera is a separate Wi-Fi node; it does not send images through a signal wire to the controller.
+Figure~\ref{fig:interconnections} shows the signal interconnections implemented around the embedded controller. The main controller uses GPIO25, GPIO26, and GPIO27 for servos A, B, and C, GPIO34 for the flow input, and GPIO23/22 for the shared TCS34725 and OLED SDA/SCL lines. Local button inputs use GPIO32, GPIO33, and GPIO18 with internal pull-ups and normally open contacts to ground. The camera is a separate Wi-Fi node; it does not send images through a signal wire to the controller.
 
 \begin{figure}[htbp]
 \centering
 \input{figures/interconnections.tex}
-\caption{Signal interconnections between the embedded controller and the peripheral modules. The 5~V servo rail, the 3.3~V sensor supply, and the common ground return are omitted for clarity. The camera shares no signal line with the controller and is reached only through the application service.}
-\Description{Block diagram of the controller interconnections: GPIO25, 26 and 27 to the servos; GPIO23 and 22 to the RGB sensor; GPIO34 to the flow sensor; GPIO32, 33 and 18 to the local buttons. The camera is an independent Wi-Fi node.}
+\caption{Signal interconnections between the embedded controller and the peripheral modules. Power supplies and the common ground return are omitted for clarity; this is a signal diagram, not a wiring or power-distribution schematic. The camera shares no signal line with the controller and is reached only through the application service.}
+\Description{Block diagram of the controller interconnections: GPIO25, 26 and 27 to the servos; GPIO23 and 22 form the shared RGB and OLED bus; GPIO34 receives the separate flow input; GPIO32, 33 and 18 receive the local button inputs. The camera is an independent Wi-Fi node.}
 \label{fig:interconnections}
 \end{figure}
 
-The application requests JPEG images over HTTP, validates their numerical readout, and sends the result through \texttt{heater/input/temperature}. The ESP32 publishes temperature, power, flow, volume, and raw color telemetry. MQTT callbacks enqueue control work, while the main loop performs the servo sequence and returns updated state. The dashboard exchanges commands and telemetry with the service over WebSocket.
+The application requests JPEG images over HTTP, validates their numerical readout, and sends the result through \texttt{heater/input/temperature}. The ESP32 publishes temperature, power, flow, volume, and raw color telemetry. MQTT callbacks enqueue control work, while the main loop performs the servo sequence and returns updated state. The dashboard exchanges commands and telemetry with the service over WebSocket. The independent OLED repeats the last accepted optical readout locally; retaining that number during a capture or MQTT gap does not constitute a fresh temperature measurement. The OLED is a readout device, not an additional sensor or actuator.
 
 \Needspace{6\baselineskip}
 \subsection{Physical Assembly}
-The prototype was assembled in three stages: the optical and mechanical fixture at the panel, the controller and its harness on the bench, and the integration of both with the application service. Throughout the process the heater remained connected to its original wall supply and protective breaker; the retrofit adds only low-voltage signal and servo wiring, so the cables visible below the appliance do not carry mains voltage and no internal connection was opened.
+The photographs document the optical fixture at the panel, the controller harness on the bench, and a separate three-servo pack in a temporary cardboard enclosure. The retrofit was developed without opening the heater's internal connections or modifying its mains supply. The added electronics use low-voltage connections; the photographs also include the appliance's existing power and plumbing installation.
 
-Figure~\ref{fig:assembly} documents the installed assembly during a supervised test. A temporary harness of jumpers descends from the front panel to the bench, where the controller wiring and the separate flow sensor are connected and a laptop is used to run and observe the application service and the dashboard. Figure~\ref{fig:assembly}(b) shows the controller fixed below the panel with a cardboard support and tape, with the sensor and servo leads entering the visor area. This arrangement keeps the original panel as the mechanical reference for optical alignment and for the travel of each actuator.
+Figure~\ref{fig:assembly} documents the panel fixture and its bench connections. A temporary jumper harness descends from the panel to the bench beside the laptop used for software work. Figure~\ref{fig:assembly}(b) shows the suspended electronics and taped optical mounting below the visor. The flow channel remained separate and simulated, without a hydraulic connection to the heater.
 
 \begin{figure}[htbp]
 \centering
@@ -46,20 +46,20 @@ Figure~\ref{fig:assembly} documents the installed assembly during a supervised t
 \includegraphics[width=\linewidth]{figures/controller_mount.jpg}\\[-1mm]
 {\footnotesize (b)}
 \end{minipage}
-\caption{Physical assembly of the prototype in the reference installation. (a) General view: the heater remains on its original supply and breaker, and the temporary harness reaches the bench setup, where the flow sensor is connected and a laptop is used during the test to run and observe the application service. (b) Detail of the controller mounted below the panel: the ESP32 board is enclosed in a cardboard and tape support, and the sensor and servo leads enter the visor area.}
-\Description{Two photographs of the installed prototype: a general view of the heater with the wiring harness and the bench setup, and a detail of the controller mounted below the panel.}
+\caption{Physical assembly at the reference appliance. (a) The temporary harness reaches the bench beside the software workstation; the existing power and plumbing installation is visible. (b) Suspended electronics and taped optical mounting below the visor.}
+\Description{Two photographs of the installed prototype: a general view of the heater with the wiring harness and the bench setup, and a detail of the suspended electronics and taped optical fixture below the panel.}
 \label{fig:assembly}
 \end{figure}
 
-Figure~\ref{fig:prototype} shows the panel mounting itself. Tape fixes the optical and mechanical elements while their positions are adjusted, so the digits remain visible and every button is covered by its paddle. This is the arrangement used for the calibration photographs and for the supervised button trial reported in the results.
+Figure~\ref{fig:prototype} shows the panel mounting itself. Tape fixes the external elements while their positions are adjusted, and the visor remains visible. This view provides a reference for the position of the external attachments relative to the visor.
 
-The actuator pack is shown separately in Figure~\ref{fig:servo-pack}. Each of the three servos carries a wooden paddle marked with the corresponding panel symbol: power, increase, and decrease. In Figure~\ref{fig:servo-pack}(a) the pack is held outside the appliance, which makes the rest position of the three paddles visible; in Figure~\ref{fig:servo-pack}(b) it is held against the panel during the alignment test that preceded the taped installation. The removable mounting and the temporary enclosure are intentional: they allowed the press and return angles to be corrected without modifying the appliance.
+The actuator pack is shown separately in Figure~\ref{fig:servo-pack}. The pack carries paddles marked with the corresponding panel symbols: power, increase, and decrease. Figure~\ref{fig:servo-pack}(a) shows the pack outside the appliance with the independent OLED at its side. In Figure~\ref{fig:servo-pack}(b) it is held in front of the bench with the heater in the background. The photographs document the temporary cardboard enclosure and harness used to accommodate the actuator pack and local readout.
 
 \begin{figure}[p]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/panel_detail.jpg}
-\caption{Tape-mounted prototype on the reference Rheem heater: detail of the front-panel mounting. The three servo paddles rest over the original buttons and the visor shows 41~$^\circ$C. The mounting provides a physical reference for optical alignment and servo travel.}
-\Description{Photograph of the front-panel mounting, with the servo paddles over the original buttons and the visor showing 41 degrees Celsius.}
+\caption{Tape-mounted prototype on the reference Rheem heater: detail of the front-panel mounting. External attachments surround the original buttons and the visor shows 41~$^\circ$C. The mounting provides a physical reference for optical alignment and servo travel.}
+\Description{Photograph of the taped front-panel mounting with the visor showing 41 degrees Celsius.}
 \label{fig:prototype}
 \end{figure}
 
@@ -75,7 +75,7 @@ The actuator pack is shown separately in Figure~\ref{fig:servo-pack}. Each of th
 \includegraphics[width=\linewidth]{figures/servo_alignment.jpg}\\[-1mm]
 {\footnotesize (b)}
 \end{minipage}
-\caption{Three-servo actuator pack. (a) Pack removed from the appliance: the paddles are labelled with the power, increase, and decrease symbols, and the temporary housing also carries the controller wiring and a small status display. (b) Pack held under the panel during the alignment test, with the harness connected to the bench setup.}
-\Description{Two photographs of the three-servo pack: the paddles labelled with the power, increase and decrease symbols, and the pack held against the panel during alignment.}
+\caption{Three-servo actuator pack. (a) Pack removed from the appliance: the paddles are labelled with the power, increase, and decrease symbols, and the temporary housing also carries the controller wiring and a small status display. (b) Pack held in front of the bench with the heater in the background.}
+\Description{Two photographs of the three-servo pack: the paddles labelled with the power, increase and decrease symbols, and the pack held in front of the bench with the heater in the background.}
 \label{fig:servo-pack}
 \end{figure}

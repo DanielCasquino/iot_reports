@@ -14,12 +14,12 @@ test("startup waits for fresh connection and display; confirmation compares setp
   assert.equal(r.poll({ ...idle, commandId: command.id, base: 44 }, true, true, 5), null);
   assert.equal(r.snapshot().status, "confirmed");
 });
-test("three bounded attempts, no overlapping commands, user can start again", () => {
+test("three bounded reconnect attempts, no overlapping commands, user can start again", () => {
   const r = new TemperatureReconciliation(); r.request(44, undefined, 0);
   for (let i = 0; i < 3; i++) {
     const command = r.poll(idle, true, true, i * 10000)!; assert.ok(command);
     assert.equal(r.poll(idle, true, true, i * 10000 + 1), null);
-    r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, i * 10000 + 2);
+    r.poll(idle, false, false, i * 10000 + 2);
   }
   assert.equal(r.poll(idle, true, true, 40000), null);
   assert.equal(r.snapshot().status, "failed");
@@ -85,7 +85,7 @@ test("in-flight restart drops the pending ID but preserves attempt budget and or
   assert.equal(new TemperatureReconciliation(file).poll(idle, true, true, 92000), null);
 });
 
-test("restored completion permits the existing reconnect reconfirmation", t => {
+test("backend reconnect keeps a matching completion quiet; a reset controller can reacquire", t => {
   const { file } = storage(t);
   const r = new TemperatureReconciliation(file);
   r.request(44, undefined, 1000);
@@ -95,11 +95,15 @@ test("restored completion permits the existing reconnect reconfirmation", t => {
   const restarted = new TemperatureReconciliation(file);
   assert.equal(restarted.snapshot().status, "confirmed");
   assert.equal(restarted.poll(idle, false, true, 100000), null);
-  const confirm = restarted.poll({ ...idle, base: 44 }, true, true, 100001)!;
+  assert.equal(restarted.poll(null, true, true, 100001), null);
+  assert.equal(restarted.poll({ ...idle, base: 44 }, true, true, 100002), null);
+  assert.equal(restarted.snapshot().status, "confirmed");
+  restarted.poll(idle, false, false, 100003);
+  const confirm = restarted.poll(idle, true, true, 100004)!;
   assert.ok(confirm);
   assert.equal(confirm.target, 44);
   assert.equal(restarted.snapshot().attempts, 1);
-  assert.equal(JSON.parse(readFileSync(file, "utf8")).requestedAt, 100001);
+  assert.equal(JSON.parse(readFileSync(file, "utf8")).requestedAt, 100004);
 });
 
 test("missing or malformed storage is not overwritten by loading or unchanged polling", t => {
@@ -124,4 +128,25 @@ test("missing or malformed storage is not overwritten by loading or unchanged po
   valid.poll(null, false, false, 2002);
   assert.equal(statSync(file, { bigint: true }).ino, before);
   assert.deepEqual(readdirSync(directory), ["temperature-operation.json"]);
+});
+
+
+test("missed presses permit three fresh operations, never overlap, then require manual recovery", () => {
+  const r = new TemperatureReconciliation(); r.request(50, 123, 1000);
+  let id = 123;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const now = 1000 + attempt * 10000;
+    r.poll({ ...idle, commandId: id, status: "error", locked: true }, true, true, now);
+    assert.equal(r.poll({ ...idle, status: "settling", locked: true }, true, true, now + 1), null);
+    assert.equal(r.poll(idle, true, false, now + 2), null);
+    if (attempt < 3) {
+      const next = r.poll(idle, true, true, now + 3)!;
+      assert.ok(next); assert.notEqual(next.id, id); assert.equal(next.base, -1);
+      id = next.id;
+    }
+  }
+  assert.deepEqual(r.snapshot(), { target: 50, attempts: 3, status: "failed" });
+  for (let now = 40000; now < 60000; now += 1000) assert.equal(r.poll(idle, true, true, now), null);
+  r.request(50, undefined, 62000);
+  assert.equal(r.poll(idle, true, true, 62001)?.target, 50);
 });

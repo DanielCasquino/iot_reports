@@ -2,17 +2,21 @@
 #include "ESP32MQTTClient.h"
 #include "heater_module.h"
 #include "display_mirror.h"
+#include "mqtt_inbox.h"
 #include "config.h"
 #include <cstdlib>
 #include <cmath>
 #include <cstdio>
 
 ESP32MQTTClient mqttClient;
+std::atomic<uint32_t> mqttConnectionRevision{0};
 
 // Required global event handler - ESP-IDF version dependent
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 esp_err_t handleMQTT(esp_mqtt_event_handle_t event)
 {
+    if (event->event_id == MQTT_EVENT_DISCONNECTED) ++mqttConnectionRevision;
+    if (event->event_id == MQTT_EVENT_DATA && event->retain) return ESP_OK;
     mqttClient.onEventCallback(event);
     return ESP_OK;
 }
@@ -23,6 +27,8 @@ void handleMQTT(void *handler_args, esp_event_base_t base, int32_t event_id, voi
     (void)event_id;
     auto *client = static_cast<ESP32MQTTClient *>(handler_args);
     auto *event = static_cast<esp_mqtt_event_handle_t>(event_data);
+    if (event->event_id == MQTT_EVENT_DISCONNECTED) ++mqttConnectionRevision;
+    if (event->event_id == MQTT_EVENT_DATA && event->retain) return;
     client->onEventCallback(event);
 }
 #endif
@@ -39,6 +45,12 @@ public:
             Serial.println("MQTTModule has no HeaterModule attached");
             return;
         }
+        if (!inbox.setup())
+        {
+            Serial.println("MQTT inbox allocation failed; controller remains local");
+            return;
+        }
+        heaterModule->attachTransportRevision(mqttConnectionRevision);
         mqttClient.setURI(BROKER_URI);
 
         mqttClient.setKeepAlive(ESP_KEEPALIVE_SECONDS);
@@ -46,91 +58,136 @@ public:
 
         mqttClient.loopStart();
     }
-    void attach(HeaterModule &h) { this->heaterModule = &h; }
+    void attach(HeaterModule &h) { this->heaterModule = &h; h.attachTapSink(publishTap); }
+    static void publishTap(const ServoModule::TapEvent &tap)
+    {
+        if (!mqttClient.isConnected()) return;
+        std::string payload = "{\"pin\":" + std::to_string(tap.pin) +
+            ",\"button\":\"" + (tap.pin == SERVO_PIN_A ? "power" : tap.pin == SERVO_PIN_B ? "plus" : "minus") +
+            "\",\"reason\":\"" + tap.reason + "\",\"commandId\":" + std::to_string(tap.commandId) +
+            ",\"estimatedBefore\":" + std::to_string(tap.estimatedBefore) + ",\"estimatedAfter\":" + std::to_string(tap.estimatedAfter) +
+            ",\"target\":" + std::to_string(tap.target) + ",\"press\":" + std::to_string(tap.press) + ",\"rest\":" + std::to_string(tap.rest) +
+            ",\"startedAt\":" + std::to_string(tap.startedAt) + ",\"completedAt\":" + std::to_string(tap.completedAt) +
+            ",\"mechanicalConfirmed\":false}";
+        mqttClient.publish("heater/diagnostic/servo", payload, 0, false);
+    }
     void attachDisplay(DisplayMirror &display) { displayMirror = &display; }
+    // Called only by the MQTT task. No HeaterModule getters or mutation here.
     void subscribe()
     {
-        mqttClient.subscribe("heater/command/wake_display", [this](const std::string &payload) {
-            if (heaterModule && payload == "wake") heaterModule->requestDisplayWake();
-        });
-        mqttClient.subscribe("heater/input/display", [this](const std::string &payload) {
-            if (displayMirror) displayMirror->receive(payload.c_str(), millis());
-        });
-        mqttClient.subscribe("heater/input/power", [this](const std::string &payload)
-                             {
-                                 if (heaterModule && payload == "true")
-                                 {
-                                     heaterModule->observePilot(HeaterModule::PilotState::Awake);
-                                 }
-                             });
-        mqttClient.subscribe("heater/input/pilot", [this](const std::string &payload) {
-            if (!heaterModule) return;
-            auto state = HeaterModule::PilotState::Unknown;
-            if (payload == "heating" || payload == "ready") state = HeaterModule::PilotState::Awake;
-            else if (payload == "unlit") state = HeaterModule::PilotState::Unlit;
-            heaterModule->observePilot(state);
-        });
-        mqttClient.subscribe("heater/input/temperature", [this](const std::string &payload)
-                             { handleTemperature(payload); });
-        mqttClient.subscribe("heater/input/temperature_verification", [this](const std::string &payload)
-                             {
-                                 auto separator = payload.find(',');
-                                 if (!heaterModule || separator == std::string::npos) return;
-                                 std::string token = payload.substr(0, separator);
-                                 if (token.empty() || token.find_first_not_of("0123456789") != std::string::npos) return;
-                                 unsigned long long id = strtoull(token.c_str(), nullptr, 10);
-                                 if (id > UINT32_MAX) return;
-                                 const char *number = payload.c_str() + separator + 1;
-                                 char *end = nullptr;
-                                 float value = strtof(number, &end);
-                                 if (end != number && *end == '\0' && std::isfinite(value))
-                                     heaterModule->verifyTemperature(uint32_t(id), value);
-                             });
-        mqttClient.subscribe("heater/set/temperature", [this](const std::string &payload) { handleTemperatureControl(payload, false); });
-        mqttClient.subscribe("heater/set/temperature_base", [this](const std::string &payload) { handleTemperatureControl(payload, true); });
-        mqttClient.subscribe("heater/set/power", [this](const std::string &payload)
-                             { handlePower(payload); });
-        mqttClient.subscribe("heater/set/autoshutdown", [this](const std::string &payload)
-                             { handleAutoShutdown(payload); });
-        mqttClient.subscribe("heater/command/state_snapshot", [this](const std::string &payload)
-                             { handleSnapshot(payload); });
+        using Kind = MqttInbox::Kind;
+        subscribeTopic("heater/command/wake_display", Kind::WakeDisplay);
+        subscribeTopic("heater/input/display", Kind::Display);
+        subscribeTopic("heater/input/power", Kind::PowerObservation);
+        subscribeTopic("heater/input/pilot", Kind::Pilot);
+        subscribeTopic("heater/input/temperature", Kind::Temperature);
+        subscribeTopic("heater/input/temperature_verification", Kind::Verification);
+        subscribeTopic("heater/input/wake_verification", Kind::WakeVerification);
+        subscribeTopic("heater/set/temperature", Kind::Target);
+        subscribeTopic("heater/set/temperature_base", Kind::Base);
+        subscribeTopic("heater/set/power", Kind::Power);
+        subscribeTopic("heater/set/autoshutdown", Kind::AutoShutdown);
+        subscribeTopic("heater/command/state_snapshot", Kind::Snapshot);
     }
     static void onConnect(esp_mqtt_client_handle_t client)
     {
-        if (!instance || !mqttClient.isMyTurn(client))
-            return;
-
-        Serial.println("Connected to broker");
-
-        mqttClient.publish("heater/status", "online", 1, true);
-
-        instance->heaterModule->invalidateTemperature();
+        if (!instance || !mqttClient.isMyTurn(client)) return;
+        ++mqttConnectionRevision;
+        instance->inbox.reset(); // Old-session requests must not act after reconnect.
         instance->subscribe();
-
-        instance->publishState();
-        instance->publishPowerState();
-        instance->publishAutoShutdown();
+        instance->inbox.push(MqttInbox::Kind::Connected, nullptr, 0, millis(), mqttConnectionRevision.load());
     }
-    void handleTemperature(const std::string &payload)
+    void loop()
     {
-        if (!heaterModule) return;
+        bool connected = mqttClient.isConnected();
+        if (wasConnected && !connected) heaterModule->invalidateObservations();
+        wasConnected = connected;
+        MqttInbox::Message message;
+        // A fixed bound also lets sensors/buttons run under sustained MQTT input.
+        for (unsigned count = 0; count < 16 && inbox.next(message); ++count)
+        {
+            using Kind = MqttInbox::Kind;
+            if (!mqttClient.isConnected() || message.revision != mqttConnectionRevision.load()) continue;
+            if (message.kind == Kind::Connected)
+            {
+                heaterModule->invalidateObservations();
+                mqttClient.publish("heater/status", "online", 1, true);
+                publishState();
+                publishPowerState();
+                publishAutoShutdown();
+                continue;
+            }
+            if (uint32_t(millis() - message.receivedAt) > 5000U) continue;
+            const std::string payload(message.payload);
+            switch (message.kind)
+            {
+            case Kind::WakeDisplay:
+                if (payload == "wake") heaterModule->requestDisplayWake();
+                break;
+            case Kind::Display:
+                if (displayMirror) displayMirror->receive(message.payload, message.receivedAt);
+                break;
+            case Kind::PowerObservation:
+                if (payload == "true" || payload == "false")
+                    heaterModule->observePilot(payload == "true" ? HeaterModule::PilotState::ObservedOn :
+                        HeaterModule::PilotState::ObservedOff, message.receivedAt);
+                break;
+            case Kind::Pilot:
+                heaterModule->observePilot(payload == "heating" || payload == "ready" ? HeaterModule::PilotState::Awake :
+                    payload == "unlit" ? HeaterModule::PilotState::Unlit : HeaterModule::PilotState::Unknown, message.receivedAt);
+                break;
+            case Kind::Temperature: handleTemperature(payload, message.receivedAt); break;
+            case Kind::Verification: handleVerification(payload, message.receivedAt); break;
+            case Kind::WakeVerification: handleVerification(payload, message.receivedAt, true); break;
+            case Kind::Target: handleTemperatureControl(payload, false); break;
+            case Kind::Base: handleTemperatureControl(payload, true); break;
+            case Kind::Power: handlePower(payload); break;
+            case Kind::AutoShutdown: handleAutoShutdown(payload); break;
+            case Kind::Snapshot: handleSnapshot(payload); break;
+            default: break;
+            }
+        }
+    }
+    void handleVerification(const std::string &payload, uint32_t receivedAt, bool wake = false)
+    {
+        auto separator = payload.find(',');
+        if (!heaterModule || !heaterModule->acceptsObservation(receivedAt) || separator == std::string::npos) return;
+        std::string token = payload.substr(0, separator);
+        if (token.empty() || token.find_first_not_of("0123456789") != std::string::npos) return;
+        unsigned long long id = strtoull(token.c_str(), nullptr, 10);
+        if (id > UINT32_MAX) return;
+        const char *number = payload.c_str() + separator + 1;
+        char *end = nullptr;
+        float value = strtof(number, &end);
+        if (end != number && *end == '\0' && std::isfinite(value)) {
+            if (wake) heaterModule->verifyWake(uint32_t(id), value, receivedAt);
+            else heaterModule->verifyTemperature(uint32_t(id), value, receivedAt);
+        }
+    }
+    void handleTemperature(const std::string &payload, uint32_t receivedAt)
+    {
+        if (!heaterModule || !heaterModule->acceptsObservation(receivedAt)) return;
         char *end = nullptr;
         float value = strtof(payload.c_str(), &end);
         if (payload.empty() || end == payload.c_str() || *end != '\0' ||
             !std::isfinite(value) || value < 0 || value > 100)
-            heaterModule->invalidateTemperature();
+            heaterModule->setTemperature(NAN, receivedAt);
         else
-            heaterModule->setTemperature(value);
+            heaterModule->setTemperature(value, receivedAt);
     }
 
     void handleTemperatureControl(const std::string &payload, bool calibrate)
     {
         if (!heaterModule || payload.size() > 40) return;
-        unsigned long id = 0;
-        int base = 0, target = 0, consumed = 0;
-        if (sscanf(payload.c_str(), "%lu,%d,%d%n", &id, &base, &target, &consumed) != 3 ||
-            consumed != int(payload.size()) || id == 0 || target < MIN_TEMPERATURE_C || target > MAX_TEMPERATURE_C) return;
-        heaterModule->requestTemperatureControl(uint32_t(id), base, target, calibrate);
+        auto comma = payload.find(',');
+        auto second = comma == std::string::npos ? comma : payload.find(',', comma + 1);
+        if (second == std::string::npos) return;
+        uint32_t id = 0, base = 0, target = 0;
+        auto baseToken = payload.substr(comma + 1, second - comma - 1);
+        if (!parseUnsigned(payload.substr(0, comma), id) || id == 0 ||
+            !parseUnsigned(payload.substr(second + 1), target) || target < MIN_TEMPERATURE_C || target > MAX_TEMPERATURE_C ||
+            (baseToken != "-1" && (!parseUnsigned(baseToken, base) || base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return;
+        heaterModule->requestTemperatureControl(id, baseToken == "-1" ? -1 : int(base), int(target), calibrate);
     }
     void publishTemperatureControl()
     {
@@ -141,7 +198,8 @@ public:
             (heaterModule->isTemperatureLocked() ? "true" : "false") +
             ",\"min\":" + std::to_string(int(MIN_TEMPERATURE_C)) + ",\"max\":" + std::to_string(int(MAX_TEMPERATURE_C)) +
             ",\"commandId\":" + std::to_string(heaterModule->getTemperatureCommandId()) +
-            ",\"result\":\"" + heaterModule->getTemperatureCommandResult() + "\"}";
+            ",\"result\":\"" + heaterModule->getTemperatureCommandResult() +
+            "\",\"autoShutdownTarget\":" + std::to_string(heaterModule->getAutoShutdownTarget()) + "}";
         mqttClient.publish("heater/state/temperature_control", payload, 0, false);
     }
     void handlePower(const std::string &payload)
@@ -201,7 +259,7 @@ public:
 
         publishAutoShutdown();
     }
-    void handleSnapshot(const std::string &payload)
+    void handleSnapshot(const std::string &)
     {
         if (!heaterModule || !mqttClient.isConnected())
             return;
@@ -214,6 +272,11 @@ public:
         if (!heaterModule || !mqttClient.isConnected() || !heaterModule->needsTemperatureVerification()) return;
         mqttClient.publish("heater/command/verify_temperature",
                            std::to_string(heaterModule->temperatureVerificationId()), 0, false);
+    }
+    void requestWakeVerification()
+    {
+        if (!heaterModule || !mqttClient.isConnected() || !heaterModule->needsWakeVerification()) return;
+        mqttClient.publish("heater/command/verify_wake", std::to_string(heaterModule->wakeVerificationId()), 0, false);
     }
     void publishState()
     {
@@ -256,6 +319,26 @@ public:
     }
 
 private:
+    static bool parseUnsigned(const std::string &token, uint32_t &value)
+    {
+        if (token.empty()) return false;
+        value = 0;
+        for (char digit : token)
+        {
+            if (digit < '0' || digit > '9' || value > (UINT32_MAX - uint32_t(digit - '0')) / 10U) return false;
+            value = value * 10U + uint32_t(digit - '0');
+        }
+        return true;
+    }
+    void subscribeTopic(const char *topic, MqttInbox::Kind kind)
+    {
+        mqttClient.subscribe(topic, [this, kind](const std::string &payload) {
+            if (!inbox.push(kind, payload.data(), payload.size(), millis(), mqttConnectionRevision.load()))
+                Serial.println("MQTT message rejected: inbox full or oversized payload");
+        });
+    }
+    MqttInbox inbox;
+    bool wasConnected = false;
     static MqttModule *instance;
     HeaterModule *heaterModule = nullptr;
     DisplayMirror *displayMirror = nullptr;

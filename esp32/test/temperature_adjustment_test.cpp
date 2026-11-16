@@ -7,25 +7,29 @@ void open(TemperatureAdjustment &a) {
     assert(a.tick(0) == 1);
     a.completedPress(500);
     assert(!a.needsVerification(600));
-    assert(a.tick(1499) == 0);
-    assert(a.tick(1500) == 1);
-    a.completedPress(2000);
-    assert(a.needsVerification(2100));
+    assert(a.tick(6499) == 0);
+    assert(a.tick(6500) == 1);
+    a.completedPress(7000);
+    assert(!a.needsVerification(7999));
+    assert(a.needsVerification(8000));
 }
 int main() {
-    for (bool awake : {false, true}) {
+    {
         for (int base = 30; base <= 75; ++base) {
             for (int target = 30; target <= 75; ++target) {
                 TemperatureAdjustment a;
                 assert(a.applyTarget(target, base));
                 open(a);
-                int shown = awake ? (base == 75 ? 30 : base + 1) : base;
-                assert(!a.verify(a.requestId - 1, shown, 2100));
-                assert(!a.verify(a.requestId, NAN, 2100));
-                assert(!a.verify(a.requestId, shown, 2100));
+                int shown = base;
+                assert(!a.verify(a.requestId - 1, shown, 8000));
+                assert(!a.verify(a.requestId, NAN, 8000));
+                assert(!a.verify(a.requestId, shown, 8000));
+                assert(a.state == State::Reading); // First capture cannot select a base.
+                assert(a.needsVerification(8500));
+                a.verify(a.requestId, shown, 8500);
                 assert(a.estimated == shown);
                 unsigned presses = 0;
-                uint32_t now = 3000;
+                uint32_t now = 9500;
                 while (a.state == State::Applying) {
                     assert(a.tick(now) != 0);
                     a.completedPress(now + 500);
@@ -35,32 +39,45 @@ int main() {
                 assert(a.estimated == target);
                 if (shown != target) {
                     assert(a.state == State::Confirming);
-                    assert(a.needsVerification(now - 900));
-                    assert(!a.verify(a.requestId, target, now - 900));
+                    assert(a.needsVerification(now));
+                    assert(!a.verify(a.requestId, target, now));
+                    assert(a.state == State::Confirming);
+                    assert(a.needsVerification(now + 500));
+                    assert(!a.verify(a.requestId, target, now + 500));
                 }
-                assert(a.state == State::Verifying && a.locked());
-                assert(a.finishWithoutCamera(now + 6000));
+                assert(a.state == State::Settling && a.locked());
+                assert(a.finishSettling(now + 6500));
                 assert(!a.locked());
             }
         }
     }
     TemperatureAdjustment timeout;
     timeout.applyTarget(44, 43); open(timeout);
-    assert(timeout.tick(6500) == 0 && timeout.state == State::Error);
-    assert(!timeout.verify(timeout.requestId, 43, 6501));
-    assert(!timeout.finishWithoutCamera(12499));
-    assert(timeout.finishWithoutCamera(12500));
+    assert(timeout.tick(11500) == 0 && timeout.state == State::Error);
+    assert(!timeout.verify(timeout.requestId, 43, 11501));
+    assert(!timeout.finishSettling(17499));
+    assert(timeout.finishSettling(17500));
     assert(timeout.applyTarget(44, 43));
     TemperatureAdjustment late;
     late.applyTarget(44, 43); open(late);
-    assert(!late.verify(late.requestId, 43, 6500));
-    late.tick(6500); assert(late.state == State::Error);
+    assert(!late.verify(late.requestId, 43, 11500));
+    late.tick(11500); assert(late.state == State::Error);
     TemperatureAdjustment mismatch;
     mismatch.applyTarget(44, 43); open(mismatch);
-    mismatch.verify(mismatch.requestId, 43, 2100);
-    assert(mismatch.tick(3000) == 1); mismatch.completedPress(3500);
-    mismatch.needsVerification(3600); mismatch.verify(mismatch.requestId, 43, 3600);
+    mismatch.verify(mismatch.requestId, 43, 8000);
+    mismatch.needsVerification(8500); mismatch.verify(mismatch.requestId, 43, 8500);
+    assert(mismatch.tick(9500) == 1); mismatch.completedPress(10000);
+    mismatch.needsVerification(11000); mismatch.verify(mismatch.requestId, 43, 11000);
+    assert(mismatch.state == State::Confirming);
+    mismatch.needsVerification(11500); mismatch.verify(mismatch.requestId, 43, 11500);
     assert(mismatch.state == State::Error);
+    TemperatureAdjustment stale;
+    stale.applyTarget(50, -1); open(stale);
+    stale.verify(stale.requestId, 54, 8000); // Old water frame, then actual target31.
+    stale.needsVerification(8500); stale.verify(stale.requestId, 31, 8500);
+    assert(stale.state == State::Reading);
+    stale.needsVerification(9000); stale.verify(stale.requestId, 31, 9000);
+    assert(stale.state == State::Applying && stale.estimated == 31);
     TemperatureAdjustment invalid;
     assert(!invalid.applyTarget(76, 43)); assert(!invalid.applyTarget(29, 43));
 }

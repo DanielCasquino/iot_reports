@@ -1,6 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyPilot, HeaterObservation } from "../src/heater/state.js";
+import { classifyPilot, HeaterObservation, PilotFilter } from "../src/heater/state.js";
+
+test("pilot filtering rejects outliers, requires repeated classes and expires/reset on invalid input", () => {
+  const env = { COLOR_RED_REFERENCE: "80,10,10,100", COLOR_GREEN_REFERENCE: "10,80,10,100",
+    COLOR_MAX_DISTANCE: "0.1", COLOR_DARK_MAX_CLEAR: "3" };
+  const filter = new PilotFilter();
+  for (const at of [0, 2000, 4000]) filter.update("80,10,10,100", at, env);
+  assert.equal(filter.snapshot(4000), "unknown");
+  filter.update("80,10,10,100", 6000, env);
+  assert.equal(filter.snapshot(6000), "heating");
+  filter.update("10,80,10,100", 8000, env);
+  assert.equal(filter.snapshot(8000), "heating");
+  filter.update("80,10,10,100", 10000, env);
+  assert.equal(filter.snapshot(10000), "heating");
+  assert.equal(filter.snapshot(16001), "unknown");
+  filter.update("unavailable", 11000, env);
+  assert.equal(filter.snapshot(11000), "unknown");
+  assert.equal(classifyPilot("2,0,0,2", { COLOR_RED_REFERENCE: "2,0,0,2", COLOR_MAX_DISTANCE: "0.1" }), "unknown");
+});
+
+test("pilot uses a wider exit radius without immediately switching to another class", () => {
+  const env = { COLOR_RED_REFERENCE: "80,10,10,100", COLOR_GREEN_REFERENCE: "10,80,10,100", COLOR_MAX_DISTANCE: "0.1" };
+  const filter = new PilotFilter();
+  for (const at of [0, 2000, 4000, 6000]) filter.update("80,10,10,100", at, env);
+  for (const at of [8000, 10000, 12000]) filter.update("68,10,10,100", at, env);
+  assert.equal(classifyPilot("68,10,10,100", env), "unknown");
+  assert.equal(filter.snapshot(12000), "heating");
+  for (const at of [14000, 16000, 18000]) filter.update("10,80,10,100", at, env);
+  assert.equal(filter.snapshot(18000), "ready");
+});
 
 test("ambient light can leave an unlit pilot brighter than a lit green reference", () => {
   const env = { COLOR_RED_REFERENCE: "301,25,34,331", COLOR_GREEN_REFERENCE: "10,17,4,31",
@@ -102,4 +131,18 @@ test("setpoint captures stay hidden through adjustment and require a new settled
   assert.equal(state.snapshot(selected, 2100).temperature, null);
   const measured = { available: true, value: 38, observedAt: new Date(2200).toISOString() };
   assert.equal(state.snapshot(measured, 2300).temperature, 38);
+});
+
+test("a controller restart cannot reuse an otherwise recent camera capture", () => {
+  const state = new HeaterObservation();
+  const water = { available: true, value: 47, observedAt: new Date(1500).toISOString() };
+  state.update("heater/status", "online", false, 1000);
+  state.update("heater/state/power", "true", false, 1600);
+  assert.equal(state.snapshot(water, 1700).temperature, 47);
+  state.disconnect(2000);
+  state.update("heater/status", "online", false, 2500);
+  state.update("heater/state/power", "true", false, 2600);
+  assert.equal(state.snapshot(water, 2700).temperature, null);
+  assert.equal(state.snapshot(water, 2700).display, "unknown");
+  assert.equal(state.snapshot({ ...water, observedAt: new Date(2800).toISOString() }, 2900).temperature, 47);
 });

@@ -29,13 +29,13 @@ The photographs contain overlapping readings, so the transcribed rows are not in
 
 \Needspace{6\baselineskip}
 \subsection{Mechanical and Software Checks}
-The supervised power-button trial registered an on action with servo A configured to press at 29 degrees on the tape-mounted mechanism. Its configured rest position is 0 degrees. This is an angular setting for that mounting, not a measurement of contact force or repeated-actuation reliability. The photograph in Figure~\ref{fig:prototype} provides the corresponding appliance context.
+The recorded supervised power-button trial registered an on action with servo A configured to press at 29 degrees on the tape-mounted mechanism. Its configured rest position is 0 degrees. This is an angular setting for that mounting, not a measurement of contact force or repeated-actuation reliability. The photograph in Figure~\ref{fig:prototype} provides the corresponding appliance context.
 
-Table~\ref{tab:control-checks} summarizes the software checks performed on the integrated implementation. The backend suite passed 20 tests, and the embedded adjustment checks exercised all 46$\times$46 pairs of allowed initial and target setpoints. Host checks used the actual heater-control header with stubbed peripherals, so these results verify command decisions separately from mechanical behavior.
+Table~\ref{tab:control-checks} summarizes the recorded software checks. The tested backend revision passed 20 tests, and the embedded adjustment checks exercised all 46$\times$46 pairs of allowed initial and target setpoints. Host checks used the actual heater-control header with stubbed peripherals, so these results verify command decisions separately from mechanical behavior.
 
 \begin{table}[htbp]
 \centering
-\caption{Verified software behavior and its interpretation.}
+\caption{Recorded software checks; these are not end-to-end hardware acceptance tests.}
 \label{tab:control-checks}
 \small
 \begin{tabularx}{\linewidth}{@{}P{3.2cm}L@{}}
@@ -52,4 +52,4 @@ User cancellation & A later on request can cancel a pending off action during th
 \end{tabularx}
 \end{table}
 
-The controller firmware compiled successfully. Together with the optical and button observations, these checks support the separation of sensing, decision logic, and physical actuation. They do not quantify water-use accuracy or energy savings; the prototype reports panel observations and configured pulse-based quantities rather than independently calibrated tank temperature or electrical consumption.
+The recorded controller firmware build completed successfully. These software checks and the calibration observations address separate parts of the design; they do not establish continuous end-to-end operation. Integration encountered MQTT communication failures and unreadable or rejected camera captures. The independent OLED can retain the last accepted readout during such gaps, but that retained number is not a new temperature observation. The separate flow demonstration was simulated, with no hydraulic connection to the heater and no measured reference volume. Consequently, these results do not quantify water-use accuracy, independently calibrated tank temperature, electrical consumption, or energy savings.

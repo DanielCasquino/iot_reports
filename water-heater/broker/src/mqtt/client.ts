@@ -11,7 +11,10 @@ export const mqttClient = mqtt.connect(
 mqttClient.on("connect", () => {
   console.log("Connected to Mosquitto");
 
-  mqttClient.subscribe(["heater/state/#"], (error) => {
+  // Subscribe to state and liveness together before requesting a live snapshot.
+  // Otherwise a retained status delivered by a later subscription can invalidate
+  // the fresh state that the controller has just sent.
+  mqttClient.subscribe(["heater/state/#", "heater/status", "heater/diagnostic/servo"], (error) => {
     if (error) console.error("Subscription error:", error);
     else {
       console.log("Subscribed to heater topics");
@@ -21,7 +24,6 @@ mqttClient.on("connect", () => {
       });
     }
   });
-  mqttClient.subscribe("heater/status");
 });
 
 mqttClient.on("reconnect", () => {

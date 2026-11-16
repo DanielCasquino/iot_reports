@@ -1,5 +1,81 @@
 # Camera + OCR + MQTT test
 
+## Native SSOCR for the mounted seven-segment display
+
+`CAMERA_READER=ssocr` selects the native [SSOCR reader](https://www.unix-ag.uni-kl.de/~auerswal/ssocr/).
+It corrects digit slant and compares iterative thresholding with two fixed
+thresholds. At least two complete readings must agree, and a contradictory
+complete reading rejects the frame. Dark blink phases do not become numbers.
+Images are processed locally; no cloud API or new npm package is used.
+
+On Debian/Raspberry Pi OS, install the native dependency separately:
+
+```sh
+sudo apt update
+sudo apt install ssocr
+ssocr --version
+```
+
+Update the existing broker `.env` without replacing its MQTT, camera address,
+pilot calibration or desired-state settings. For the current 320x240 mounting:
+
+```ini
+CAMERA_READER=ssocr
+SSOCR_PATH=/usr/bin/ssocr
+CAMERA_CROP=140,0,180,240
+CAMERA_ROTATION=90
+CAMERA_SSOCR_SHEAR=0.06
+```
+
+Crop coordinates apply to the original camera JPEG. Shear is the horizontal
+bottom-edge displacement divided by the cropped, rotated image height;0.06
+means11 pixels for the current240x180 result. These are mounting calibration
+values, not universal settings. `CAMERA_READER` overrides the old
+`CAMERA_SEVEN_SEGMENT` flag. Without it the existing reader selection is kept.
+
+After updating this branch, run `npm run check` and `npm run build` inside
+`water-heater/broker`, then restart only the backend through its existing
+launcher and reload the web page. No camera/controller reflash is needed for
+this reader change. `GET /api/camera/status` must report `reader: "ssocr"`;
+the processed-image endpoint shows SSOCR's corrected image. A missing binary
+produces an actionable error instead of silently selecting another reader.
+Each native process has a1.5s deadline and is reaped on failure or shutdown.
+Temporary images are private and removed after every read.
+
+The web display keeps its last valid measured number through unavailable
+frames and marks it as historical in its tooltip. This cache lasts while the
+page is open; it is not fresh telemetry or MQTT-retained control data. Initial
+absence still shows dashes. Setpoints, water temperature and blink phases keep
+their existing separation in the panel state machine.
+
+Camera capture and optical recognition also work with the controller offline
+or MQTT disconnected. `/api/camera/status` describes the latest optical frame;
+`/api/heater/status` and WebSocket snapshots expose the same state as `camera`.
+The web can show this camera value and enable Read display while the ESP32 is
+offline. Its tooltip identifies an optical display reading, which may be a
+setpoint rather than water temperature. Water telemetry still comes from the
+panel's accepted water observation, and actuator commands still require the
+controller. A controller reconnect suppresses delivery of an in-flight old
+frame without discarding the independent optical result.
+
+Local validation used one visually checked frame for each value30–75:44
+calibration samples and the later49/59 captures,46/46 accepted correctly.
+The real three-pass reader took38–82ms per sample on the test laptop. This is
+a small corpus from one mounting, not a field accuracy estimate or a latency
+measurement on the Raspberry. The observed selection blink train lasted about
+4.5s at roughly5fps, consistent with the human observation of about5s.
+The backend still reports an unreadable image when evidence is insufficient;
+the UI retains the previous value rather than presenting a guessed number.
+
+Rollback: remove `CAMERA_READER` to restore the existing reader flag, restore
+the previous mounting configuration if needed, and restart the same backend.
+The native dependency can remain installed without being invoked.
+
+Sources: [SSOCR preprocessing and skew guidance](https://www.unix-ag.uni-kl.de/~auerswal/ssocr/),
+[OpenCV local versus global thresholds](https://docs.opencv.org/4.13.0/d7/d4d/tutorial_py_thresholding.html),
+[Tesseract image quality](https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html),
+[Debian native package](https://packages.debian.org/trixie/armhf/ssocr).
+
 The ESP32-CAM already serves `GET /capture`: **no camera reflash is required**.
 Node requests the JPEG, reads the display and publishes a temperature. The main
 ESP32 receives it and publishes its state through the existing path.
@@ -48,9 +124,53 @@ it does not establish that a display slept or that the heater switched off.
 
 ## Data path
 
+### Calibrated optical power observation
+
+`CAMERA_DISPLAY_REGION`, `CAMERA_DISPLAY_DARK_MAX` and
+`CAMERA_DISPLAY_LIT_MIN` enable raw light classification before OCR normalization.
+Calibrate them on the installed OFF, dim and bright visor with the same crop.
+A readable number, or persistent visible segments in a lit region, establishes
+ON without assigning an unreadable frame a water temperature. API
+`displayState` reports this independent observation and its capture time.
+
+OFF requires at least four valid dark frames spanning6.5s, no capture gap over3s,
+an idle controller and no fresh red/green pilot contradicting it. Failed, stale,
+ambiguous or pre-command captures reset/interrupt this evidence. Target/wake
+verification frames cannot establish OFF. Use continuous mirror capture with
+`CAMERA_MIRROR_POLL_MS=250`; occasional manual photos are insufficient.
+The confirmation concerns the heater panel's operating state, not mains isolation.
+Stable mounting and representative ambient-light calibration remain necessary.
+
+The broker sends fresh non-retained `heater/input/power=true|false`; updated
+main firmware applies those observations on its main loop, outside active button
+or selection operations. Observed OFF lets the existing web button request ON
+again. A servo write alone still does not confirm the result. Updating backend
+alone does not add false-power reception to older firmware.
+
+The RGB pilot uses a three-sample median and two matching classifications, with
+a wider exit tolerance to avoid oscillation near a boundary. Invalid data or a
+long gap resets its history. Low Clear values are not normalized into a colour.
+`npm run calibrate:color red|green|unlit` now samples for the full chosen duration;
+dark captures produce a Clear ceiling instead of an unreliable RGB reference.
+Do not carry an old ambient-light reference into a different mounting/lighting.
+
+Wake confirmation uses a separate exchange: after the controller's existing
+6s settle period, `heater/command/verify_wake` requests a **new capture** with a
+request ID. The broker replies on `heater/input/wake_verification` as `id,value`,
+even while the controller is busy. This only confirms readable digits for the
+pending wake; it never enters water telemetry or confirms physical OFF. Both
+topics are non-retained. Old-session/retained replies and mismatched IDs cannot
+complete the wake. The existing 10s timeout still cancels an unconfirmed action.
+
+This exchange requires updating **both `esp32/` firmware and the backend**.
+Restarting the backend alone does not update the controller's wake logic.
+Keep the device's existing private Wi-Fi settings and verify that its broker
+address matches the Raspberry before uploading. The camera firmware and RGB
+calibration are unchanged.
+
 - Manual request: `POST /api/camera/capture`.
 - Camera: existing `GET /capture` JPEG (one queued frame is discarded first).
-- OCR: single numeric reading0..100°C, configured confidence threshold.
+- OCR: single numeric reading0..75°C, configured confidence threshold; cold water below30 remains valid.
 - Backend → MQTT: `heater/input/temperature`, numeric text or `unavailable`,
   **not retained**, QoS0, no offline queue. This prevents old queued OCR readings
   from becoming fresh after reconnect. An OCR failure is not encoded as zero.
@@ -73,7 +193,7 @@ No images or credentials are added to Git. No cloud service is required.
 serial and shown in the app. No uncalibrated red/green→heating inference.
 
 Chosen free pins: **SDA23, SCL22**, configurable in `esp32/include/config.h`.
-Current servo pins are A25/B26/C27; keep the explicitly selected SDA23/SCL22. Confirm actual
+Current mounted servo roles are PowerA25/plusB27/minusC26; keep the explicitly selected SDA23/SCL22. Confirm actual
 wiring and module voltage labels; keep I2C signal levels compatible with3.3V.
 Absent sensor does not stop the other modules. Current gain1x/integration24ms
 is an initial setting; verify lighting and mounting before classifying colors.
@@ -215,3 +335,79 @@ Estas cifras deben comprobarse con lecturas nuevas; reflejan muestras de la
 misma sesión, no validación independiente. El canalC es Clear, luz amplia.
 La muestra oscura se tomó con la terma apagada, pero no demuestra que no pueda
 haber piloto oscuro en otro estado. Conservar unknown cuando no haya evidencia.
+
+## Mounted button direction and failed verification
+
+The current mount places plus on GPIO27 (press16/rest0) and minus on GPIO26
+(press18/rest0). Logical B/C follow those roles; each physical servo retains its
+calibrated angles. Verify the first requested increase/decrease against the
+actual blinking target after remounting. A matching controller verification error
+ends that attempt. Up to3attempts are allowed within the90s overall deadline,
+only after idle control and fresh readable telemetry return. Every new attempt
+reacquires the actual blinking setpoint; a partial movement never becomes a
+repeated stale plan. Exhaustion persists failure and asks for a manual mounting/
+contact check before an explicit new request. Desired target remains saved.
+
+Target verification waits1s after servo return and requires two new agreeing
+readings, separated by at least250ms, within the original selection deadline.
+This prevents the first residual water frame from becoming the starting setpoint.
+Target requests permit at most6captures perID/window; wake retains its3capture
+budget. A conflicting first result restarts the agreement, not the actuator plan.
+
+An active target request also needs a new blank selection phase after that
+request began. Ordinary fresh water readings cannot acknowledge a target until
+that phase is observed; new IDs/reconnects clear the proof. Capture errors do
+not count as a blank phase. This prevents failed opening taps from being followed
+by a plan calculated from water temperature.
+
+### GREEN to standby
+
+The explicit panel state follows observed GREEN to a persistent dim visor
+with power stillON. A calibrated dim visor plus an unlit pilot also recovers
+standby after startup without fabricating an earlier GREEN observation. Heating
+clears that transition. Confirmed standby triggers no periodic recovery taps and
+does not refresh cached water temperature. A pending user command retains its
+own wake/settle/target-reading sequence. No3minute timer infersOFF.
+
+Current bench sequence16Nov: target56 verified on the third bounded attempt,
+water60, GREEN. About3minutes after final target confirmation, raw visor
+brightness fell244→145, pilot becameunlit and the visor still read59 with
+powerON. This is one measured sequence under current mounting/light; raw images
+remain private and the interval is not a guaranteed device specification.
+
+### Power operation recovery
+
+Web power requests are verified operations with at most3absolute requests/90s.
+A retry needs idle online control and3s of newly advancing optical evidence
+that agrees with the controller and still proves the opposite state, after a
+15s minimum operation window. Unknown/busy/stale observations never trigger
+a Power retry. Disconnect fails the active operation without replay; a new
+explicit request is needed. The web shows progress and a mounting/contact/camera
+check when confirmation fails, and rejects overlapping actuator requests.
+
+An ESP32 unknown-power acknowledgement also starts a1s post-motion capture
+barrier and clears old RGB history. Frames begun before that barrier cannot
+restore power or enter water telemetry, even when they arrive after the servo
+returned. Optical camera preview remains available independently.
+
+## Control diagnostics
+
+Lines with `"source":"heater-control"` carry an ISO timestamp and correlated command/request IDs. `temperature_requested`/`temperature_retry` show intent and `shortest_wrap` policy; MCU `servo_sequence_sent` reports actual GPIO PWM sequence, reason, before/after **estimates**, calibrated angles and MCU start/end uptime. `mechanicalConfirmed:false` is deliberate: a command or PWM sequence never proves button contact. Reasons `wake_or_open` and `open_target` distinguish the two opening + taps separated by6s from `adjust_target_shortest_wrap`, `wake_before_power`, `power_toggle`, or manual controls. From56 to30 the current shortest route is20plus presses through75→30 instead of26minus presses; it does not mean the target was changed upward.
+
+`camera_verification_started` states the required evidence; `camera_target_frame` shows value, visibility/light, blank proof and `blocked_missing_selection_blink` or `eligible_for_verification`. `camera_candidate_sent` means a fresh candidate went to the controller, still pending its two-image/final-target checks. `temperature_controller_state` reports phase/estimate; its `result:accepted` admits a request only. `temperature_operation`/`power_operation` carries final confirmed/failed status and `manualCheckRequired`. Missing contact cannot always be distinguished from camera visibility; the terminal message asks for inspection rather than naming a proven faulty servo. Telemetry is non-retained and never feeds control observations.
+
+On the Raspberry, from `water-heater/broker`, inspect with `tail -f dev.log | grep '"source":"heater-control"'`. Firmware diagnostics require the matching mainESP32 firmware; old firmware continues without that additional topic. Calibration angles,250ms press/return and bounded recovery are unchanged.
+
+During an active target request, fresh continuous/mirror captures may also deliver candidates **after that request’s blank proof**. This avoids synchronization with the display blink when explicit verification captures repeatedly see blanks. Captures that began before the request, new IDs/reconnects without new proof, and expired windows cannot supply mirror candidates. The MCU still requires two agreeing readings and its original selection deadline; no control timing or recovery budget changes. Candidate logs include `origin:mirror` or `origin:verification`.
+
+Target candidates outside30–75 are logged as `camera_candidate_rejected / outside_target_range` and are not delivered as target observations; wake readings retain their separate valid range.
+
+## Last coherent OLED reading and water presentation
+
+The OLED receives `heater/input/display`. The broker now sends its last coherent0–75number through selection blanks, unreadable captures and capture failures; the next valid number replaces it. This is presentation retention only: blank proof is still derived from raw camera frames, while failed current-water reads continue to publish `unavailable`. An OCR98 is rejected before it reaches mirror, water or verification control; it cannot replace the last valid number. No OLED firmware update is required. The in-memory mirror starts unknown until its first valid capture after broker startup. If the broker/MQTT stops entirely, the existing OLED30s expiry still applies.
+
+`display_mirror_sent` logs actual published `text`, `rawText`, `held`, original coherent `observedAt`, current `capturedAt`, rejected numeric value, and water eligibility. `show_new_reading` versus `show_last_coherent` distinguishes live camera values from held presentation. This records what is sent to the OLED, not optical proof of its physical pixels. Stable repeated payloads are still sent but only changes generate log lines.
+
+When the ESP32 is online, the web temperature/heat effect uses accepted current water, or its last valid water reading while selection/control is active. Raw camera digits can be target settings and cannot overwrite that water display. Camera-only display with the ESP32 offline remains available. The interpolation formula is unchanged.
+
+Current auto-off policy: when enabled, a fresh water reading at or above the last user target admitted by the controller triggers the existing Power path. Unknown targets, stale data and active temperature control do not trigger it. The fixed40C threshold is removed. The selected target is kept separate from intermediate servo estimates and manual base calibration; held OLED readings never enter this decision. Target changes require a new admitted temperature request. The mainESP32 firmware must also be updated to activate this policy. `auto_shutdown_requested` and `auto_shutdown_state` distinguish a UI request from the MCU flag; `/api/heater/status.autoShutdown` reports the flag ornull offline, and `autoShutdownTarget` reports the admitted target ornull when unknown/old firmware. Automatic Power tap diagnostics use `auto_shutdown_at_target`. No automatic-off actuation test is performed just by inspecting these diagnostics.

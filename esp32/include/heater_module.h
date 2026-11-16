@@ -6,6 +6,7 @@
 #include "button_module.h"
 #include "temperature_adjustment.h"
 #include <esp_system.h>
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "config.h"
@@ -17,12 +18,15 @@ public:
     {
         Unknown,
         Unlit,
-        Awake
+        Awake,
+        ObservedOn,
+        ObservedOff
     };
     HeaterModule() {}
     void setup()
     {
         adjustment.requestId = esp_random();
+        wakeRequestId = esp_random();
         observations = xQueueCreate(8, sizeof(Observation));
         pilotObservations = xQueueCreate(8, sizeof(PilotObservation));
         powerRequests = xQueueCreate(4, sizeof(bool));
@@ -47,14 +51,52 @@ public:
         buttonC.setup(BUTTON_PIN_C);
     }
 
+    void attachTransportRevision(const std::atomic<uint32_t> &revision)
+    {
+        transportRevision = &revision;
+        acceptedTransportRevision = revision.load();
+    }
+    void attachTapSink(ServoModule::TapSink sink)
+    {
+        servoModuleA.setTapSink(sink);
+        servoModuleB.setTapSink(sink);
+        servoModuleC.setTapSink(sink);
+    }
     bool loop()
     {
+        synchronizeTransport();
         bool previousPowerKnown = powerKnown;
         bool previousPower = power;
         temperatureModule.poll();
         PilotObservation pilot;
         while (pilotObservations && xQueueReceive(pilotObservations, &pilot, 0) == pdTRUE)
         {
+            if (!acceptsObservation(pilot.at)) continue;
+            if (pilot.state == PilotState::ObservedOn || pilot.state == PilotState::ObservedOff)
+            {
+                // Optical state is not a command. Apply it only outside a
+                // button/selection operation, on the controller's main loop.
+                if (waking || pendingPowerOff || adjustment.locked()) continue;
+                if (pilot.state == PilotState::ObservedOn)
+                {
+                    power = true;
+                    powerKnown = true;
+                    digitalWrite(LED_BUILTIN, HIGH);
+                    // A dim/readable visor proves ON, not awake controls.
+                }
+                else
+                {
+                    power = false;
+                    powerKnown = true;
+                    hasPilotObservation = hasWakeConfirmation = false;
+                    resetWakeFailure();
+                    setpoint = -1;
+                    invalidateTemperature();
+                    digitalWrite(LED_BUILTIN, LOW);
+                    temperatureControlChanged = true;
+                }
+                continue;
+            }
             pilotState = pilot.state;
             pilotObservedAt = pilot.at;
             hasPilotObservation = true;
@@ -64,10 +106,10 @@ public:
                 static_cast<int32_t>(pilot.at - wakeStartedAt) > 0)
                 resetWakeFailure();
             if (waking && pilotIs(PilotState::Awake) &&
+                uint32_t(pilot.at - wakeStartedAt) >= TEMPERATURE_ADJUST_SETTLE_MS &&
                 static_cast<int32_t>(pilot.at - wakeStartedAt) > 0)
             {
-                waking = false;
-                temperatureControlChanged = true;
+                confirmWake();
                 Serial.println("Heater wake confirmed by pilot");
             }
         }
@@ -102,6 +144,8 @@ public:
                     temperatureCommandResult = "off";
                 else if (!adjustment.applyTarget(request.target, setpoint))
                     temperatureCommandResult = "invalid";
+                else
+                    autoShutdownTarget = request.target;
             }
             temperatureControlChanged = true;
         }
@@ -110,6 +154,18 @@ public:
         while (observations && xQueueReceive(observations, &observation, 0) == pdTRUE)
         {
 #if !TEMPORARY_SENSOR_TEST_MODE
+            if (!acceptsObservation(observation.at)) continue;
+            if (observation.wake)
+            {
+                if (waking && wakeVerificationRequested && observation.id == wakeRequestId &&
+                    static_cast<int32_t>(observation.at - wakeStartedAt) >= int32_t(TEMPERATURE_ADJUST_SETTLE_MS) &&
+                    std::isfinite(observation.value) && observation.value >= 0 && observation.value <= 100)
+                {
+                    confirmWake();
+                    Serial.println("Heater wake confirmed by fresh camera capture");
+                }
+                continue; // Wake evidence is never a water-temperature observation.
+            }
             if (observation.verification)
             {
                 auto beforeReading = adjustment.state;
@@ -118,9 +174,14 @@ public:
                     adjustment.state != beforeReading && adjustment.state != TemperatureAdjustment::State::Error)
                     setpoint = adjustment.estimated;
             }
-            else if (!isTemperatureLocked())
+            else if (!adjustment.locked() && (!waking ||
+                     (static_cast<int32_t>(observation.at - wakeStartedAt) >= int32_t(TEMPERATURE_ADJUST_SETTLE_MS))))
             {
                 temperatureModule.update(observation.value);
+                if (waking && temperatureModule.isAvailable())
+                {
+                    confirmWake();
+                }
                 if (!powerKnown && temperatureModule.isAvailable())
                 {
                     power = true;
@@ -143,15 +204,16 @@ public:
         {
             resetWakeFailure();
             waking = pendingPowerOff = false;
+            hasWakeConfirmation = false;
             if (powerRequests) xQueueReset(powerRequests);
             if (temperatureRequests) xQueueReset(temperatureRequests);
             if (observations) xQueueReset(observations);
             if (pilotObservations) xQueueReset(pilotObservations);
             hasPilotObservation = false;
             adjustment.cancel();
-            if (powerPressed) servoModuleA.tap();
-            else if (increasePressed) servoModuleB.tap();
-            else servoModuleC.tap();
+            if (powerPressed) servoModuleA.tap("manual_power");
+            else if (increasePressed) servoModuleB.tap(displayWakeRequested ? "display_wake" : "manual_plus");
+            else servoModuleC.tap("manual_minus");
             if (powerPressed) powerKnown = false;
             setpoint = -1;
             adjustment.target = 0;
@@ -162,21 +224,27 @@ public:
         }
         if (!waking && !pendingPowerOff)
         {
+            auto pressState = adjustment.state;
+            int estimatedBefore = adjustment.estimated;
             int direction = adjustment.tick(millis());
-            if (direction)
+            if (direction && !synchronizeTransport())
             {
                 invalidateTemperature();
+                const char *reason = pressState == TemperatureAdjustment::State::Opening
+                    ? (adjustment.state == TemperatureAdjustment::State::Reading ? "open_target" : "wake_or_open")
+                    : "adjust_target_shortest_wrap";
                 if (direction > 0)
-                    servoModuleB.tap();
+                    servoModuleB.tap(reason, lastTemperatureCommandId, estimatedBefore, adjustment.estimated, adjustment.target);
                 else
-                    servoModuleC.tap();
+                    servoModuleC.tap(reason, lastTemperatureCommandId, estimatedBefore, adjustment.estimated, adjustment.target);
                 if (adjustment.state != TemperatureAdjustment::State::Reading &&
                     adjustment.state != TemperatureAdjustment::State::Opening)
                     setpoint = adjustment.estimated;
+                invalidateTemperature(); // Also discard packets received during the tap.
                 adjustment.completedPress(millis());
             }
         }
-        adjustment.finishWithoutCamera(millis());
+        adjustment.finishSettling(millis());
         if (adjustment.state == TemperatureAdjustment::State::Error) setpoint = -1;
         if (previousAdjustmentState != adjustment.state)
             temperatureControlChanged = true;
@@ -186,9 +254,11 @@ public:
     bool monitorAutoShutdown()
     {
         float temp = temperatureModule.read();
-        if (!waking && !wakeFailed && !pendingPowerOff && isAutoShutdownEnabled && temperatureModule.isAvailable() && temp >= AUTO_SHUTDOWN_TEMPERATURE_C && powerKnown && power)
+        if (!isTemperatureLocked() && isAutoShutdownEnabled &&
+            autoShutdownTarget >= MIN_TEMPERATURE_C && autoShutdownTarget <= MAX_TEMPERATURE_C &&
+            temperatureModule.isAvailable() && temp >= autoShutdownTarget && powerKnown && power)
         {
-            return setPower(false);
+            return setPower(false, "auto_shutdown_at_target");
         }
         return false;
     }
@@ -209,14 +279,15 @@ public:
         hasPilotObservation = true;
         digitalWrite(LED_BUILTIN, HIGH);
     }
-    void observePilot(PilotState state)
+    void observePilot(PilotState state, uint32_t observedAt = millis())
     {
 #if !TEMPORARY_SENSOR_TEST_MODE
-        PilotObservation observation{state, millis()};
+        PilotObservation observation{state, observedAt};
         if (pilotObservations)
             xQueueSend(pilotObservations, &observation, 0);
 #else
         (void)state;
+        (void)observedAt;
 #endif
     }
     void requestPower(bool p)
@@ -224,8 +295,9 @@ public:
         if (powerRequests)
             xQueueSend(powerRequests, &p, 0);
     }
-    bool setPower(bool p)
+    bool setPower(bool p, const char *reason = "power_toggle")
     {
+        if (!pendingPowerOff) pendingPowerReason = reason;
         if (!powerKnown || wakeFailed)
             return false;
         if (power == p)
@@ -238,6 +310,7 @@ public:
             }
             return false;
         }
+        if (!p && temperatureRequests) xQueueReset(temperatureRequests);
         if (waking)
         {
             pendingPowerOff = !p;
@@ -249,16 +322,23 @@ public:
         {
             adjustment.cancel();
             pendingPowerOff = true;
+            temperatureControlChanged = true;
             if (!prepareControls())
                 return false;
         }
         if (!tapPowerButton())
             return false;
         pendingPowerOff = false;
+        hasWakeConfirmation = false;
         adjustment.cancel();
         temperatureControlChanged = true;
-        power = p;
-        digitalWrite(LED_BUILTIN, p);
+        power = p; // Requested controller estimate; not a physical confirmation.
+#if !TEMPORARY_SENSOR_TEST_MODE
+        powerKnown = false;
+        hasPilotObservation = false;
+        if (pilotObservations) xQueueReset(pilotObservations);
+#endif
+        digitalWrite(LED_BUILTIN, LOW);
         invalidateTemperature();
         return true;
     }
@@ -269,16 +349,29 @@ public:
         if (displayWakeRequests) xQueueOverwrite(displayWakeRequests, &requested);
     }
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
+    int getAutoShutdownTarget() const { return autoShutdownTarget; }
     void setIsAutoShutdownEnabled(bool iase)
     {
         isAutoShutdownEnabled = iase;
     }
 
-    void setTemperature(float value)
+    void setTemperature(float value, uint32_t observedAt = millis())
     {
-        enqueueObservation({value, 0, false});
+        enqueueObservation({value, 0, false, observedAt});
     }
-    void verifyTemperature(uint32_t id, float value) { enqueueObservation({value, id, true}); }
+    void verifyTemperature(uint32_t id, float value, uint32_t observedAt = millis()) { enqueueObservation({value, id, true, observedAt}); }
+    void verifyWake(uint32_t id, float value, uint32_t observedAt = millis()) { enqueueObservation({value, id, false, observedAt, true}); }
+    bool needsWakeVerification()
+    {
+        uint32_t now = millis();
+        if (!waking || now - wakeStartedAt < TEMPERATURE_ADJUST_SETTLE_MS ||
+            now - wakeStartedAt >= PILOT_WAKE_TIMEOUT_MS ||
+            (wakeVerificationRequested && now - lastWakeVerificationAt < 500U)) return false;
+        wakeVerificationRequested = true;
+        lastWakeVerificationAt = now;
+        return true;
+    }
+    uint32_t wakeVerificationId() const { return wakeRequestId; }
     bool needsTemperatureVerification() {
         return (adjustment.state == TemperatureAdjustment::State::Reading ||
                 adjustment.state == TemperatureAdjustment::State::Confirming) && adjustment.needsVerification(millis());
@@ -290,7 +383,7 @@ public:
             return "error";
         if (waking || pendingPowerOff)
             return "applying";
-        if (adjustment.state == TemperatureAdjustment::State::Verifying)
+        if (adjustment.state == TemperatureAdjustment::State::Settling)
             return "settling";
         return adjustment.status();
     }
@@ -314,8 +407,32 @@ public:
     }
     bool isTemperatureLocked() { return waking || wakeFailed || pendingPowerOff || adjustment.locked(); }
     int getTargetTemperature() { return adjustment.target; }
+    bool acceptsObservation(uint32_t observedAt) const
+    {
+        return !hasObservationBarrier || static_cast<int32_t>(observedAt - observationBarrier) >= 0;
+    }
+    void invalidateObservations()
+    {
+        invalidateTemperature();
+        if (pilotObservations) xQueueReset(pilotObservations);
+        if (powerRequests) xQueueReset(powerRequests);
+        if (temperatureRequests) xQueueReset(temperatureRequests);
+        if (displayWakeRequests) xQueueReset(displayWakeRequests);
+        if (adjustment.locked()) setpoint = -1;
+        adjustment.cancel();
+        waking = pendingPowerOff = false;
+        hasWakeConfirmation = false;
+        temperatureControlChanged = true;
+        hasPilotObservation = false;
+#if !TEMPORARY_SENSOR_TEST_MODE
+        powerKnown = false;
+#endif
+    }
     void invalidateTemperature()
     {
+        observationBarrier = millis();
+        hasObservationBarrier = true;
+        if (observations) xQueueReset(observations);
 #if !TEMPORARY_SENSOR_TEST_MODE
         // TEMPORARILY preserve the probe reading across power/OCR events.
         temperatureModule.invalidate();
@@ -334,6 +451,13 @@ private:
     {
         return hasPilotObservation && pilotState == state && millis() - pilotObservedAt <= PILOT_MAX_AGE_MS;
     }
+    void confirmWake()
+    {
+        waking = false;
+        hasWakeConfirmation = true;
+        controlsAwakeAt = millis();
+        temperatureControlChanged = true;
+    }
     bool prepareControls()
     {
 #if TEMPORARY_SENSOR_TEST_MODE
@@ -341,17 +465,17 @@ private:
 #else
         if (waking || wakeFailed)
             return false;
-        if (pilotIs(PilotState::Awake))
+        if (pilotIs(PilotState::Awake) ||
+            (hasWakeConfirmation && millis() - controlsAwakeAt <= PILOT_MAX_AGE_MS))
             return true;
-        if (!pilotIs(PilotState::Unlit))
-        {
-            failWake();
-            return false;
-        }
-        if (!tapPowerButton())
-            return false;
+        // The first + only wakes standby or opens selection. Never probe with
+        // Power: that could switch an already-awake heater off.
+        if (!reserveServoPress()) return false;
+        servoModuleB.tap("wake_before_power");
         waking = true;
         wakeStartedAt = millis();
+        if (++wakeRequestId == 0) ++wakeRequestId;
+        wakeVerificationRequested = false;
         invalidateTemperature();
         temperatureControlChanged = true;
         Serial.println("Waking heater before applying command");
@@ -374,9 +498,17 @@ private:
         wakeFailed = false;
         temperatureControlChanged = true;
     }
+    bool synchronizeTransport()
+    {
+        if (!transportRevision || acceptedTransportRevision == transportRevision->load()) return false;
+        acceptedTransportRevision = transportRevision->load();
+        invalidateObservations();
+        return true;
+    }
     bool reserveServoPress()
     {
-        unsigned long now = millis();
+        if (synchronizeTransport()) return false;
+        uint32_t now = millis();
         if (hasTapped && now - lastTap_ms < 1000UL)
             return false;
         hasTapped = true;
@@ -388,7 +520,7 @@ private:
     {
         if (!reserveServoPress())
             return false;
-        servoModuleA.tap();
+        servoModuleA.tap(pendingPowerReason, 0, -1, -1, autoShutdownTarget);
         return true;
     }
 
@@ -406,18 +538,24 @@ private:
     struct PilotObservation
     {
         PilotState state;
-        unsigned long at;
+        uint32_t at;
     };
     QueueHandle_t pilotObservations = nullptr;
     PilotState pilotState = PilotState::Unknown;
-    unsigned long pilotObservedAt = 0, wakeStartedAt = 0;
+    uint32_t pilotObservedAt = 0, wakeStartedAt = 0;
     bool hasPilotObservation = false;
     bool waking = false, wakeFailed = false, pendingPowerOff = false;
+    bool hasWakeConfirmation = false;
+    uint32_t controlsAwakeAt = 0;
+    uint32_t wakeRequestId = 0, lastWakeVerificationAt = 0;
+    bool wakeVerificationRequested = false;
     struct Observation
     {
         float value;
         uint32_t id;
         bool verification;
+        uint32_t at;
+        bool wake = false;
     };
     QueueHandle_t observations = nullptr;
     QueueHandle_t powerRequests = nullptr;
@@ -427,13 +565,17 @@ private:
         if (observations)
             xQueueSend(observations, &observation, 0);
     }
+    const std::atomic<uint32_t> *transportRevision = nullptr;
+    uint32_t acceptedTransportRevision = 0;
+    uint32_t observationBarrier = 0;
+    bool hasObservationBarrier = false;
     TemperatureAdjustment adjustment;
 #if TEMPORARY_SENSOR_TEST_MODE
     int setpoint = TEMPORARY_INITIAL_SETPOINT_C;
 #else
     int setpoint = -1;
 #endif
-    unsigned long lastTap_ms = 0;
+    uint32_t lastTap_ms = 0;
     bool hasTapped = false;
     ButtonModule buttonA, buttonB, buttonC;
     TemperatureModule temperatureModule;
@@ -444,4 +586,8 @@ private:
     bool powerKnown = false;
     bool power = false;
     bool isAutoShutdownEnabled = false;
+    // Last admitted user target, separate from intermediate servo estimates or
+    // a manual base calibration. Unknown after boot until a target is selected.
+    int autoShutdownTarget = -1;
+    const char *pendingPowerReason = "power_toggle";
 };

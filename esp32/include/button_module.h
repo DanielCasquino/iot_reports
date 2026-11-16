@@ -17,7 +17,7 @@ public:
     {
         if (pin < 0) return false;
         bool value = digitalRead(pin);
-        unsigned long now = millis();
+        uint32_t now = millis();
         if (value != pendingLevel)
         {
             pendingLevel = value;
@@ -32,5 +32,5 @@ private:
     int pin = -1;
     bool pendingLevel = HIGH;
     bool stableLevel = HIGH;
-    unsigned long levelChangedAt_ms = 0;
+    uint32_t levelChangedAt_ms = 0;
 };

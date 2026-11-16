@@ -87,7 +87,13 @@ export class TemperatureReconciliation {
     }
     if (this.failed) return null;
     if (!online) { this.online = false; this.pending = null; return null; }
-    if (!this.online) { this.online = true; if (this.completed) { this.completed = false; this.attempts = 0; this.requestedAt = now; } }
+    if (!this.online) {
+      if (this.completed && !control) return null;
+      this.online = true;
+      if (this.completed && !(control?.status === "idle" && !control.locked && control.base === this.target)) {
+        this.completed = false; this.attempts = 0; this.requestedAt = now;
+      }
+    }
     if (!control || this.target === null || this.completed) return null;
     if (this.pending !== null) {
       if (control.commandId === this.pending && control.status === "idle" && control.base === this.target) {
@@ -95,7 +101,13 @@ export class TemperatureReconciliation {
         this.completed = true;
         return null;
       }
-      if ((control.commandId === this.pending && control.status === "error") || now - this.startedAt >= 60000)
+      if (control.commandId === this.pending && control.status === "error") {
+        // End this attempt. Only a later idle/readable state may start a new
+        // operation, whose firmware reacquires the real blinking setpoint.
+        this.pending = null;
+        return null;
+      }
+      if (now - this.startedAt >= 60000)
         this.pending = null;
       else return null;
     }

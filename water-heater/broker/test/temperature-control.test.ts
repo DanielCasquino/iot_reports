@@ -10,3 +10,13 @@ test("only coherent controller snapshots establish the temperature lock and base
   assert.equal(parseTemperatureControl("null"), null);
   assert.equal(parseTemperatureControl("{"), null);
 });
+
+
+test("auto-off target is optional for old firmware and never accepts an invented threshold", () => {
+  const state = { base: 50, target: 60, status: "idle", locked: false, min: 30, max: 75, commandId: 1, result: "accepted" };
+  assert.ok(parseTemperatureControl(JSON.stringify(state)));
+  for (const autoShutdownTarget of [-1, 30, 42, 60, 75])
+    assert.equal(parseTemperatureControl(JSON.stringify({ ...state, autoShutdownTarget }))?.autoShutdownTarget, autoShutdownTarget);
+  for (const autoShutdownTarget of [0, 29, 76, 40.5, "42", null])
+    assert.equal(parseTemperatureControl(JSON.stringify({ ...state, autoShutdownTarget })), null);
+});
