@@ -3,6 +3,7 @@ import type { MqttClient } from "mqtt";
 import sharp from "sharp";
 import { readSevenSegmentImage } from "./seven-segment.js";
 import { IsolatedOcr, type OcrReader } from "./ocr.js";
+import { SsocrReader } from "./ssocr.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
 
@@ -17,6 +18,7 @@ const MAX_IMAGE_BYTES = 1024 * 1024;
 
 export class CameraModule {
   private ocrWorker: OcrReader | null = null;
+  private ssocr: SsocrReader | null = null;
   private busy = false;
   private image: Buffer | null = null;
   private processed: Buffer | null = null;
@@ -168,15 +170,21 @@ export class CameraModule {
       const rotation = Number(process.env.CAMERA_ROTATION ?? 0);
       if (![0, 90, 180, 270].includes(rotation)) throw new Error("CAMERA_ROTATION must be 0, 90, 180 or 270");
       pipeline = pipeline.rotate(rotation);
-      const sevenSegment = process.env.CAMERA_SEVEN_SEGMENT === "true";
+      const reader = process.env.CAMERA_READER ??
+        (process.env.CAMERA_SEVEN_SEGMENT === "true" ? "seven-segment" : "tesseract");
+      if (!["ssocr", "seven-segment", "tesseract"].includes(reader))
+        throw new Error("CAMERA_READER must be ssocr, seven-segment or tesseract");
+      readingState = { ...readingState, reader };
       let value: number | null;
       let text: string;
       let confidence: number | null = null;
       // OCR failure alone does not establish a visibly lit display. Without
       // calibrated light or readable digits it must not authorize a wake tap.
       let displayVisible = readingState.displayLight === "lit";
-      if (sevenSegment) {
-        const reading = await readSevenSegmentImage(await pipeline.png().toBuffer());
+      if (reader !== "tesseract") {
+        const input = await pipeline.png().toBuffer();
+        if (reader === "ssocr") this.ssocr ??= new SsocrReader();
+        const reading = reader === "ssocr" ? await this.ssocr!.read(input) : await readSevenSegmentImage(input);
         this.processed = reading.image;
         value = reading.value;
         displayVisible = reading.visible;
@@ -202,7 +210,7 @@ export class CameraModule {
       }
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
       readingState = { ...readingState, available: value !== null, value, observedAt,
-        text, confidence, reader: sevenSegment ? "seven-segment" : "tesseract", error: value === null ? (sevenSegment ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
+        text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped || mqttGeneration !== this.mqttGeneration)
         throw new Error("Controller connection changed during capture; capture again");
       const waterAccepted = this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
@@ -250,5 +258,6 @@ export class CameraModule {
     this.mqtt.removeListener?.("message", this.handleMqttMessage);
     if (this.timer) clearTimeout(this.timer);
     if (this.ocrWorker) await this.ocrWorker.terminate();
+    if (this.ssocr) await this.ssocr.close();
   }
 }

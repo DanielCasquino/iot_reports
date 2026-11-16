@@ -1,5 +1,71 @@
 # Camera + OCR + MQTT test
 
+## Native SSOCR for the mounted seven-segment display
+
+`CAMERA_READER=ssocr` selects the native [SSOCR reader](https://www.unix-ag.uni-kl.de/~auerswal/ssocr/).
+It corrects digit slant and compares iterative thresholding with two fixed
+thresholds. At least two complete readings must agree, and a contradictory
+complete reading rejects the frame. Dark blink phases do not become numbers.
+Images are processed locally; no cloud API or new npm package is used.
+
+On Debian/Raspberry Pi OS, install the native dependency separately:
+
+```sh
+sudo apt update
+sudo apt install ssocr
+ssocr --version
+```
+
+Update the existing broker `.env` without replacing its MQTT, camera address,
+pilot calibration or desired-state settings. For the current 320x240 mounting:
+
+```ini
+CAMERA_READER=ssocr
+SSOCR_PATH=/usr/bin/ssocr
+CAMERA_CROP=140,0,180,240
+CAMERA_ROTATION=90
+CAMERA_SSOCR_SHEAR=0.06
+```
+
+Crop coordinates apply to the original camera JPEG. Shear is the horizontal
+bottom-edge displacement divided by the cropped, rotated image height;0.06
+means11 pixels for the current240x180 result. These are mounting calibration
+values, not universal settings. `CAMERA_READER` overrides the old
+`CAMERA_SEVEN_SEGMENT` flag. Without it the existing reader selection is kept.
+
+After updating this branch, run `npm run check` and `npm run build` inside
+`water-heater/broker`, then restart only the backend through its existing
+launcher and reload the web page. No camera/controller reflash is needed for
+this reader change. `GET /api/camera/status` must report `reader: "ssocr"`;
+the processed-image endpoint shows SSOCR's corrected image. A missing binary
+produces an actionable error instead of silently selecting another reader.
+Each native process has a1.5s deadline and is reaped on failure or shutdown.
+Temporary images are private and removed after every read.
+
+The web display keeps its last valid measured number through unavailable
+frames and marks it as historical in its tooltip. This cache lasts while the
+page is open; it is not fresh telemetry or MQTT-retained control data. Initial
+absence still shows dashes. Setpoints, water temperature and blink phases keep
+their existing separation in the panel state machine.
+
+Local validation used one visually checked frame for each value30–75:44
+calibration samples and the later49/59 captures,46/46 accepted correctly.
+The real three-pass reader took38–82ms per sample on the test laptop. This is
+a small corpus from one mounting, not a field accuracy estimate or a latency
+measurement on the Raspberry. The observed selection blink train lasted about
+4.5s at roughly5fps, consistent with the human observation of about5s.
+The backend still reports an unreadable image when evidence is insufficient;
+the UI retains the previous value rather than presenting a guessed number.
+
+Rollback: remove `CAMERA_READER` to restore the existing reader flag, restore
+the previous mounting configuration if needed, and restart the same backend.
+The native dependency can remain installed without being invoked.
+
+Sources: [SSOCR preprocessing and skew guidance](https://www.unix-ag.uni-kl.de/~auerswal/ssocr/),
+[OpenCV local versus global thresholds](https://docs.opencv.org/4.13.0/d7/d4d/tutorial_py_thresholding.html),
+[Tesseract image quality](https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html),
+[Debian native package](https://packages.debian.org/trixie/armhf/ssocr).
+
 The ESP32-CAM already serves `GET /capture`: **no camera reflash is required**.
 Node requests the JPEG, reads the display and publishes a temperature. The main
 ESP32 receives it and publishes its state through the existing path.

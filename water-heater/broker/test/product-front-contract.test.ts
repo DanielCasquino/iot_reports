@@ -73,7 +73,28 @@ test("raw visor MQTT cannot overwrite a validated or unavailable backend tempera
   f.mqtt("heater/state/temperature", "99");
   assert.equal(f.elements.get("temp-display")!.textContent, "0.0°C");
   f.mqtt("heater/state/temperature", "unavailable");
-  assert.equal(f.elements.get("temp-display")!.textContent, "--.-°C");
+  assert.equal(f.elements.get("temp-display")!.textContent, "0.0°C");
+  assert.equal(f.run("heaterState.temperature"), null);
+});
+
+test("failed readings retain the last valid display through unit changes and disconnects", () => {
+  const f = front();
+  f.snapshot({ temperature: 31 });
+  f.snapshot({ temperature: null });
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  assert.match(f.elements.get("temp-display")!.title, /not current/);
+  assert.equal(f.run("heaterState.temperature"), null);
+  f.run("toggleFahrenheit({ checked: true })");
+  assert.equal(f.elements.get("temp-display")!.textContent, "87.8°F");
+  f.disconnect();
+  assert.equal(f.elements.get("temp-display")!.textContent, "87.8°F");
+  assert.equal(f.elements.get("big-button")!.disabled, true);
+  assert.equal(f.elements.get("save-temperature")!.disabled, true);
+  f.run("updateBrokerStatus(true)");
+  f.snapshot({ temperature: 32 });
+  assert.equal(f.elements.get("temp-display")!.textContent, "89.6°F");
+  assert.equal(f.elements.get("temp-display")!.title, "Current temperature reading");
+  assert.equal(f.sent.length, 0);
 });
 
 test("HTTP consumes authoritative measured state, desired target and restored failure", async () => {
@@ -159,7 +180,7 @@ test("HTTP loss invalidates controls and flow; explicit command acknowledgement 
   assert.equal(f.sent.length, 1);
   await f.run("refreshObservation()");
   assert.equal(f.elements.get("big-button")!.disabled, true);
-  assert.equal(f.elements.get("temp-display")!.textContent, "--.-°C");
+  assert.equal(f.elements.get("temp-display")!.textContent, "37.0°C");
   assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
   assert.equal(f.sent.length, 1);
 });

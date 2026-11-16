@@ -67,7 +67,10 @@ function updateTemperature() {
 
   if (!display) return;
   if (heaterState.temperature === null) {
-    display.textContent = fahrenheit ? "--.-°F" : "--.-°C";
+    const last = heaterState.lastTemperature;
+    display.textContent = last === null ? (fahrenheit ? "--.-°F" : "--.-°C")
+      : `${(fahrenheit ? c2f(last) : last).toFixed(1)}${fahrenheit ? "°F" : "°C"}`;
+    display.title = last === null ? "Temperature unavailable" : "Last valid reading (not current)";
     if (fg) fg.style.opacity = 0;
     const status = document.getElementById("temperature-status");
     if (status) status.textContent = heaterState.lastTemperature === null
@@ -75,6 +78,7 @@ function updateTemperature() {
     return;
   }
   heaterState.lastTemperature = heaterState.temperature;
+  display.title = "Current temperature reading";
   const status = document.getElementById("temperature-status");
   if (status) status.textContent = "Current temperature reading";
 
