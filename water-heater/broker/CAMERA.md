@@ -48,6 +48,16 @@ page is open; it is not fresh telemetry or MQTT-retained control data. Initial
 absence still shows dashes. Setpoints, water temperature and blink phases keep
 their existing separation in the panel state machine.
 
+Camera capture and optical recognition also work with the controller offline
+or MQTT disconnected. `/api/camera/status` describes the latest optical frame;
+`/api/heater/status` and WebSocket snapshots expose the same state as `camera`.
+The web can show this camera value and enable Read display while the ESP32 is
+offline. Its tooltip identifies an optical display reading, which may be a
+setpoint rather than water temperature. Water telemetry still comes from the
+panel's accepted water observation, and actuator commands still require the
+controller. A controller reconnect suppresses delivery of an in-flight old
+frame without discarding the independent optical result.
+
 Local validation used one visually checked frame for each value30–75:44
 calibration samples and the later49/59 captures,46/46 accepted correctly.
 The real three-pass reader took38–82ms per sample on the test laptop. This is

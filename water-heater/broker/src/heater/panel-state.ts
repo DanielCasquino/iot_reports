@@ -120,6 +120,7 @@ export class HeaterPanelState {
   snapshot(now = Date.now()) {
     return { mode: this.mode, power: this.power, water: this.water, target: this.target,
       observedAt: Number.isFinite(this.observedAt) ? this.observedAt : null,
+      waterObservedAt: Number.isFinite(this.waterAt) ? this.waterAt : null,
       fresh: this.unreadableSince === null && now >= this.observedAt && now - this.observedAt <= 30000,
       waterFresh: this.unreadableSince === null && now - this.lastBlankAt >= 6000 && this.phase === "idle" && (this.mode === "water" || this.mode === "standby") && now >= this.waterAt && now - this.waterAt <= 30000,
       targetObservedAt: Number.isFinite(this.targetAt) ? this.targetAt : null,

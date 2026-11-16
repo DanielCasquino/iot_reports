@@ -20,6 +20,7 @@ const heaterState = {
   power: null,
   autoShutdown: false,
   temperature: null,
+  cameraTemperature: null,
   lastTemperature: null,
   status: "offline",
   color: null,
@@ -66,7 +67,8 @@ function updateTemperature() {
   }
 
   if (!display) return;
-  if (heaterState.temperature === null) {
+  const reading = heaterState.temperature ?? heaterState.cameraTemperature;
+  if (reading === null) {
     const last = heaterState.lastTemperature;
     display.textContent = last === null ? (fahrenheit ? "--.-°F" : "--.-°C")
       : `${(fahrenheit ? c2f(last) : last).toFixed(1)}${fahrenheit ? "°F" : "°C"}`;
@@ -77,14 +79,14 @@ function updateTemperature() {
       ? "Temperature unavailable" : `Last reading: ${(fahrenheit ? c2f(heaterState.lastTemperature) : heaterState.lastTemperature).toFixed(1)}${fahrenheit ? "°F" : "°C"} (not current)`;
     return;
   }
-  heaterState.lastTemperature = heaterState.temperature;
-  display.title = "Current temperature reading";
+  heaterState.lastTemperature = reading;
+  display.title = heaterState.temperature === null ? "Camera display reading" : "Current temperature reading";
   const status = document.getElementById("temperature-status");
-  if (status) status.textContent = "Current temperature reading";
+  if (status) status.textContent = display.title;
 
   const temperature = fahrenheit
-    ? c2f(heaterState.temperature)
-    : heaterState.temperature;
+    ? c2f(reading)
+    : reading;
 
   const unit = fahrenheit ? "°F" : "°C"; // 😭
 
@@ -203,6 +205,9 @@ function receiveHeaterSnapshot(state) {
   heaterState.power = online && typeof state.power === "boolean" ? state.power : null;
   heaterState.temperature = online && typeof state.temperature === "number" &&
     Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 100 ? state.temperature : null;
+  const camera = state.camera;
+  heaterState.cameraTemperature = camera?.available === true && typeof camera.value === "number" &&
+    Number.isFinite(camera.value) && camera.value >= 0 && camera.value <= 100 ? camera.value : null;
   for (const field of ["flowrate", "volume"]) {
     const value = state[field];
     heaterState[field] = online && typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
@@ -282,6 +287,7 @@ function connect() {
     updateColor();
     updateEspStatus();
     heaterState.temperature = null;
+    heaterState.cameraTemperature = null;
     updateTemperature();
 
     reconnectTimeout = setTimeout(connect, RECONNECT_DELAY_MS);
@@ -356,7 +362,7 @@ window.addEventListener("load", () => {
 });
 
 async function captureTemperature(wake = false) {
-  if (!brokerConnected || heaterState.status !== "online" || capturePending || (wake && !heaterState.power)) return;
+  if (!brokerConnected || capturePending || (wake && (heaterState.status !== "online" || !heaterState.power))) return;
   capturePending = true;
   const button = document.getElementById("capture-temperature");
   const status = document.getElementById("camera-status");
@@ -390,10 +396,11 @@ function updateControls() {
   document.getElementById("heater-observation").textContent = available ? observationText : "Waiting for fresh readings";
   for (const id of ["big-button", "automated-shutdown", "capture-temperature", "wake-temperature"]) {
     const control = document.getElementById(id);
-    if (control) control.disabled = !available || (id === "big-button" && typeof heaterState.power !== "boolean") || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
+    if (control) control.disabled = id === "capture-temperature" ? !brokerConnected || capturePending :
+      !available || (id === "big-button" && typeof heaterState.power !== "boolean") || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
   }
   const status = document.getElementById("connection-status");
-  if (status) status.textContent = !available ? "Disconnected · controls unavailable" :
+  if (status) status.textContent = !available ? (heaterState.cameraTemperature === null ? "Disconnected · controls unavailable" : "Controller offline · camera reading available") :
     typeof heaterState.power !== "boolean" ? "Connected · waiting for power confirmation" :
     temperatureControl?.locked || pendingTemperatureCommand ? "Connected · adjustment in progress" : "Connected · controls ready";
 }
@@ -413,6 +420,7 @@ async function refreshObservation() {
     heaterState.volume = null;
     temperatureControl = null;
     heaterState.temperature = null;
+    heaterState.cameraTemperature = null;
     updateEspStatus();
     updateTemperature();
   } finally { setTimeout(refreshObservation, 5000); }

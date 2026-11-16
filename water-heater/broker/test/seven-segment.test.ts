@@ -98,8 +98,8 @@ test("OLED mirror forwards visible digits and blank phases without replacing wat
   try {
     assert.equal(await module.readDisplayTemperature(false, undefined, true), true);
     assert.deepEqual(messages, [["heater/input/display", "44"]]);
-    assert.equal(module.getState().value, null);
-    assert.equal(module.getState().observedAt, null);
+    assert.equal(module.getState().value, 44);
+    assert.notEqual(module.getState().observedAt, null);
     image = await sharp({ create: { width: 300, height: 245, channels: 3, background: "black" } }).png().toBuffer();
     assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
     assert.deepEqual(messages.at(-1), ["heater/input/display", "blank"]);

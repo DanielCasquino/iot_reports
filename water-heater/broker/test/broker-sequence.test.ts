@@ -27,7 +27,7 @@ function fixture() {
   const ticks: (() => void)[] = [];
   const app = { get: (route: string, handler: (...args: any[]) => void) => routes.set(route, handler), use() {}, listen() {} };
   let cameraState: { available: boolean; value: number | null; observedAt: string | null } = { available: false, value: null, observedAt: null };
-  let observeFrame: (frame: { value: number | null; visible: boolean; observedAt: number; purpose: "water" }) => boolean;
+  let observeFrame: (frame: { value: number | null; visible: boolean; observedAt: number; purpose: "water" | "mirror" }) => boolean;
   class Camera {
     constructor(_mqtt: unknown, onFrame: typeof observeFrame) { observeFrame = onFrame; }
     setup() {}
@@ -61,9 +61,14 @@ function fixture() {
   socket.send = raw => replies.push(JSON.parse(raw));
   const connectSocket = () => wss.emit("connection", socket);
   return { mqtt, send, publishes, replies, connectSocket,
-    frame: (value: number) => {
+    status: () => {
+      let body: any;
+      routes.get("/api/heater/status")!({}, { set() { return this; }, json(value: unknown) { body = value; } });
+      return body;
+    },
+    frame: (value: number, purpose: "water" | "mirror" = "water") => {
       const now = Date.now();
-      const accepted = observeFrame({ value, visible: true, observedAt: now, purpose: "water" });
+      const accepted = observeFrame({ value, visible: true, observedAt: now, purpose });
       cameraState = { available: true, value, observedAt: new Date(now).toISOString() };
       return accepted;
     },
@@ -91,6 +96,35 @@ test("a power request is sent once; unknown acknowledgement preserves desired st
     assert.equal(f.replies.at(-1).data.desired.power, false);
     f.mqtt.emit("close"); f.mqtt.emit("connect"); f.tick();
     assert.equal(f.publishes.filter(message => message[0] === "heater/set/power").length, 1);
+  } finally { f.cleanup(); }
+});
+
+test("HTTP and WebSocket expose the camera while controller commands remain unavailable", () => {
+  const f = fixture();
+  try {
+    assert.equal(f.frame(31), false);
+    f.connectSocket();
+    assert.equal(f.replies.at(-1).data.status, "offline");
+    assert.equal(f.replies.at(-1).data.camera.value, 31);
+    assert.equal(f.status().camera.available, true);
+    assert.equal(f.status().temperature, null);
+    f.request("set_heater_power", true);
+    f.tick();
+    assert.equal(f.replies.at(-1).event, "command_error");
+    assert.equal(f.publishes.length, 0);
+  } finally { f.cleanup(); }
+});
+
+test("a newer raw mirror frame cannot replace the panel's confirmed water reading", () => {
+  const f = fixture();
+  try {
+    f.mqtt.emit("connect"); f.send("heater/status", "online"); f.send("heater/state/power", "true");
+    f.send("heater/state/temperature_control", JSON.stringify({ base: 43, target: 0, status: "idle", locked: false,
+      min: 30, max: 75, commandId: 0, result: "none" }));
+    assert.equal(f.frame(35), true);
+    assert.equal(f.frame(59, "mirror"), false);
+    assert.equal(f.status().temperature, 35);
+    assert.equal(f.status().camera.value, 59);
   } finally { f.cleanup(); }
 });
 

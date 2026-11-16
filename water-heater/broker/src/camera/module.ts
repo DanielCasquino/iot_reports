@@ -147,6 +147,7 @@ export class CameraModule {
     const waterReading = !mirrorOnly && verificationId === undefined;
     let capturedAt: string | null = null;
     let mirrored = false;
+    let captureSucceeded = false;
     try {
       const firstFrame = await this.requestCameraJpeg();
       // New firmware flushes its queued buffer inside /capture. Keep a bounded
@@ -211,40 +212,47 @@ export class CameraModule {
       if (Date.now() - Date.parse(observedAt) > 15000) throw new Error("OCR result too old; capture again");
       readingState = { ...readingState, available: value !== null, value, observedAt,
         text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
-      if (this.stopped || mqttGeneration !== this.mqttGeneration)
-        throw new Error("Controller connection changed during capture; capture again");
-      const waterAccepted = this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
-        purpose: verificationId !== undefined ? "target" : mirrorOnly ? "mirror" : "water" });
+      if (this.stopped) throw new Error("Camera stopped during capture");
+      const sameSession = mqttGeneration === this.mqttGeneration;
+      const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
+        purpose: verificationId !== undefined ? "target" : mirrorOnly ? "mirror" : "water" }) : false;
+      captureSucceeded = value !== null;
+      if (value !== null) readingState.lastValue = value;
       this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         this.mqtt.publish(MIRROR_TOPIC, this.mirrorState.text, { qos: 0, retain: false });
         mirrored = true;
       }
       if (value === null) throw new Error(readingState.error!);
+      // Seeing the visor is independent of controller availability. Only water
+      // delivery/verification belongs to a live, unchanged controller session.
+      if (!sameSession || !this.mqtt.connected) return true;
       // A readable number may still be a setpoint/blink/recovery frame. The
       // panel/controller must accept it as water before it enters the control path.
-      if (waterReading && waterAccepted === false) throw new Error("Display not confirmed as water temperature");
+      if (waterReading && waterAccepted === false) {
+        this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
+        return true;
+      }
       if (mirrorOnly) return true;
-      if (!this.mqtt.connected) throw new Error("MQTT disconnected; reading not delivered");
       if (waterReading) await new Promise<void>((resolve, reject) => {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
       if (verificationId !== undefined) {
         this.mqtt.publish("heater/input/temperature_verification", `${verificationId},${value}`, { qos: 0, retain: false });
       }
-      readingState.lastValue = value;
       return true;
     } catch (error) {
-      readingState = { ...readingState, available: false, value: null, observedAt: capturedAt,
-        error: error instanceof Error ? error.message : "Capture failed" };
+      readingState = { ...readingState, available: captureSucceeded,
+        value: captureSucceeded ? readingState.value : null, observedAt: capturedAt,
+        error: captureSucceeded ? null : error instanceof Error ? error.message : "Capture failed" };
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         if (!mirrored) this.mqtt.publish(MIRROR_TOPIC, "unknown", { qos: 0, retain: false });
         if (waterReading) this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
       }
-      return false;
+      return captureSucceeded;
     } finally {
       if (!mirrored && capturedAt === null) this.mirrorState = { text: "unknown", observedAt: null };
-      if (waterReading) this.state = readingState;
+      this.state = readingState;
       this.busy = false;
     }
   }

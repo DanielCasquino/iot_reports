@@ -45,7 +45,9 @@ let brokerConnected = false;
 let lastPilot: PilotState | null = null;
 
 function observedState() {
-  const state = observation.snapshot(cameraModule.getState());
+  const water = panel.snapshot();
+  const state = observation.snapshot({ available: water.waterFresh, value: water.water,
+    observedAt: water.waterObservedAt === null ? null : new Date(water.waterObservedAt).toISOString() });
   const control = heaterState.temperatureControl;
   const waterAccepted = sensorTestMode || (control?.status === "idle" && !control.locked && panel.snapshot().waterFresh);
   return { ...state, temperature: waterAccepted ? state.temperature : null };
@@ -147,7 +149,7 @@ wss.on("connection", (ws) => {
         power: currentObservation.power,
         flowrate: currentObservation.online ? heaterState.flowrate : null,
         volume: currentObservation.online ? heaterState.volume : null,
-        temperature: currentObservation.temperature,
+        temperature: currentObservation.temperature, camera: cameraModule.getState(),
       },
     }),
   );
@@ -208,12 +210,13 @@ function controllerIdle() {
 const cameraModule = new CameraModule(mqttClient, frame => {
   const idle = controllerIdle();
   panel.observeFrame(frame, idle);
-  return idle && panel.snapshot(frame.observedAt).waterFresh;
+  return frame.purpose === "water" && idle && panel.snapshot(frame.observedAt).waterFresh;
 });
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
   res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
+    camera: cameraModule.getState(),
     temperatureControl: state.online ? heaterState.temperatureControl : null,
     flowrate: state.online ? heaterState.flowrate : null,
     volume: state.online ? heaterState.volume : null,

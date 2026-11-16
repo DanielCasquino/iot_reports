@@ -97,6 +97,27 @@ test("failed readings retain the last valid display through unit changes and dis
   assert.equal(f.sent.length, 0);
 });
 
+test("camera display is visible with ESP32 offline and actuator controls stay disabled", () => {
+  const f = front();
+  f.snapshot({ status: "offline", power: null, temperature: null, temperatureControl: null,
+    camera: { available: true, value: 31 } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  assert.equal(f.elements.get("temp-display")!.title, "Camera display reading");
+  assert.equal(f.elements.get("capture-temperature")!.disabled, false);
+  assert.equal(f.elements.get("big-button")!.disabled, true);
+  assert.equal(f.elements.get("save-temperature")!.disabled, true);
+  assert.equal(f.run("heaterState.temperature"), null);
+  f.mqtt("heater/status", "offline");
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  f.snapshot({ status: "offline", temperature: null, temperatureControl: null,
+    camera: { available: false, value: null } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  assert.match(f.elements.get("temp-display")!.title, /not current/);
+  f.disconnect();
+  assert.equal(f.elements.get("capture-temperature")!.disabled, true);
+  assert.equal(f.sent.length, 0);
+});
+
 test("HTTP consumes authoritative measured state, desired target and restored failure", async () => {
   const f = front();
   await f.poll({ online: true, power: true, temperature: 36, temperatureControl: { ...idle, base: 44 },
