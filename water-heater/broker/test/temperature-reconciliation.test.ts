@@ -44,16 +44,18 @@ test("failed operation survives restarts without another three attempts; explici
   const { file } = storage(t);
   const r = new TemperatureReconciliation(file);
   r.request(44, undefined, 1000);
-  const command = r.poll(idle, true, true, 1001)!;
-  assert.ok(command);
-  r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, 1002);
+  for (let i = 0; i < 3; i++) {
+    const command = r.poll(idle, true, true, 1000 + i * 10000)!;
+    assert.ok(command);
+    r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, 1002 + i * 10000);
+  }
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
-    target: 44, attempts: 1, requestedAt: 1000, completed: false, failed: true,
+    target: 44, attempts: 3, requestedAt: 1000, completed: false, failed: true,
   });
   for (let i = 0; i < 3; i++) {
     const restarted = new TemperatureReconciliation(file);
     assert.equal(restarted.poll(idle, true, true, 40000 + i), null);
-    assert.deepEqual(restarted.snapshot(), { target: 44, attempts: 1, status: "failed" });
+    assert.deepEqual(restarted.snapshot(), { target: 44, attempts: 3, status: "failed" });
   }
   const restarted = new TemperatureReconciliation(file);
   restarted.request(44, undefined, 100000);
@@ -125,13 +127,22 @@ test("missing or malformed storage is not overwritten by loading or unchanged po
 });
 
 
-test("a verified controller error stops after one physical operation until an explicit user request", () => {
+test("missed presses permit three fresh operations, never overlap, then require manual recovery", () => {
   const r = new TemperatureReconciliation(); r.request(50, 123, 1000);
-  r.poll({ ...idle, commandId: 123, status: "error", locked: true }, true, true, 1100);
-  assert.deepEqual(r.snapshot(), { target: 50, attempts: 1, status: "failed" });
-  for (let now = 1200; now < 30000; now += 1000) assert.equal(r.poll(idle, true, true, now), null);
-  r.poll(idle, false, false, 30000);
-  assert.equal(r.poll(idle, true, true, 31000), null);
-  r.request(50, undefined, 32000);
-  assert.equal(r.poll(idle, true, true, 32001)?.target, 50);
+  let id = 123;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const now = 1000 + attempt * 10000;
+    r.poll({ ...idle, commandId: id, status: "error", locked: true }, true, true, now);
+    assert.equal(r.poll({ ...idle, status: "settling", locked: true }, true, true, now + 1), null);
+    assert.equal(r.poll(idle, true, false, now + 2), null);
+    if (attempt < 3) {
+      const next = r.poll(idle, true, true, now + 3)!;
+      assert.ok(next); assert.notEqual(next.id, id); assert.equal(next.base, -1);
+      id = next.id;
+    }
+  }
+  assert.deepEqual(r.snapshot(), { target: 50, attempts: 3, status: "failed" });
+  for (let now = 40000; now < 60000; now += 1000) assert.equal(r.poll(idle, true, true, now), null);
+  r.request(50, undefined, 62000);
+  assert.equal(r.poll(idle, true, true, 62001)?.target, 50);
 });

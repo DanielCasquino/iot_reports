@@ -96,10 +96,9 @@ export class TemperatureReconciliation {
         return null;
       }
       if (control.commandId === this.pending && control.status === "error") {
-        // A failed physical verification may mean wrong direction/mounting.
-        // Preserve the requested target but require an explicit new request.
+        // End this attempt. Only a later idle/readable state may start a new
+        // operation, whose firmware reacquires the real blinking setpoint.
         this.pending = null;
-        this.failed = true;
         return null;
       }
       if (now - this.startedAt >= 60000)

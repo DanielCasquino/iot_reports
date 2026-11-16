@@ -245,7 +245,8 @@ function receiveTemperatureResult(result) {
     else pendingTemperatureCommand = null;
   }
   temperatureOperation = result;
-  temperatureMessage = result.status === "failed" ? "Could not confirm the change. Try again." : "";
+  temperatureMessage = result.status === "failed"
+    ? "Could not confirm the adjustment. Check servo mounting/contact and the camera view before retrying." : "";
   updateTemperatureControls();
 }
 

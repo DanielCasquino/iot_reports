@@ -342,8 +342,11 @@ The current mount places plus on GPIO27 (press16/rest0) and minus on GPIO26
 (press18/rest0). Logical B/C follow those roles; each physical servo retains its
 calibrated angles. Verify the first requested increase/decrease against the
 actual blinking target after remounting. A matching controller verification error
-now ends the operation immediately and persists failure. An explicit new request
-is required; desired target remains saved. Reconnect attempt limits are unchanged.
+ends that attempt. Up to3attempts are allowed within the90s overall deadline,
+only after idle control and fresh readable telemetry return. Every new attempt
+reacquires the actual blinking setpoint; a partial movement never becomes a
+repeated stale plan. Exhaustion persists failure and asks for a manual mounting/
+contact check before an explicit new request. Desired target remains saved.
 
 Target verification waits1s after servo return and requires two new agreeing
 readings, separated by at least250ms, within the original selection deadline.
