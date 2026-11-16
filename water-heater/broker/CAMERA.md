@@ -344,3 +344,9 @@ calibrated angles. Verify the first requested increase/decrease against the
 actual blinking target after remounting. A matching controller verification error
 now ends the operation immediately and persists failure. An explicit new request
 is required; desired target remains saved. Reconnect attempt limits are unchanged.
+
+Target verification waits1s after servo return and requires two new agreeing
+readings, separated by at least250ms, within the original selection deadline.
+This prevents the first residual water frame from becoming the starting setpoint.
+Target requests permit at most6captures perID/window; wake retains its3capture
+budget. A conflicting first result restarts the agreement, not the actuator plan.

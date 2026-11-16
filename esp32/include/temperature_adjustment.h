@@ -94,7 +94,11 @@ public:
     bool needsVerification(uint32_t now) {
         if (state == State::Reading || state == State::Confirming) {
             if (!readingStarted || uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) return false;
+            // The heater/camera can still show water immediately after opening
+            // selection. Allow the display and capture pipeline to catch up.
+            if (uint32_t(now - pressedAt) < 1000UL) return false;
             if (requested && uint32_t(now - requestedAt) < 500UL) return false;
+            if (!requested) candidate = -1;
             requested = true;
             requestedAt = now;
             return true;
@@ -106,6 +110,13 @@ public:
             if (!requested || id != requestId || !isfinite(observed) ||
                 observed < MIN_TEMPERATURE_C || observed > MAX_TEMPERATURE_C || observed != roundf(observed) ||
                 uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) return false;
+            if (uint32_t(now - pressedAt) < 1000UL) return false;
+            if (candidate != int(observed)) {
+                candidate = int(observed);
+                candidateAt = now;
+                return false;
+            }
+            if (uint32_t(now - candidateAt) < 250UL) return false;
             if (state == State::Confirming && int(observed) != target) { state = State::Error; verifyingAt = now; return false; }
             estimated = int(observed);
             hasPressed = true;
@@ -116,6 +127,8 @@ public:
         return false;
     }
 private:
+    int candidate = -1;
+    uint32_t candidateAt = 0;
     static int nextSetpoint(int value, int direction) {
         int next = value + direction * TEMPERATURE_STEP_C;
         if (next < MIN_TEMPERATURE_C) return MAX_TEMPERATURE_C;

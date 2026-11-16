@@ -71,7 +71,8 @@ export class CameraModule {
       this.verificationAttempts = 0;
       this.verificationStartedAt = Date.now();
     }
-    if (this.busy || this.verificationAttempts >= 3 || Date.now() - this.verificationStartedAt >= 4500) return;
+    const limit = purpose === "target" ? 6 : 3;
+    if (this.busy || this.verificationAttempts >= limit || Date.now() - this.verificationStartedAt >= 4500) return;
     this.verificationAttempts++;
     void this.readDisplayTemperature(false, id, false, purpose === "wake");
   };

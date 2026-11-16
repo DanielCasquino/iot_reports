@@ -98,6 +98,8 @@ test("verification subscribes after reconnect and ignores retained or malformed 
     assert.deepEqual(requests, [{ id: "7", wake: false }]);
     for (let i = 0; i < 4; i++) mqtt.emit("message", "heater/command/verify_wake", Buffer.from("7"), { retain: false });
     assert.deepEqual(requests, [{ id: "7", wake: false }, ...Array.from({ length: 3 }, () => ({ id: "7", wake: true }))]);
+    for (let i = 0; i < 8; i++) mqtt.emit("message", "heater/command/verify_temperature", Buffer.from("8"), { retain: false });
+    assert.equal(requests.filter(request => request.id === "8" && !request.wake).length, 6);
     await module.close();
     assert.equal(mqtt.listenerCount("message"), 0);
   } finally {
