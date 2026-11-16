@@ -3,7 +3,16 @@ import assert from "node:assert/strict";
 import { HeaterPanelState } from "../src/heater/panel-state.js";
 
 const frame = (value: number | null, observedAt: number, visible = true,
-  purpose: "water" | "target" | "mirror" = "mirror") => ({ value, observedAt, visible, purpose });
+  purpose: "water" | "target" | "mirror" | "wake" = "mirror") => ({ value, observedAt, visible, purpose });
+
+test("wake confirmation cannot replace accepted water with a selection-window reading", () => {
+  const panel = new HeaterPanelState(0);
+  panel.observeMode("water", 47, 0);
+  panel.observeFrame(frame(43, 6000, true, "wake"), false);
+  assert.equal(panel.snapshot(6000).water, 47);
+  assert.equal(panel.snapshot(6000).waterObservedAt, 0);
+  assert.equal(panel.snapshot(6000).target, null);
+});
 
 test("buttons follow joint heater and display state, not pilot darkness", () => {
   const panel = new HeaterPanelState(0);

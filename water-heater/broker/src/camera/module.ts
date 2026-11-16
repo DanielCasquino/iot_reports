@@ -9,7 +9,7 @@ import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.
 
 export interface DisplayFrame {
   value: number | null; visible: boolean; observedAt: number;
-  purpose: "water" | "target" | "mirror";
+  purpose: "water" | "target" | "mirror" | "wake";
 }
 
 const MIRROR_TOPIC = "heater/input/display";
@@ -27,6 +27,7 @@ export class CameraModule {
   private mirrorState: { text: string; observedAt: string | null } = { text: "unknown", observedAt: null };
   private lastTemperaturePollAt = 0;
   private verificationId: string | null = null;
+  private verificationPurpose: "target" | "wake" | null = null;
   private verificationAttempts = 0;
   private verificationStartedAt = 0;
   private mqttGeneration = 0;
@@ -43,10 +44,12 @@ export class CameraModule {
   private subscribeVerification = () => {
     this.invalidateMqttSession();
     this.mqtt.subscribe("heater/command/verify_temperature");
+    this.mqtt.subscribe("heater/command/verify_wake");
   };
   private invalidateMqttSession = () => {
     this.mqttGeneration++;
     this.verificationId = null;
+    this.verificationPurpose = null;
     this.verificationAttempts = 0;
     this.verificationStartedAt = 0;
   };
@@ -55,17 +58,19 @@ export class CameraModule {
       this.invalidateMqttSession();
       return;
     }
-    if (topic !== "heater/command/verify_temperature" || packet.retain) return;
+    if (!["heater/command/verify_temperature", "heater/command/verify_wake"].includes(topic) || packet.retain) return;
+    const purpose = topic === "heater/command/verify_wake" ? "wake" : "target";
     const id = payload.toString();
     if (!/^\d{1,10}$/.test(id) || Number(id) > 0xffffffff) return;
-    if (id !== this.verificationId) {
+    if (id !== this.verificationId || purpose !== this.verificationPurpose) {
       this.verificationId = id;
+      this.verificationPurpose = purpose;
       this.verificationAttempts = 0;
       this.verificationStartedAt = Date.now();
     }
     if (this.busy || this.verificationAttempts >= 3 || Date.now() - this.verificationStartedAt >= 4500) return;
     this.verificationAttempts++;
-    void this.readDisplayTemperature(false, id);
+    void this.readDisplayTemperature(false, id, false, purpose === "wake");
   };
 
   setup(app: Express) {
@@ -135,7 +140,7 @@ export class CameraModule {
     return { image: Buffer.concat(chunks), fresh: response.headers.get("x-capture-fresh") === "1" };
   }
 
-  async readDisplayTemperature(wake = false, verificationId?: string, mirrorOnly = false): Promise<boolean> {
+  async readDisplayTemperature(wake = false, verificationId?: string, mirrorOnly = false, wakeVerification = false): Promise<boolean> {
     if (this.busy || this.stopped) return false;
     if (wake) {
       this.state.error = "Display wake taps are disabled; capture without pressing power";
@@ -215,7 +220,7 @@ export class CameraModule {
       if (this.stopped) throw new Error("Camera stopped during capture");
       const sameSession = mqttGeneration === this.mqttGeneration;
       const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
-        purpose: verificationId !== undefined ? "target" : mirrorOnly ? "mirror" : "water" }) : false;
+        purpose: verificationId !== undefined ? wakeVerification ? "wake" : "target" : mirrorOnly ? "mirror" : "water" }) : false;
       captureSucceeded = value !== null;
       if (value !== null) readingState.lastValue = value;
       this.mirrorState = { text: value !== null ? String(value) : displayVisible ? "unknown" : "blank", observedAt };
@@ -238,7 +243,8 @@ export class CameraModule {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
       if (verificationId !== undefined) {
-        this.mqtt.publish("heater/input/temperature_verification", `${verificationId},${value}`, { qos: 0, retain: false });
+        this.mqtt.publish(wakeVerification ? "heater/input/wake_verification" : "heater/input/temperature_verification",
+          `${verificationId},${value}`, { qos: 0, retain: false });
       }
       return true;
     } catch (error) {

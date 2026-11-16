@@ -59,7 +59,7 @@ export class HeaterPanelState {
   }
 
   observeFrame(frame: { value: number | null; visible: boolean; observedAt: number;
-    purpose: "water" | "target" | "mirror" }, controllerIdle: boolean) {
+    purpose: "water" | "target" | "mirror" | "wake" }, controllerIdle: boolean) {
     const now = frame.observedAt;
     if (!Number.isFinite(now) || now < this.frameAt) return;
     this.frameAt = now;

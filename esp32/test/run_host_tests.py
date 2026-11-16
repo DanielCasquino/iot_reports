@@ -8,7 +8,7 @@ import tempfile
 root = Path(__file__).resolve().parent
 compiler = os.environ.get("CXX", "g++")
 with tempfile.TemporaryDirectory(prefix="heater-host-") as folder:
-    for name in ("controller", "power_contract", "temperature_adjustment", "display_mirror", "peripherals"):
+    for name in ("controller", "power_contract", "wake_verification", "temperature_adjustment", "display_mirror", "peripherals"):
         target = Path(folder) / name
         subprocess.run([compiler, "-std=c++17", "-Wall", "-Wextra", "-Werror",
                         "-I" + str(root / "fakes"), "-I" + str(root.parent / "include"),

@@ -24,6 +24,7 @@ public:
     void setup()
     {
         adjustment.requestId = esp_random();
+        wakeRequestId = esp_random();
         observations = xQueueCreate(8, sizeof(Observation));
         pilotObservations = xQueueCreate(8, sizeof(PilotObservation));
         powerRequests = xQueueCreate(4, sizeof(bool));
@@ -119,6 +120,17 @@ public:
         {
 #if !TEMPORARY_SENSOR_TEST_MODE
             if (!acceptsObservation(observation.at)) continue;
+            if (observation.wake)
+            {
+                if (waking && wakeVerificationRequested && observation.id == wakeRequestId &&
+                    static_cast<int32_t>(observation.at - wakeStartedAt) >= int32_t(TEMPERATURE_ADJUST_SETTLE_MS) &&
+                    std::isfinite(observation.value) && observation.value >= 0 && observation.value <= 100)
+                {
+                    confirmWake();
+                    Serial.println("Heater wake confirmed by fresh camera capture");
+                }
+                continue; // Wake evidence is never a water-temperature observation.
+            }
             if (observation.verification)
             {
                 auto beforeReading = adjustment.state;
@@ -304,6 +316,18 @@ public:
         enqueueObservation({value, 0, false, observedAt});
     }
     void verifyTemperature(uint32_t id, float value, uint32_t observedAt = millis()) { enqueueObservation({value, id, true, observedAt}); }
+    void verifyWake(uint32_t id, float value, uint32_t observedAt = millis()) { enqueueObservation({value, id, false, observedAt, true}); }
+    bool needsWakeVerification()
+    {
+        uint32_t now = millis();
+        if (!waking || now - wakeStartedAt < TEMPERATURE_ADJUST_SETTLE_MS ||
+            now - wakeStartedAt >= PILOT_WAKE_TIMEOUT_MS ||
+            (wakeVerificationRequested && now - lastWakeVerificationAt < 500U)) return false;
+        wakeVerificationRequested = true;
+        lastWakeVerificationAt = now;
+        return true;
+    }
+    uint32_t wakeVerificationId() const { return wakeRequestId; }
     bool needsTemperatureVerification() {
         return (adjustment.state == TemperatureAdjustment::State::Reading ||
                 adjustment.state == TemperatureAdjustment::State::Confirming) && adjustment.needsVerification(millis());
@@ -406,6 +430,8 @@ private:
         servoModuleB.tap();
         waking = true;
         wakeStartedAt = millis();
+        if (++wakeRequestId == 0) ++wakeRequestId;
+        wakeVerificationRequested = false;
         invalidateTemperature();
         temperatureControlChanged = true;
         Serial.println("Waking heater before applying command");
@@ -477,12 +503,15 @@ private:
     bool waking = false, wakeFailed = false, pendingPowerOff = false;
     bool hasWakeConfirmation = false;
     uint32_t controlsAwakeAt = 0;
+    uint32_t wakeRequestId = 0, lastWakeVerificationAt = 0;
+    bool wakeVerificationRequested = false;
     struct Observation
     {
         float value;
         uint32_t id;
         bool verification;
         uint32_t at;
+        bool wake = false;
     };
     QueueHandle_t observations = nullptr;
     QueueHandle_t powerRequests = nullptr;

@@ -48,6 +48,7 @@ void loop()
   if (heaterModule.takeTemperatureControlChanged())
     mqttModule.publishTemperatureControl();
   mqttModule.requestTemperatureVerification();
+  mqttModule.requestWakeVerification();
   unsigned long curr_ms = millis();
   if (curr_ms - last_ms >= TICK_INTERVAL_MS)
   {

@@ -13,7 +13,7 @@ test("capture publishes non-retained OCR; unreadable image or HTTP failure inval
   const mqtt = { connected: true, publish(topic: string, payload: string, options: unknown, callback?: (e?: Error) => void) {
     messages.push({ topic, payload, options }); callback?.();
   } } as unknown as MqttClient;
-  const frames: { visible: boolean; value: number | null }[] = [];
+  const frames: { visible: boolean; value: number | null; purpose: string }[] = [];
   const module = new CameraModule(mqtt, frame => { frames.push(frame); });
   let reads = 0;
   globalThis.fetch = (async () => { reads++; return new Response(jpeg, { headers: { "content-type": "image/jpeg" } }); }) as typeof fetch;
@@ -29,12 +29,17 @@ test("capture publishes non-retained OCR; unreadable image or HTTP failure inval
     assert.equal(messages.filter(message => message.topic === "heater/input/temperature").length, 1);
     assert.equal(reads, 4); // Verification takes new frames, rather than reusing the last value.
     assert.deepEqual(messages.at(-1), { topic: "heater/input/temperature_verification", payload: "123,43", options: { qos: 0, retain: false } });
+    assert.equal(await module.readDisplayTemperature(false, "124", false, true), true);
+    assert.equal(reads, 6);
+    assert.equal(frames.at(-1)?.purpose, "wake");
+    assert.deepEqual(messages.at(-1), { topic: "heater/input/wake_verification", payload: "124,43", options: { qos: 0, retain: false } });
+    assert.equal(messages.filter(message => message.topic === "heater/input/temperature").length, 1);
     assert.equal(await module.readDisplayTemperature(false, undefined, true), true);
-    assert.equal(reads, 6); // Old firmware also needs a discarded frame for mirror reads.
+    assert.equal(reads, 8); // Old firmware also needs a discarded frame for mirror reads.
     globalThis.fetch = (async () => { reads++; return new Response(jpeg,
       { headers: { "content-type": "image/jpeg", "x-capture-fresh": "1" } }); }) as typeof fetch;
     assert.equal(await module.readDisplayTemperature(false, undefined, true), true);
-    assert.equal(reads, 7); // New firmware certifies flushing inside /capture: only one request.
+    assert.equal(reads, 9); // New firmware certifies flushing inside /capture: only one request.
     const delivered = messages.length;
     assert.equal(await module.readDisplayTemperature(true), false);
     assert.equal(module.getState().available, true);
@@ -71,22 +76,28 @@ test("verification subscribes after reconnect and ignores retained or malformed 
   mqtt.connected = true;
   mqtt.subscribe = topic => { subscriptions.push(topic); };
   const module = new CameraModule(mqtt as unknown as MqttClient);
-  const requests: string[] = [];
-  module.readDisplayTemperature = async (_wake, id) => { requests.push(id!); return true; };
+  const requests: { id: string; wake: boolean }[] = [];
+  module.readDisplayTemperature = async (_wake, id, _mirror, wake) => { requests.push({ id: id!, wake: wake ?? false }); return true; };
   const previousPoll = process.env.CAMERA_POLL_MS;
   process.env.CAMERA_POLL_MS = "0";
   const app = { get() {}, post() {} } as unknown as import("express").Express;
   try {
     module.setup(app);
     mqtt.emit("connect");
-    assert.deepEqual(subscriptions, ["heater/command/verify_temperature", "heater/command/verify_temperature"]);
-    for (const id of ["", "-1", "4294967296", "12,48"])
-      mqtt.emit("message", "heater/command/verify_temperature", Buffer.from(id), { retain: false });
+    assert.deepEqual(subscriptions, ["heater/command/verify_temperature", "heater/command/verify_wake",
+      "heater/command/verify_temperature", "heater/command/verify_wake"]);
+    for (const topic of ["heater/command/verify_temperature", "heater/command/verify_wake"]) {
+      for (const id of ["", "-1", "4294967296", "12,48"])
+        mqtt.emit("message", topic, Buffer.from(id), { retain: false });
+      mqtt.emit("message", topic, Buffer.from("7"), { retain: true });
+    }
     mqtt.emit("message", "heater/command/verify_temperature", Buffer.from("7"), { retain: true });
     mqtt.emit("message", "heater/command/other", Buffer.from("7"), { retain: false });
     assert.deepEqual(requests, []);
     mqtt.emit("message", "heater/command/verify_temperature", Buffer.from("7"), { retain: false });
-    assert.deepEqual(requests, ["7"]);
+    assert.deepEqual(requests, [{ id: "7", wake: false }]);
+    for (let i = 0; i < 4; i++) mqtt.emit("message", "heater/command/verify_wake", Buffer.from("7"), { retain: false });
+    assert.deepEqual(requests, [{ id: "7", wake: false }, ...Array.from({ length: 3 }, () => ({ id: "7", wake: true }))]);
     await module.close();
     assert.equal(mqtt.listenerCount("message"), 0);
   } finally {
@@ -112,6 +123,9 @@ test("readable setpoint/recovery frames update the mirror but cannot enter water
   };
   globalThis.fetch = (async () => new Response(jpeg, { headers: { "content-type": "image/jpeg" } })) as typeof fetch;
   try {
+    assert.equal(await module.readDisplayTemperature(false, "88", false, true), true);
+    assert.equal(messages.at(-1)?.topic, "heater/input/wake_verification");
+    assert.equal(messages.some(m => m.topic === "heater/input/temperature"), false);
     assert.equal(await module.readDisplayTemperature(), true);
     assert.equal(module.getState().available, true);
     assert.equal(module.getState().value, 44);
@@ -129,7 +143,7 @@ test("readable setpoint/recovery frames update the mirror but cannot enter water
   }
 });
 
-test("an OCR operation crossing an MQTT or controller reconnect cannot publish into the new session", async () => {
+test("ordinary and wake-only OCR crossing an MQTT or controller reconnect cannot publish into the new session", async () => {
   const { EventEmitter } = await import("node:events");
   const mqtt = new EventEmitter() as EventEmitter & { connected: boolean; subscribe: (topic: string) => void;
     publish: (topic: string, payload: string, options: unknown, callback?: (e?: Error) => void) => void };
@@ -154,9 +168,9 @@ test("an OCR operation crossing an MQTT or controller reconnect cannot publish i
   };
   module.setup({ get() {}, post() {} } as unknown as import("express").Express);
   try {
-    for (const reconnect of [() => { mqtt.emit("close"); mqtt.emit("connect"); },
+    for (const wake of [false, true]) for (const reconnect of [() => { mqtt.emit("close"); mqtt.emit("connect"); },
       () => { mqtt.emit("message", "heater/status", Buffer.from("online"), { retain: false }); }]) {
-      const capture = module.readDisplayTemperature();
+      const capture = wake ? module.readDisplayTemperature(false, "19", false, true) : module.readDisplayTemperature();
       await recognizing;
       reconnect();
       finish({ data: { text: "48", confidence: 95 } });

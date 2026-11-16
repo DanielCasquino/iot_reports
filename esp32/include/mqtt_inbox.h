@@ -9,7 +9,7 @@ class MqttInbox
 {
 public:
     enum class Kind { Connected, WakeDisplay, Display, PowerObservation, Pilot,
-                      Temperature, Verification, Target, Base, Power, AutoShutdown, Snapshot };
+                      Temperature, Verification, WakeVerification, Target, Base, Power, AutoShutdown, Snapshot };
     struct Message { Kind kind; uint32_t receivedAt; uint32_t revision; char payload[41]; };
     bool setup() { if (!queue) queue = xQueueCreate(16, sizeof(Message)); return queue != nullptr; }
     bool push(Kind kind, const char *payload, size_t size, uint32_t now, uint32_t revision = 0)

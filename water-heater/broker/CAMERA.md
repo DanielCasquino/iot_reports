@@ -124,6 +124,20 @@ it does not establish that a display slept or that the heater switched off.
 
 ## Data path
 
+Wake confirmation uses a separate exchange: after the controller's existing
+6s settle period, `heater/command/verify_wake` requests a **new capture** with a
+request ID. The broker replies on `heater/input/wake_verification` as `id,value`,
+even while the controller is busy. This only confirms readable digits for the
+pending wake; it never enters water telemetry or confirms physical OFF. Both
+topics are non-retained. Old-session/retained replies and mismatched IDs cannot
+complete the wake. The existing 10s timeout still cancels an unconfirmed action.
+
+This exchange requires updating **both `esp32/` firmware and the backend**.
+Restarting the backend alone does not update the controller's wake logic.
+Keep the device's existing private Wi-Fi settings and verify that its broker
+address matches the Raspberry before uploading. The camera firmware and RGB
+calibration are unchanged.
+
 - Manual request: `POST /api/camera/capture`.
 - Camera: existing `GET /capture` JPEG (one queued frame is discarded first).
 - OCR: single numeric reading0..100°C, configured confidence threshold.

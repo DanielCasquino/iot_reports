@@ -70,6 +70,7 @@ public:
         subscribeTopic("heater/input/pilot", Kind::Pilot);
         subscribeTopic("heater/input/temperature", Kind::Temperature);
         subscribeTopic("heater/input/temperature_verification", Kind::Verification);
+        subscribeTopic("heater/input/wake_verification", Kind::WakeVerification);
         subscribeTopic("heater/set/temperature", Kind::Target);
         subscribeTopic("heater/set/temperature_base", Kind::Base);
         subscribeTopic("heater/set/power", Kind::Power);
@@ -123,6 +124,7 @@ public:
                 break;
             case Kind::Temperature: handleTemperature(payload, message.receivedAt); break;
             case Kind::Verification: handleVerification(payload, message.receivedAt); break;
+            case Kind::WakeVerification: handleVerification(payload, message.receivedAt, true); break;
             case Kind::Target: handleTemperatureControl(payload, false); break;
             case Kind::Base: handleTemperatureControl(payload, true); break;
             case Kind::Power: handlePower(payload); break;
@@ -132,7 +134,7 @@ public:
             }
         }
     }
-    void handleVerification(const std::string &payload, uint32_t receivedAt)
+    void handleVerification(const std::string &payload, uint32_t receivedAt, bool wake = false)
     {
         auto separator = payload.find(',');
         if (!heaterModule || !heaterModule->acceptsObservation(receivedAt) || separator == std::string::npos) return;
@@ -143,8 +145,10 @@ public:
         const char *number = payload.c_str() + separator + 1;
         char *end = nullptr;
         float value = strtof(number, &end);
-        if (end != number && *end == '\0' && std::isfinite(value))
-            heaterModule->verifyTemperature(uint32_t(id), value, receivedAt);
+        if (end != number && *end == '\0' && std::isfinite(value)) {
+            if (wake) heaterModule->verifyWake(uint32_t(id), value, receivedAt);
+            else heaterModule->verifyTemperature(uint32_t(id), value, receivedAt);
+        }
     }
     void handleTemperature(const std::string &payload, uint32_t receivedAt)
     {
@@ -253,6 +257,11 @@ public:
         if (!heaterModule || !mqttClient.isConnected() || !heaterModule->needsTemperatureVerification()) return;
         mqttClient.publish("heater/command/verify_temperature",
                            std::to_string(heaterModule->temperatureVerificationId()), 0, false);
+    }
+    void requestWakeVerification()
+    {
+        if (!heaterModule || !mqttClient.isConnected() || !heaterModule->needsWakeVerification()) return;
+        mqttClient.publish("heater/command/verify_wake", std::to_string(heaterModule->wakeVerificationId()), 0, false);
     }
     void publishState()
     {
