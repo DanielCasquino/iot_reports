@@ -33,6 +33,7 @@ export class CameraModule {
   private verificationPurpose: "target" | "wake" | null = null;
   private verificationAttempts = 0;
   private verificationStartedAt = 0;
+  private targetBlankSeen = false;
   private mqttGeneration = 0;
   private state: { available: boolean; value: number | null; lastValue: number | null;
     observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null;
@@ -55,6 +56,7 @@ export class CameraModule {
     this.verificationPurpose = null;
     this.verificationAttempts = 0;
     this.verificationStartedAt = 0;
+    this.targetBlankSeen = false;
   };
   private handleMqttMessage = (topic: string, payload: Buffer, packet: { retain?: boolean }) => {
     if (topic === "heater/status" && (!packet.retain || payload.toString() === "offline")) {
@@ -70,6 +72,7 @@ export class CameraModule {
       this.verificationPurpose = purpose;
       this.verificationAttempts = 0;
       this.verificationStartedAt = Date.now();
+      this.targetBlankSeen = false;
     }
     const limit = purpose === "target" ? 6 : 3;
     if (this.busy || this.verificationAttempts >= limit || Date.now() - this.verificationStartedAt >= 4500) return;
@@ -225,6 +228,10 @@ export class CameraModule {
         text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
       const sameSession = mqttGeneration === this.mqttGeneration;
+      if (sameSession && this.verificationPurpose === "target" &&
+          captureStartedAt >= this.verificationStartedAt && Date.now() - this.verificationStartedAt < 4500 &&
+          value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
+        this.targetBlankSeen = true;
       frameReported = true;
       const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
         light: readingState.displayLight, brightness: readingState.displayBrightness, captureStartedAt,
@@ -251,6 +258,9 @@ export class CameraModule {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
       if (verificationId !== undefined) {
+        // A steady water number is not a setpoint, even if two captures agree.
+        // Active target requests require a fresh blank phase of selection.
+        if (!wakeVerification && verificationId === this.verificationId && !this.targetBlankSeen) return true;
         this.mqtt.publish(wakeVerification ? "heater/input/wake_verification" : "heater/input/temperature_verification",
           `${verificationId},${value}`, { qos: 0, retain: false });
       }

@@ -217,3 +217,48 @@ test("optical capture works without MQTT and controller water acceptance", async
     if (oldUrl === undefined) delete process.env.CAMERA_URL; else process.env.CAMERA_URL = oldUrl;
   }
 });
+
+
+test("active target verification requires fresh selection blink, not two stable water captures", async () => {
+  const { EventEmitter } = await import("node:events");
+  const previous = { ...process.env };
+  const oldFetch = globalThis.fetch;
+  Object.assign(process.env, { CAMERA_URL: "http://camera.test", CAMERA_POLL_MS: "0", CAMERA_MIRROR_POLL_MS: "0",
+    CAMERA_DISPLAY_REGION: "0,0,80,40", CAMERA_DISPLAY_DARK_MAX: "40", CAMERA_DISPLAY_LIT_MIN: "70", CAMERA_READER: "tesseract" });
+  const white = await sharp({ create: { width: 80, height: 40, channels: 3, background: "white" } }).jpeg().toBuffer();
+  const black = await sharp({ create: { width: 80, height: 40, channels: 3, background: "black" } }).jpeg().toBuffer();
+  let blank = false;
+  globalThis.fetch = async () => new Response(blank ? black : white, { headers: { "content-type": "image/jpeg", "x-capture-fresh": "1" } });
+  const messages: { topic: string; payload: string }[] = [];
+  const mqtt = Object.assign(new EventEmitter(), { connected: true, subscribe() {},
+    publish(topic: string, payload: string) { messages.push({ topic, payload }); } });
+  const camera = new CameraModule(mqtt as unknown as MqttClient);
+  (camera as unknown as { ocrWorker: unknown }).ocrWorker = {
+    recognize: async () => ({ data: { text: blank ? "" : "57", confidence: 95 } }), terminate: async () => {},
+  };
+  const read = camera.readDisplayTemperature.bind(camera);
+  let pending: Promise<boolean> = Promise.resolve(false);
+  camera.readDisplayTemperature = (...args) => pending = read(...args);
+  camera.setup({ get() {}, post() {} } as unknown as import("express").Express);
+  const request = (id: string) => mqtt.emit("message", "heater/command/verify_temperature", Buffer.from(id), { retain: false });
+  try {
+    request("9"); await pending; request("9"); await pending;
+    assert.equal(messages.some(m => m.topic === "heater/input/temperature_verification"), false);
+    blank = true;
+    await camera.readDisplayTemperature(false, undefined, true); // Fresh blank after request, even during mirror polling.
+    blank = false;
+    request("9"); await pending;
+    assert.equal(messages.at(-1)?.topic, "heater/input/temperature_verification");
+    assert.equal(messages.at(-1)?.payload, "9,57");
+    const delivered = messages.filter(m => m.topic === "heater/input/temperature_verification").length;
+    request("10"); await pending;
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered);
+    mqtt.emit("close"); mqtt.emit("connect");
+    request("10"); await pending;
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered);
+  } finally {
+    await camera.close(); globalThis.fetch = oldFetch;
+    for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
+    Object.assign(process.env, previous);
+  }
+});

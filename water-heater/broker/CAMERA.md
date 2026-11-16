@@ -350,3 +350,9 @@ readings, separated by at least250ms, within the original selection deadline.
 This prevents the first residual water frame from becoming the starting setpoint.
 Target requests permit at most6captures perID/window; wake retains its3capture
 budget. A conflicting first result restarts the agreement, not the actuator plan.
+
+An active target request also needs a new blank selection phase after that
+request began. Ordinary fresh water readings cannot acknowledge a target until
+that phase is observed; new IDs/reconnects clear the proof. Capture errors do
+not count as a blank phase. This prevents failed opening taps from being followed
+by a plan calculated from water temperature.
