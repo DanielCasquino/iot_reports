@@ -56,9 +56,11 @@ function updateAutoShutdown() {
 function updateTemperature() {
   const display = document.getElementById("temp-display");
   const fg = document.getElementById("fg");
+  const reading = heaterState.temperature ?? heaterState.cameraTemperature;
+  const effectTemperature = reading ?? heaterState.lastTemperature;
 
-  if (fg && heaterState.temperature !== null) {
-    const temp = heaterState.temperature;
+  if (fg && effectTemperature !== null) {
+    const temp = effectTemperature;
     const opacity = Math.max(
       0.0,
       Math.min(0.6, ((temp - 30) / (40 - 30)) * 0.6),
@@ -67,13 +69,12 @@ function updateTemperature() {
   }
 
   if (!display) return;
-  const reading = heaterState.temperature ?? heaterState.cameraTemperature;
   if (reading === null) {
     const last = heaterState.lastTemperature;
     display.textContent = last === null ? (fahrenheit ? "--.-°F" : "--.-°C")
       : `${(fahrenheit ? c2f(last) : last).toFixed(1)}${fahrenheit ? "°F" : "°C"}`;
     display.title = last === null ? "Temperature unavailable" : "Last valid reading (not current)";
-    if (fg) fg.style.opacity = 0;
+    if (fg && last === null) fg.style.opacity = 0;
     const status = document.getElementById("temperature-status");
     if (status) status.textContent = heaterState.lastTemperature === null
       ? "Temperature unavailable" : `Last reading: ${(fahrenheit ? c2f(heaterState.lastTemperature) : heaterState.lastTemperature).toFixed(1)}${fahrenheit ? "°F" : "°C"} (not current)`;
