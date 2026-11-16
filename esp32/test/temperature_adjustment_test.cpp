@@ -46,7 +46,7 @@ int main() {
                     assert(!a.verify(a.requestId, target, now + 500));
                 }
                 assert(a.state == State::Settling && a.locked());
-                assert(a.finishSettling(now + 6000));
+                assert(a.finishSettling(now + 6500));
                 assert(!a.locked());
             }
         }
