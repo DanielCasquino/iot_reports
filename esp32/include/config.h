@@ -11,8 +11,9 @@
 #define AUTO_SHUTDOWN_TEMPERATURE_C 40.0
 #define MIN_TEMPERATURE_C 30
 #define SERVO_PIN_A 25
-#define SERVO_PIN_B 26
-#define SERVO_PIN_C 27
+// Mounted buttons: logical B is plus on GPIO27; C is minus on GPIO26.
+#define SERVO_PIN_B 27
+#define SERVO_PIN_C 26
 #define FLOW_PIN 34
 #define TICK_INTERVAL_MS 2000
 #define ESP_KEEPALIVE_SECONDS 10
@@ -32,9 +33,9 @@
 #define SERVO_REST_A 0
 #define SERVO_PRESS_A 16
 #define SERVO_REST_B 0
-#define SERVO_PRESS_B 18
+#define SERVO_PRESS_B 16
 #define SERVO_REST_C 0
-#define SERVO_PRESS_C 16
+#define SERVO_PRESS_C 18
 #define SERVO_PRESS_MS 250
 #define SERVO_RETURN_MS 250
 

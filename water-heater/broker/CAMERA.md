@@ -193,7 +193,7 @@ No images or credentials are added to Git. No cloud service is required.
 serial and shown in the app. No uncalibrated red/green→heating inference.
 
 Chosen free pins: **SDA23, SCL22**, configurable in `esp32/include/config.h`.
-Current servo pins are A25/B26/C27; keep the explicitly selected SDA23/SCL22. Confirm actual
+Current mounted servo roles are PowerA25/plusB27/minusC26; keep the explicitly selected SDA23/SCL22. Confirm actual
 wiring and module voltage labels; keep I2C signal levels compatible with3.3V.
 Absent sensor does not stop the other modules. Current gain1x/integration24ms
 is an initial setting; verify lighting and mounting before classifying colors.
@@ -335,3 +335,12 @@ Estas cifras deben comprobarse con lecturas nuevas; reflejan muestras de la
 misma sesión, no validación independiente. El canalC es Clear, luz amplia.
 La muestra oscura se tomó con la terma apagada, pero no demuestra que no pueda
 haber piloto oscuro en otro estado. Conservar unknown cuando no haya evidencia.
+
+## Mounted button direction and failed verification
+
+The current mount places plus on GPIO27 (press16/rest0) and minus on GPIO26
+(press18/rest0). Logical B/C follow those roles; each physical servo retains its
+calibrated angles. Verify the first requested increase/decrease against the
+actual blinking target after remounting. A matching controller verification error
+now ends the operation immediately and persists failure. An explicit new request
+is required; desired target remains saved. Reconnect attempt limits are unchanged.

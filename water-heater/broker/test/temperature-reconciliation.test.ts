@@ -14,12 +14,12 @@ test("startup waits for fresh connection and display; confirmation compares setp
   assert.equal(r.poll({ ...idle, commandId: command.id, base: 44 }, true, true, 5), null);
   assert.equal(r.snapshot().status, "confirmed");
 });
-test("three bounded attempts, no overlapping commands, user can start again", () => {
+test("three bounded reconnect attempts, no overlapping commands, user can start again", () => {
   const r = new TemperatureReconciliation(); r.request(44, undefined, 0);
   for (let i = 0; i < 3; i++) {
     const command = r.poll(idle, true, true, i * 10000)!; assert.ok(command);
     assert.equal(r.poll(idle, true, true, i * 10000 + 1), null);
-    r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, i * 10000 + 2);
+    r.poll(idle, false, false, i * 10000 + 2);
   }
   assert.equal(r.poll(idle, true, true, 40000), null);
   assert.equal(r.snapshot().status, "failed");
@@ -44,18 +44,16 @@ test("failed operation survives restarts without another three attempts; explici
   const { file } = storage(t);
   const r = new TemperatureReconciliation(file);
   r.request(44, undefined, 1000);
-  for (let i = 0; i < 3; i++) {
-    const command = r.poll(idle, true, true, 1000 + i * 10000)!;
-    assert.ok(command);
-    r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, 1002 + i * 10000);
-  }
+  const command = r.poll(idle, true, true, 1001)!;
+  assert.ok(command);
+  r.poll({ ...idle, commandId: command.id, status: "error", locked: true }, true, true, 1002);
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
-    target: 44, attempts: 3, requestedAt: 1000, completed: false, failed: true,
+    target: 44, attempts: 1, requestedAt: 1000, completed: false, failed: true,
   });
   for (let i = 0; i < 3; i++) {
     const restarted = new TemperatureReconciliation(file);
     assert.equal(restarted.poll(idle, true, true, 40000 + i), null);
-    assert.deepEqual(restarted.snapshot(), { target: 44, attempts: 3, status: "failed" });
+    assert.deepEqual(restarted.snapshot(), { target: 44, attempts: 1, status: "failed" });
   }
   const restarted = new TemperatureReconciliation(file);
   restarted.request(44, undefined, 100000);
@@ -124,4 +122,16 @@ test("missing or malformed storage is not overwritten by loading or unchanged po
   valid.poll(null, false, false, 2002);
   assert.equal(statSync(file, { bigint: true }).ino, before);
   assert.deepEqual(readdirSync(directory), ["temperature-operation.json"]);
+});
+
+
+test("a verified controller error stops after one physical operation until an explicit user request", () => {
+  const r = new TemperatureReconciliation(); r.request(50, 123, 1000);
+  r.poll({ ...idle, commandId: 123, status: "error", locked: true }, true, true, 1100);
+  assert.deepEqual(r.snapshot(), { target: 50, attempts: 1, status: "failed" });
+  for (let now = 1200; now < 30000; now += 1000) assert.equal(r.poll(idle, true, true, now), null);
+  r.poll(idle, false, false, 30000);
+  assert.equal(r.poll(idle, true, true, 31000), null);
+  r.request(50, undefined, 32000);
+  assert.equal(r.poll(idle, true, true, 32001)?.target, 50);
 });

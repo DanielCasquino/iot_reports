@@ -95,7 +95,14 @@ export class TemperatureReconciliation {
         this.completed = true;
         return null;
       }
-      if ((control.commandId === this.pending && control.status === "error") || now - this.startedAt >= 60000)
+      if (control.commandId === this.pending && control.status === "error") {
+        // A failed physical verification may mean wrong direction/mounting.
+        // Preserve the requested target but require an explicit new request.
+        this.pending = null;
+        this.failed = true;
+        return null;
+      }
+      if (now - this.startedAt >= 60000)
         this.pending = null;
       else return null;
     }
