@@ -374,3 +374,18 @@ water60, GREEN. About3minutes after final target confirmation, raw visor
 brightness fell244→145, pilot becameunlit and the visor still read59 with
 powerON. This is one measured sequence under current mounting/light; raw images
 remain private and the interval is not a guaranteed device specification.
+
+### Power operation recovery
+
+Web power requests are verified operations with at most3absolute requests/90s.
+A retry needs idle online control and3s of newly advancing optical evidence
+that agrees with the controller and still proves the opposite state, after a
+15s minimum operation window. Unknown/busy/stale observations never trigger
+a Power retry. Disconnect fails the active operation without replay; a new
+explicit request is needed. The web shows progress and a mounting/contact/camera
+check when confirmation fails, and rejects overlapping actuator requests.
+
+An ESP32 unknown-power acknowledgement also starts a1s post-motion capture
+barrier and clears old RGB history. Frames begun before that barrier cannot
+restore power or enter water telemetry, even when they arrive after the servo
+returned. Optical camera preview remains available independently.

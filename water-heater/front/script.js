@@ -15,6 +15,14 @@ let temperatureMessage = "";
 let temperatureOperation = null;
 
 let observationText = "Waiting for fresh readings";
+let powerControl = null;
+
+function receivePowerResult(result) {
+  if (!result || !Number.isInteger(result.attempts) || result.attempts < 0 || result.attempts > 3 ||
+      !["idle", "verifying", "confirmed", "failed"].includes(result.status)) return;
+  powerControl = result;
+  updateControls();
+}
 
 const heaterState = {
   power: null,
@@ -183,6 +191,9 @@ function handleMessage(message) {
     case "temperature_result":
       receiveTemperatureResult(message.data);
       break;
+    case "power_result":
+      receivePowerResult(message.data);
+      break;
     case "command_error":
       if (pendingTemperatureCommand) {
         if (message.data.requestId === pendingTemperatureCommand.id) pendingTemperatureCommand = null;
@@ -221,6 +232,7 @@ function receiveHeaterSnapshot(state) {
     desiredTemperature = savedDesiredTemperature;
   receiveTemperatureControl(online ? state.temperatureControl : null);
   receiveTemperatureResult(state.reconciliation);
+  if (state.powerControl) receivePowerResult(state.powerControl);
   if ("pilot" in state || "display" in state) {
     const pilot = { heating: "Heating reference matched", ready: "Ready reference matched", unlit: "Pilot unlit", unknown: "Pilot not confirmed" };
     const display = { readable: "display readable", unreadable: "display unreadable", off: "display off", dim: "display dim", lit: "display on", unknown: "display not confirmed" };
@@ -396,11 +408,14 @@ function updateControls() {
   updatePowerButton();
   updateFlow();
   updateTemperatureControls();
-  document.getElementById("heater-observation").textContent = available ? observationText : "Waiting for fresh readings";
+  const powerText = powerControl?.status === "failed"
+    ? "Power change not confirmed. Check servo mounting/contact and the camera view before retrying."
+    : powerControl?.status === "verifying" ? `Confirming power: attempt ${powerControl.attempts}/3` : observationText;
+  document.getElementById("heater-observation").textContent = available ? powerText : "Waiting for fresh readings";
   for (const id of ["big-button", "automated-shutdown", "capture-temperature", "wake-temperature"]) {
     const control = document.getElementById(id);
     if (control) control.disabled = id === "capture-temperature" ? !brokerConnected || capturePending :
-      !available || (id === "big-button" && typeof heaterState.power !== "boolean") || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
+      !available || (id === "big-button" && (typeof heaterState.power !== "boolean" || powerControl?.status === "verifying")) || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
   }
   const status = document.getElementById("connection-status");
   if (status) status.textContent = !available ? (heaterState.cameraTemperature === null ? "Disconnected · controls unavailable" : "Controller offline · camera reading available") :

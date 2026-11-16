@@ -112,7 +112,10 @@ export class HeaterObservation {
       this.temperatureLocked = locked;
     }
     if (topic === "heater/state/color") { this.pilotFilter.update(value, now); this.colorAt = now; }
-    if (topic === "heater/state/power") this.power = value === "true" ? true : value === "false" ? false : null;
+    if (topic === "heater/state/power") {
+      this.power = value === "true" ? true : value === "false" ? false : null;
+      if (this.power === null) { this.pilotFilter.reset(); this.colorAt = -Infinity; this.temperatureValidAfter = now; }
+    }
     if (topic.startsWith("heater/state/")) { this.online = true; this.onlineAt = now; }
   }
 

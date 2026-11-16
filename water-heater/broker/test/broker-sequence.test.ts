@@ -13,6 +13,7 @@ import * as control from "../src/heater/temperature-control.js";
 import * as command from "../src/websocket/command.js";
 import * as reconciliation from "../src/heater/temperature-reconciliation.js";
 import * as panel from "../src/heater/panel-state.js";
+import * as powerOps from "../src/heater/power-operation.js";
 import * as optical from "../src/heater/display-power.js";
 import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
@@ -43,7 +44,7 @@ function fixture() {
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
     "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
-    "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
+    "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
   };
   const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8")
     .replaceAll("import.meta.url", JSON.stringify("file:///fixture/src/index.js"));
@@ -68,9 +69,9 @@ function fixture() {
       routes.get("/api/heater/status")!({}, { set() { return this; }, json(value: unknown) { body = value; } });
       return body;
     },
-    frame: (value: number | null, purpose: "water" | "mirror" = "water", light: "dark" | "lit" | "unknown" = "unknown") => {
+    frame: (value: number | null, purpose: "water" | "mirror" = "water", light: "dark" | "lit" | "unknown" = "unknown", captureStartedAt?: number) => {
       const now = Date.now();
-      const accepted = observeFrame({ value, visible: value !== null, observedAt: now, captureStartedAt: now, purpose, light });
+      const accepted = observeFrame({ value, visible: value !== null, observedAt: now, captureStartedAt: captureStartedAt ?? now, purpose, light });
       cameraState = { available: value !== null, value, observedAt: new Date(now).toISOString() };
       return accepted;
     },
@@ -85,6 +86,7 @@ test("a power request is sent once; unknown acknowledgement preserves desired st
     f.mqtt.emit("connect");
     f.send("heater/status", "online");
     f.send("heater/state/power", "true");
+    f.send("heater/state/temperature_control", JSON.stringify({ base: 56, target: 56, status: "idle", locked: false, min: 30, max: 75, commandId: 0, result: "none" }));
     f.connectSocket();
     f.request("set_heater_power", false);
     assert.equal(f.publishes.filter(message => message[0] === "heater/set/power").length, 1);
@@ -183,7 +185,7 @@ test("calibrated OFF reaches the controller and its false acknowledgement re-ena
       now = 100000 + elapsed; f.frame(null, "mirror", "dark");
     }
     assert.equal(f.publishes.some(m => m[0] === "heater/input/power"), false);
-    now = 106500; f.frame(null, "mirror", "dark");
+    now = 107500; f.frame(null, "mirror", "dark");
     assert.equal(JSON.stringify(f.publishes.at(-1)), JSON.stringify(["heater/input/power", "false", { qos: 0, retain: false }]));
     f.send("heater/state/power", "false");
     f.connectSocket();
@@ -196,5 +198,25 @@ test("calibrated OFF reaches the controller and its false acknowledgement re-ena
     f.send("heater/status", "offline"); f.send("heater/status", "online");
     now += 7000; f.frame(null, "mirror", "dark");
     assert.equal(f.publishes.filter(m => m[0] === "heater/input/power").length, count);
+  } finally { f.cleanup(); Date.now = originalNow; }
+});
+
+
+test("a frame captured during Power cannot restore ON or water after the unknown acknowledgement", () => {
+  const originalNow = Date.now; let now = 100000; Date.now = () => now;
+  const f = fixture();
+  try {
+    f.mqtt.emit("connect"); f.send("heater/status", "online"); f.send("heater/state/power", "true");
+    f.send("heater/state/temperature_control", JSON.stringify({ base: 56, target: 56, status: "idle", locked: false,
+      min: 30, max: 75, commandId: 1, result: "accepted" }));
+    assert.equal(f.frame(59), true);
+    now = 100500; f.send("heater/state/power", "unknown");
+    now = 100700;
+    assert.equal(f.frame(59, "water", "lit", 100400), false);
+    assert.equal(f.status().temperature, null);
+    assert.equal(f.publishes.some(m => m[0] === "heater/input/power"), false);
+    now = 102000;
+    assert.equal(f.frame(59, "water", "lit", 101600), true);
+    assert.equal(f.publishes.some(m => m[0] === "heater/input/power" && m[1] === "true"), true);
   } finally { f.cleanup(); Date.now = originalNow; }
 });

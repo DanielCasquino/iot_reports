@@ -25,10 +25,14 @@ export class DisplayPowerObservation {
     this.standbySince = null;
   }
 
+  acceptsCapture(frame: DisplayFrame, now = Date.now()) {
+    const at = frame.observedAt;
+    return Number.isFinite(at) && at <= now && now - at <= 3000 && (frame.captureStartedAt ?? at) >= this.captureAfter;
+  }
+
   observe(frame: DisplayFrame, controllerIdle: boolean, pilot: PilotState, now = Date.now()) {
     const at = frame.observedAt;
-    if (!Number.isFinite(at) || at <= this.lastFrameAt || at > now || now - at > 3000 ||
-        (frame.captureStartedAt ?? at) < this.captureAfter) return;
+    if (!this.acceptsCapture(frame, now) || at <= this.lastFrameAt) return;
     const continuous = at - this.lastFrameAt <= 3000;
     this.lastFrameAt = at;
     this.brightness = frame.brightness ?? null;
