@@ -158,6 +158,7 @@ export class CameraModule {
     }
     this.busy = true;
     const captureStartedAt = Date.now();
+    const targetRequestAtCapture = this.verificationId;
     let frameReported = false;
     const mqttGeneration = this.mqttGeneration;
     let readingState = { ...this.state };
@@ -231,16 +232,16 @@ export class CameraModule {
         text, confidence, reader, error: value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
       const sameSession = mqttGeneration === this.mqttGeneration;
-      if (sameSession && this.verificationPurpose === "target" &&
-          captureStartedAt >= this.verificationStartedAt && Date.now() - this.verificationStartedAt < 4500 &&
-          value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
+      const activeTarget = sameSession && this.verificationPurpose === "target" && this.verificationId !== null &&
+        targetRequestAtCapture === this.verificationId &&
+        captureStartedAt >= this.verificationStartedAt && Date.now() - this.verificationStartedAt < 4500;
+      if (activeTarget && value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
         this.targetBlankSeen = true;
-      if (sameSession && this.verificationPurpose === "target" && captureStartedAt >= this.verificationStartedAt &&
-          Date.now() - this.verificationStartedAt < 4500) {
+      if (activeTarget) {
         controlLog("camera_target_frame", { verificationId: this.verificationId, value, visible: displayVisible,
           light: readingState.displayLight, captureStartedAt, capturedAt, selectionBlankSeen: this.targetBlankSeen,
           decision: verificationId !== undefined && verificationId !== this.verificationId ? "stale_verification_capture" :
-            value === null ? "waiting_for_digits" : verificationId === undefined ? "mirror_only" :
+            value === null ? "waiting_for_digits" : verificationId === undefined && !mirrorOnly ? "water_poll_only" :
             this.targetBlankSeen ? "eligible_for_verification" : "blocked_missing_selection_blink" });
       }
       frameReported = true;
@@ -264,7 +265,15 @@ export class CameraModule {
         this.mqtt.publish(INPUT_TOPIC, "unavailable", { qos: 0, retain: false });
         return true;
       }
-      if (mirrorOnly) return true;
+      if (mirrorOnly) {
+        // The normal polling loop may see digits while explicit verification
+        // captures coincide with blink blanks. Reuse only a new capture from
+        // this active request, after its blank proof; MCU still requires two
+        // agreeing candidates and enforces its own shorter selection deadline.
+        if (activeTarget && this.targetBlankSeen)
+          this.sendVerificationCandidate(this.verificationId!, value, false, "mirror");
+        return true;
+      }
       if (waterReading) await new Promise<void>((resolve, reject) => {
         this.mqtt.publish(INPUT_TOPIC, String(value), { qos: 0, retain: false }, (error) => error ? reject(error) : resolve());
       });
@@ -272,10 +281,7 @@ export class CameraModule {
         // A steady water number is not a setpoint, even if two captures agree.
         // Active target requests require a fresh blank phase of selection.
         if (!wakeVerification && verificationId === this.verificationId && !this.targetBlankSeen) return true;
-        this.mqtt.publish(wakeVerification ? "heater/input/wake_verification" : "heater/input/temperature_verification",
-          `${verificationId},${value}`, { qos: 0, retain: false });
-        controlLog("camera_candidate_sent", { verificationId, value, purpose: wakeVerification ? "wake" : "target",
-          selectionBlankSeen: wakeVerification ? null : this.targetBlankSeen, controllerConfirmationPending: true });
+        this.sendVerificationCandidate(verificationId, value, wakeVerification, "verification");
       }
       return true;
     } catch (error) {
@@ -295,6 +301,13 @@ export class CameraModule {
       this.state = readingState;
       this.busy = false;
     }
+  }
+
+  private sendVerificationCandidate(verificationId: string, value: number, wake: boolean, origin: "mirror" | "verification") {
+    this.mqtt.publish(wake ? "heater/input/wake_verification" : "heater/input/temperature_verification",
+      `${verificationId},${value}`, { qos: 0, retain: false });
+    controlLog("camera_candidate_sent", { verificationId, value, purpose: wake ? "wake" : "target", origin,
+      selectionBlankSeen: wake ? null : this.targetBlankSeen, controllerConfirmationPending: true });
   }
 
   async close() {

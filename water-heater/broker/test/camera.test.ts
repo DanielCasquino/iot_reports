@@ -262,6 +262,27 @@ test("active target verification requires fresh selection blink, not two stable 
     mqtt.emit("close"); mqtt.emit("connect");
     request("10"); await pending;
     assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered);
+    // Explicit verification can land on blanks while continuous captures see
+    // the digits. Those fresh mirrors must supply the same guarded candidates.
+    blank = true;
+    request("10"); await pending;
+    blank = false;
+    await camera.readDisplayTemperature(false, undefined, true);
+    await camera.readDisplayTemperature(false, undefined, true);
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
+    assert.ok(logEntries.some(entry => entry.event === "camera_candidate_sent" && entry.origin === "mirror" && entry.verificationId === "10"));
+    request("11"); await pending;
+    await camera.readDisplayTemperature(false, undefined, true);
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, delivered + 2);
+    // Once the request expires, even a remembered blank is insufficient.
+    blank = true; request("11"); await pending; blank = false;
+    const beforeExpiry = messages.filter(m => m.topic === "heater/input/temperature_verification").length;
+    const previousNow = Date.now;
+    const future = previousNow() + 5000;
+    Date.now = () => future;
+    try { await camera.readDisplayTemperature(false, undefined, true); }
+    finally { Date.now = previousNow; }
+    assert.equal(messages.filter(m => m.topic === "heater/input/temperature_verification").length, beforeExpiry);
   } finally {
     console.log = previousLog;
     await camera.close(); globalThis.fetch = oldFetch;
