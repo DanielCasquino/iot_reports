@@ -105,10 +105,14 @@ mqttClient.on("message", (topic, payload, packet) => {
     case "heater/state/temperature_control":
       heaterState.temperatureControl = parseTemperatureControl(value);
       temperatureTokenReceivedAt = Date.now();
-      if (heaterState.temperatureControl && value !== lastControlDiagnostic) {
-        lastControlDiagnostic = value;
-        controlLog("temperature_controller_state", { ...heaterState.temperatureControl,
-          requestAcceptedOnly: heaterState.temperatureControl.result === "accepted" });
+      if (heaterState.temperatureControl) {
+        const { temperatureV2Token: _token, ...diagnostic } = heaterState.temperatureControl;
+        const signature = JSON.stringify(diagnostic);
+        if (signature !== lastControlDiagnostic) {
+          lastControlDiagnostic = signature;
+          controlLog("temperature_controller_state", { ...diagnostic,
+            requestAcceptedOnly: diagnostic.result === "accepted" });
+        }
       }
       if (heaterState.temperatureControl?.status !== "idle" || heaterState.temperatureControl.locked) displayPower.reset();
       break;
@@ -243,6 +247,12 @@ wss.on("connection", (ws) => {
         return;
       }
     }
+    if (command.topic === "heater/set/temperature" &&
+        !temperatureTransport(command.payload, heaterState.temperatureControl, temperatureTokenReceivedAt,
+          Date.now(), process.env.MQTT_TEMPERATURE_QOS1 === "true")) {
+      reject("Temperature controller token expired; retry shortly");
+      return;
+    }
     try {
       if (command.topic === "heater/set/autoshutdown")
         controlLog("auto_shutdown_requested", { enabled: command.payload === "true" });
@@ -352,7 +362,8 @@ setInterval(() => {
   try {
     command = temperatureReconciliation.poll(heaterState.temperatureControl,
       brokerConnected && state.online, powerResult.status !== "verifying" && state.power === true && state.temperature !== null && state.display === "readable" &&
-        panel.snapshot().recovery === "idle");
+        panel.snapshot().recovery === "idle" && !!temperatureTransport("0,-1,30", heaterState.temperatureControl,
+          temperatureTokenReceivedAt, Date.now(), process.env.MQTT_TEMPERATURE_QOS1 === "true"));
   } catch {
     console.error("Could not save temperature verification state");
     return;

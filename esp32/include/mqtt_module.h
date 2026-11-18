@@ -214,7 +214,7 @@ public:
             (baseToken != "-1" && (!parseUnsigned(baseToken, base) || base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return;
         heaterModule->requestTemperatureControl(id, baseToken == "-1" ? -1 : int(base), int(target), calibrate);
     }
-    void publishTemperatureControl()
+    void publishTemperatureControl(int qos = 0)
     {
         if (!heaterModule || !mqttClient.isConnected()) return;
         if (!temperatureToken || uint32_t(millis() - temperatureTokenAt) >= 5000UL)
@@ -228,7 +228,7 @@ public:
             ",\"commandId\":" + std::to_string(heaterModule->getTemperatureCommandId()) +
             ",\"result\":\"" + heaterModule->getTemperatureCommandResult() +
             "\",\"autoShutdownTarget\":" + std::to_string(heaterModule->getAutoShutdownTarget()) + "}";
-        mqttClient.publish("heater/state/temperature_control", payload, 0, false);
+        mqttClient.publish("heater/state/temperature_control", payload, qos, false);
     }
     void handlePower(const std::string &payload)
     {
