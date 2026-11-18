@@ -59,6 +59,7 @@ a {
 
 html {
   box-sizing: border-box;
+  scrollbar-gutter: stable;
   font-family:
     system-ui,
     -apple-system,
@@ -328,15 +329,15 @@ input:checked + .slider:before {
 }
 
 /* Keep the original layout and soft surfaces on smaller screens. */
-body { min-height: 100dvh; height: auto; max-height: none; position: relative; isolation: isolate; color: var(--text); padding: env(safe-area-inset-top) 24px max(24px, env(safe-area-inset-bottom)); }
+body { min-height: 100svh; height: auto; width: 100%; max-height: none; justify-content: flex-start; position: relative; isolation: isolate; color: var(--text); padding: env(safe-area-inset-top) 24px max(24px, env(safe-area-inset-bottom)); }
 .top-bar, .content { max-width: 620px; }
 .top-bar { height: auto; padding: 28px 0; gap: 20px; align-items: center; }
 .icon-wrapper .material-symbols-outlined, .settings > summary { font-size: 28px; }
 .content { height: auto; flex: 1; }
-.temp-display { font-size: clamp(56px, 10vw, 88px); margin: 20px 0 40px; }
-.big-button { width: min(480px, 78vw, 43dvh); height: auto; aspect-ratio: 1; flex-shrink: 0; }
+.temp-display { font-size: clamp(56px, 10vw, 88px); margin: 20px 0 40px; font-variant-numeric: tabular-nums; }
+.big-button { width: min(480px, 78vw, 43svh); height: auto; aspect-ratio: 1; flex-shrink: 0; }
 .big-button .material-symbols-outlined { font-size: clamp(96px, 30vw, 170px); }
-.option-list { padding: 0; margin-top: clamp(42px, 7dvh, 80px); gap: 28px; }
+.option-list { padding: 0; margin-top: clamp(42px, 7svh, 80px); gap: 28px; }
 .option + .option { margin-top: 0; }
 .option .option-header { font-size: clamp(18px, 3vw, 24px); gap: 24px; }
 :root { --toggle-width: 48px; --toggle-height: 24px; --toggle-padding: 3px; }
@@ -367,7 +368,8 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 .primary-control { display: flex; flex-direction: column; align-items: center; width: 100%; }
 .secondary-control { width: 100%; }
 .temperature-setting { width: min(100%, 340px); margin-top: 32px; text-align: center; }
-.target-heading { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 16px; color: var(--text-less-important); }
+.target-heading { position: relative; text-align: center; font-size: 16px; color: var(--text-less-important); }
+#adjustment-lock { position: absolute; inset-inline-end: 0; top: 50%; transform: translateY(-50%); }
 .temperature-stepper { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 18px 0; }
 #target-temperature { color: var(--text); font-size: 36px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .soft-button { font: inherit; color: var(--text); border: 0; background: var(--big-button); border-radius: 16px; box-shadow: 5px 5px 12px var(--shadow), -5px -5px 12px var(--highlight); cursor: pointer; }
@@ -375,23 +377,23 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 .soft-button:disabled { opacity: .4; }
 .step-button { width: 48px; height: 48px; display: grid; place-items: center; flex-shrink: 0; }
 .save-button { width: 100%; min-height: 46px; padding: 12px 20px; color: var(--terma-on); font-weight: 600; }
-#adjustment-status { min-height: 42px; font-size: 13px; line-height: 1.5; color: var(--text-less-important); margin: 16px 0 0; }
-.camera-settings > summary.icon-wrapper-on { color: var(--terma-on); }
+#adjustment-status { min-block-size: 4.5em; font-size: 13px; line-height: 1.5; color: var(--text-less-important); margin: 16px 0 0; }
 .camera-settings .diagnostics-panel {
   top: calc(100% + 14px);
   width: min(300px, calc(100vw - 48px));
   box-sizing: border-box;
-  max-height: 70dvh;
+  max-height: 70svh;
   overflow-y: auto;
 }
 .diagnostics-panel p:first-child { margin-top: 0; }
 .diagnostics-panel button:disabled { opacity: .45; }
+#camera-status { min-block-size: 2.8em; }
 @media (min-width: 960px) {
   body { padding-inline: 56px; }
   .top-bar { max-width: 1120px; }
   .content { max-width: 1120px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: clamp(60px, 8vw, 140px); align-items: center; padding: 16px 0 48px; }
   .temp-display { margin: 0 0 30px; font-size: 76px; }
-  .big-button { width: min(340px, 38dvh); }
+  .big-button { width: min(340px, 38svh); }
   .big-button .material-symbols-outlined { font-size: 140px; }
   .secondary-control { align-self: center; }
   .option-list { margin-top: 0; gap: 32px; }
@@ -405,7 +407,14 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 }
 
 .reading-label { font-size: 16px; color: var(--text-less-important); }
-.reading-status { margin: -22px 0 24px; font-size: 14px; text-align: center; color: var(--text); }
-.control-feedback { margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: var(--text); }
+.reading-status { min-block-size: 2.8em; margin: -22px 0 12px; font-size: 14px; line-height: 1.4; text-align: center; color: var(--text); }
+.control-feedback { min-block-size: 2.8em; margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: var(--text); }
+#power-lock-status { width: min(100%, 340px); text-align: center; }
+#auto-shutdown-status { min-block-size: 4.2em; }
+/* Status text can appear and disappear without moving the controls. */
+:is(.reading-status, .control-feedback)[hidden] { display: block !important; visibility: hidden; }
 .observed-maximum { margin: 0 0 12px; font-size: 16px; color: var(--text); }
 .observed-maximum output { margin-left: 0.3em; font-weight: 600; }
+@media (max-width: 370px) {
+  .observed-maximum output { display: block; margin-left: 0; }
+}

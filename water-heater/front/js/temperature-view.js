@@ -11,7 +11,7 @@ function renderTemperatureReadout({ reading, lastReading, temperatureMax, heater
   const effect = document.getElementById("fg");
   const displayedTemperature = reading ?? lastReading;
 
-  if (maximum) maximum.textContent = temperatureMax === null ? "Sin confirmar"
+  if (maximum) maximum.textContent = temperatureMax === null ? "Unconfirmed"
     : formatTemperature(temperatureMax, fahrenheit, fahrenheit ? 1 : 0);
   if (effect) effect.style.opacity = displayedTemperature === null ? 0
     : Math.max(0, Math.min(0.6, ((displayedTemperature - 30) / (40 - 30)) * 0.6));
@@ -22,8 +22,8 @@ function renderTemperatureReadout({ reading, lastReading, temperatureMax, heater
   }
   if (status) {
     status.hidden = reading !== null && !fromCamera;
-    status.textContent = reading !== null ? (fromCamera ? "Lectura del visor · ESP32 sin conexión" : "")
-      : lastReading === null ? (heaterOff ? "Terma apagada · sin lectura" : "Temperatura no disponible")
-      : heaterOff ? "Última lectura · terma apagada" : "Última lectura · sin dato en vivo";
+    status.textContent = reading !== null ? (fromCamera ? "Display reading · ESP32 disconnected" : "")
+      : lastReading === null ? (heaterOff ? "Heater off · no reading" : "Temperature unavailable")
+      : heaterOff ? "Last reading · heater off" : "Last reading · live reading unavailable";
   }
 }

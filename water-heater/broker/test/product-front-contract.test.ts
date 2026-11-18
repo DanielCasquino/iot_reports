@@ -104,7 +104,7 @@ test("confirmed OFF labels the last water reading as historical", () => {
   f.mqtt("heater/state/power", "false");
   f.snapshot({ power: false, temperature: 42 });
   assert.equal(f.elements.get("temp-display")!.textContent, "39.0°C");
-  assert.equal(f.elements.get("temperature-status")!.textContent, "Última lectura · terma apagada");
+  assert.equal(f.elements.get("temperature-status")!.textContent, "Last reading · heater off");
   assert.equal(f.elements.get("temperature-status")!.hidden, false);
 });
 
@@ -115,7 +115,7 @@ test("actuator controls explain their lock while the local unit selector stays a
   assert.ok(f.elements.get("big-button")!.disabled);
   assert.ok(f.elements.get("save-temperature")!.disabled);
   assert.equal(f.elements.get("fahrenheit")!.disabled, false);
-  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Ajuste de temperatura máx/);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Temperature adjustment in progress/);
   f.snapshot();
   assert.equal(f.elements.get("automated-shutdown")!.disabled, false);
 });
@@ -128,38 +128,49 @@ test("the auto-off switch waits for the controller rather than changing optimist
   assert.deepEqual(f.sent, [{ event: "set_auto_shutdown", data: { enabled: true } }]);
   assert.equal(toggle.checked, false);
   assert.equal(toggle.disabled, true);
-  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Confirmando autoapagado/);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Confirming auto-off/);
   f.snapshot({ autoShutdown: false });
   assert.equal(toggle.disabled, true);
   f.mqtt("heater/state/autoshutdown", "true");
   assert.equal(toggle.checked, true);
   assert.equal(toggle.disabled, false);
-  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /sin objetivo/);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /No auto-off target/);
 });
 
-test("a dark unreadable photo still marks the camera connected", () => {
+test("the camera button remains a neutral diagnostics action", () => {
   const f = front();
-  f.snapshot({ camera: { available: false, value: null, observedAt: new Date().toISOString() } });
-  assert.match(f.elements.get("camera-indicator")!.className, /icon-wrapper-on/);
+  const initialClass = f.elements.get("camera-indicator")!.className;
+  assert.match(html, /id="camera-indicator" class="icon-wrapper" aria-label="Camera diagnostics"/);
+  f.snapshot({ camera: { available: true, value: 39, observedAt: new Date().toISOString() } });
+  assert.equal(f.elements.get("camera-indicator")!.className, initialClass);
   f.snapshot({ camera: { available: false, value: null, observedAt: null } });
-  assert.match(f.elements.get("camera-indicator")!.className, /icon-wrapper-off/);
+  assert.equal(f.elements.get("camera-indicator")!.className, initialClass);
+});
+
+test("Wi-Fi shows the live connection even when HTTP is available separately", async () => {
+  const f = front();
+  assert.match(f.elements.get("broker-status")!.className, /icon-wrapper-on/);
+  f.disconnect();
+  await f.poll({ online: true, power: false, camera: { available: false, value: null } });
+  assert.match(f.elements.get("broker-status")!.className, /icon-wrapper-off/);
+  assert.equal(f.elements.get("capture-temperature")!.disabled, false);
 });
 
 test("Low Cortisol shows the verification and its actual armed threshold", () => {
   const f = front();
   f.snapshot({ autoShutdown: false, temperatureControl: { ...idle, base: -1, status: "verifying", locked: true,
     autoShutdownTarget: -1, autoShutdownArmStatus: "verifying" } });
-  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /comprobando la temperatura máx/);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /checking the maximum temperature/);
   assert.ok(f.elements.get("automated-shutdown")!.disabled);
   f.snapshot({ autoShutdown: true, temperatureControl: { ...idle, autoShutdownTarget: 40, autoShutdownArmStatus: "confirmed" } });
-  assert.equal(f.elements.get("auto-shutdown-status")!.textContent, "Objetivo de autoapagado · 40°C");
+  assert.equal(f.elements.get("auto-shutdown-status")!.textContent, "Auto-off target · 40°C");
 });
 
 test("a saved confirmed goal is labeled as historical while the current maximum is unknown", () => {
   const f = front(); f.snapshot({ power: false, temperatureMax: null,
     reconciliation: { target: 44, attempts: 1, status: "confirmed" } });
-  assert.equal(f.elements.get("observed-maximum")!.textContent, "Sin confirmar");
-  assert.match(f.elements.get("adjustment-status")!.textContent, /Último objetivo confirmado · 44°C/);
+  assert.equal(f.elements.get("observed-maximum")!.textContent, "Unconfirmed");
+  assert.match(f.elements.get("adjustment-status")!.textContent, /Last confirmed target · 44°C/);
 });
 
 test("manual target digits never replace hot water in the web reading or heat effect", () => {
@@ -231,11 +242,11 @@ test("failed reconciliation can be retried only by an explicit save; stale termi
 
 test("disconnect clears stale flow and observed power without deleting desired target", async () => {
   const f = front(); f.snapshot(); f.disconnect();
-  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
+  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
   assert.equal(f.elements.get("big-button")!.disabled, true);
   f.run("updateBrokerStatus(true)");
   f.mqtt("heater/status", "online");
-  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
+  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
   assert.equal(f.elements.get("big-button")!.disabled, true);
   assert.equal(f.elements.get("target-temperature")!.textContent, "44°C");
 });
@@ -283,7 +294,7 @@ test("HTTP loss invalidates controls and flow; explicit command acknowledgement 
   await f.run("refreshObservation()");
   assert.equal(f.elements.get("big-button")!.disabled, true);
   assert.equal(f.elements.get("temp-display")!.textContent, "37.0°C");
-  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
+  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
   assert.equal(f.sent.length, 1);
 });
 
