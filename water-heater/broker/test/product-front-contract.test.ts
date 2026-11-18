@@ -155,6 +155,13 @@ test("Low Cortisol shows the verification and its actual armed threshold", () =>
   assert.equal(f.elements.get("auto-shutdown-status")!.textContent, "Objetivo de autoapagado · 40°C");
 });
 
+test("a saved confirmed goal is labeled as historical while the current maximum is unknown", () => {
+  const f = front(); f.snapshot({ power: false, temperatureMax: null,
+    reconciliation: { target: 44, attempts: 1, status: "confirmed" } });
+  assert.equal(f.elements.get("observed-maximum")!.textContent, "Sin confirmar");
+  assert.match(f.elements.get("adjustment-status")!.textContent, /Último objetivo confirmado · 44°C/);
+});
+
 test("manual target digits never replace hot water in the web reading or heat effect", () => {
   const f = front();
   f.snapshot({ temperature: 60, camera: { available: true, value: 60 } });

@@ -526,9 +526,11 @@ function updateTemperatureControls() {
     verifying: "Waiting for confirmation.", selecting: "An adjustment is being selected on the device.", error: "Could not confirm the change. Try again." };
   const confirmed = !temperatureDraftDirty && temperatureOperation?.status === "confirmed" &&
     temperatureOperation.target === requestedTemperature;
+  const confirmationLabel = heaterState.temperatureMax === requestedTemperature
+    ? "Temperatura máx. confirmada" : "Último objetivo confirmado";
   document.getElementById("adjustment-status").textContent = !online ? "Waiting for the controller" :
     pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") :
-    confirmed && ["settling", "idle"].includes(temperatureControl.status) ? `Temperatura máx. confirmada: ${output.textContent}` :
+    confirmed && ["settling", "idle"].includes(temperatureControl.status) ? `${confirmationLabel} · ${output.textContent}` :
     states[temperatureControl.status] || currentOperationLock() || temperatureMessage ||
     (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : (temperatureControl.base === -1 ? "The display will be read before adjusting." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`));
   document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";
