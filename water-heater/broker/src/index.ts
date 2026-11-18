@@ -278,8 +278,7 @@ function controllerIdle() {
 const cameraModule = new CameraModule(mqttClient, frame => {
   const idle = controllerIdle();
   const currentCapture = displayPower.acceptsCapture(frame);
-  if (currentCapture) observedMaximum.observe(frame);
-  else observedMaximum.clear();
+  observedMaximum.observe(frame);
   publishMaximumIfChanged();
   panel.observeFrame(frame, idle && currentCapture && !observedMaximum.snapshot().temperatureMaxSelected);
   const state = observedState();
@@ -316,6 +315,7 @@ const panelEffects: Record<PanelEffect, () => void> = {
 let lastReconciliationStatus = "";
 let lastPowerResult = "";
 setInterval(() => {
+  publishMaximumIfChanged();
   const previousAdjustment = temperatureReconciliation.snapshot();
   const userAdjustmentUnresolved = previousAdjustment.target !== null &&
     previousAdjustment.status !== "confirmed";

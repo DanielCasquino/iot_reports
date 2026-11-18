@@ -11,50 +11,43 @@ export class ObservedMaximum {
   private selectedUntil = -Infinity;
 
   clear() {
-    this.firstValue = null;
-    this.blankSeen = false;
+    this.resetCandidate();
     this.value = null;
     this.observedAt = null;
     this.selectedUntil = -Infinity;
   }
 
+  private resetCandidate() {
+    this.firstValue = null;
+    this.blankSeen = false;
+  }
+
   observe(frame: DisplayFrame, now = Date.now()) {
     const at = frame.observedAt;
+    const startedAt = frame.captureStartedAt;
     if (!Number.isFinite(at) || at <= this.lastAt || at > now || now - at > 3000 ||
-        !Number.isFinite(frame.captureStartedAt) || frame.captureStartedAt! > at || frame.captureStartedAt! <= this.lastAt ||
-        frame.light === "unknown" || frame.light === undefined) {
-      this.firstValue = null;
-      this.blankSeen = false;
-      this.selectedUntil = -Infinity;
+        startedAt === undefined || !Number.isFinite(startedAt) || startedAt > at || startedAt <= this.lastAt) {
+      this.resetCandidate();
       return;
     }
     this.lastAt = at;
     if (this.firstValue !== null && at - this.firstAt > 5000) {
-      this.firstValue = null;
-      this.blankSeen = false;
+      this.resetCandidate();
     }
     if (frame.light === "dark" && !frame.visible && frame.value === null) {
       if (this.firstValue !== null) this.blankSeen = true;
-      if (this.selectedUntil >= at) this.selectedUntil = at + 6000;
       return;
     }
-    if (!frame.visible || frame.value === null || !Number.isInteger(frame.value) ||
+    if (frame.light !== "lit" || !frame.visible || frame.value === null || !Number.isInteger(frame.value) ||
         frame.value < 30 || frame.value > 75) {
-      this.firstValue = null;
-      this.blankSeen = false;
-      return;
-    }
-    if (frame.light !== "lit") {
-      this.firstValue = null;
-      this.blankSeen = false;
+      this.resetCandidate();
       return;
     }
     if (this.blankSeen && this.firstValue === frame.value) {
       this.value = frame.value;
       this.observedAt = at;
       this.selectedUntil = at + 6000;
-      this.firstValue = null;
-      this.blankSeen = false;
+      this.resetCandidate();
       return;
     }
     if (this.firstValue === null || this.firstValue !== frame.value) {

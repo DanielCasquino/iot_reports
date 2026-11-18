@@ -49,3 +49,20 @@ test("overlapping or repeated captures do not establish a maximum", () => {
   max.observe(number(1200, 45), 1200);
   assert.equal(max.snapshot(1200).temperatureMax, null);
 });
+
+test("the last confirmed maximum survives an ambiguous blink and the return to water", () => {
+  const max = new ObservedMaximum();
+  max.observe(number(1000, 40), 1000);
+  max.observe(dark(1400), 1400);
+  max.observe(number(1800, 40), 1800);
+  max.observe(failed(2200), 2200);
+  max.observe(number(2600, 41), 2600);
+  max.observe({ ...number(3000, 39), captureStartedAt: 2500 }, 3000);
+  max.observe(dark(3400), 3400);
+  max.observe(number(3800, 39), 3800);
+  assert.deepEqual(max.snapshot(3800), { temperatureMax: 40, temperatureMaxObservedAt: new Date(1800).toISOString(), temperatureMaxSelected: true });
+  assert.equal(max.snapshot(8000).temperatureMax, 40);
+  assert.equal(max.snapshot(8000).temperatureMaxSelected, false);
+  max.clear();
+  assert.equal(max.snapshot(8100).temperatureMax, null);
+});
