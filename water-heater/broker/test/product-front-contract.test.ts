@@ -206,11 +206,11 @@ test("failed reconciliation can be retried only by an explicit save; stale termi
 
 test("disconnect clears stale flow and observed power without deleting desired target", async () => {
   const f = front(); f.snapshot(); f.disconnect();
-  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
+  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
   assert.equal(f.elements.get("big-button")!.disabled, true);
   f.run("updateBrokerStatus(true)");
   f.mqtt("heater/status", "online");
-  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
+  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
   assert.equal(f.elements.get("big-button")!.disabled, true);
   assert.equal(f.elements.get("target-temperature")!.textContent, "44°C");
 });
@@ -258,7 +258,7 @@ test("HTTP loss invalidates controls and flow; explicit command acknowledgement 
   await f.run("refreshObservation()");
   assert.equal(f.elements.get("big-button")!.disabled, true);
   assert.equal(f.elements.get("temp-display")!.textContent, "37.0°C");
-  assert.match(f.elements.get("flow-display")!.textContent, /unavailable/);
+  assert.match(f.elements.get("flow-display")!.textContent, /no disponible/);
   assert.equal(f.sent.length, 1);
 });
 

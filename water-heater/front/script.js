@@ -4,6 +4,7 @@ const connect = heaterSocket.connect;
 
 let fahrenheit = false;
 let brokerConnected = false;
+let httpConnected = false;
 let capturePending = false;
 let temperatureControl = null;
 let requestedTemperature = null;
@@ -86,13 +87,25 @@ function updateTemperature() {
 }
 
 function updateBrokerStatus(connected) {
-  const indicator = document.getElementById("broker-status");
-
-  if (!indicator) return;
-
   brokerConnected = connected;
+  updateBackendIndicator();
   updateControls();
-  indicator.title = connected ? "WebSocket connected" : "WebSocket disconnected";
+}
+
+function updateBackendIndicator() {
+  const indicator = document.getElementById("broker-status");
+  const connected = brokerConnected || httpConnected;
+  indicator.title = brokerConnected ? "Backend conectado"
+    : httpConnected ? "Backend responde · tiempo real sin conexión" : "Backend sin conexión";
+  indicator.setAttribute("aria-label", indicator.title);
+  indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
+}
+
+function updateCameraIndicator(camera) {
+  const indicator = document.getElementById("camera-indicator");
+  const age = Date.now() - Date.parse(camera?.observedAt ?? "");
+  const connected = age >= -5000 && age <= 30000;
+  indicator.title = connected ? "Cámara conectada · ver estado y sensores" : "Cámara sin imagen reciente · ver estado y sensores";
   indicator.setAttribute("aria-label", indicator.title);
   indicator.className = `icon-wrapper icon-wrapper-${connected ? "on" : "off"}`;
 }
@@ -103,7 +116,7 @@ function updateEspStatus() {
   if (!indicator) return;
 
   updateControls();
-  indicator.title = heaterState.status === "online" ? "Device online" : "Device offline";
+  indicator.title = heaterState.status === "online" ? "ESP32 conectado" : "ESP32 sin conexión";
   indicator.setAttribute("aria-label", indicator.title);
   indicator.className = `icon-wrapper icon-wrapper-${heaterState.status === "online" ? "on" : "off"}`;
 }
@@ -215,6 +228,7 @@ function receiveHeaterSnapshot(state) {
   heaterState.waterTemperature = online && typeof state.temperature === "number" &&
     Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 75 ? state.temperature : null;
   const camera = state.camera;
+  updateCameraIndicator(camera);
   heaterState.cameraTemperature = camera?.available === true && typeof camera.value === "number" &&
     Number.isFinite(camera.value) && camera.value >= 0 && camera.value <= 75 ? camera.value : null;
   for (const field of ["flowrate", "volume"]) {
@@ -231,10 +245,10 @@ function receiveHeaterSnapshot(state) {
   receiveTemperatureResult(state.reconciliation);
   if (state.powerControl) receivePowerResult(state.powerControl);
   if ("pilot" in state || "display" in state) {
-    const pilot = { heating: "Heating reference matched", ready: "Ready reference matched", unlit: "Pilot unlit", unknown: "Pilot not confirmed" };
-    const display = { readable: "display readable", unreadable: "display unreadable", off: "display off", dim: "display dim", lit: "display on", unknown: "display not confirmed" };
+    const pilot = { heating: "Calentando", ready: "Lista", unlit: "Piloto apagado", unknown: "Piloto sin confirmar" };
+    const display = { readable: "visor legible", unreadable: "visor ilegible", off: "visor apagado", dim: "visor tenue", lit: "visor encendido", unknown: "visor sin confirmar" };
     const visor = state.displayState && state.displayState.display !== "unknown" ? state.displayState.display : state.display;
-    observationText = online ? `${pilot[state.pilot] || pilot.unknown} · ${display[visor] || display.unknown}` : "Waiting for fresh device readings";
+    observationText = online ? `${pilot[state.pilot] || pilot.unknown} · ${display[visor] || display.unknown}` : "Esperando al ESP32";
   }
   updateAutoShutdown();
   updateTemperature();
@@ -247,7 +261,7 @@ function receiveTemperatureResult(result) {
       !Number.isInteger(result.attempts) || result.attempts < 0 || result.attempts > 3 ||
       !["waiting", "verifying", "confirmed", "failed"].includes(result.status)) return;
   const target = pendingTemperatureCommand?.target ?? savedRequestedTemperature ?? requestedTemperature;
-  if (result.target !== target || pendingTemperatureCommand?.calibrate) return;
+  if (result.target !== target) return;
   if (pendingTemperatureCommand) {
     if (result.status === "waiting" || result.status === "verifying") pendingTemperatureCommand.reconciliationStarted = true;
     else if (!pendingTemperatureCommand.reconciliationStarted) return;
@@ -272,6 +286,7 @@ function updateConnection(connected) {
     powerControl = null;
     pendingPowerChange = null;
     pendingAutomaticShutdown = null;
+    if (!httpConnected) updateCameraIndicator(null);
     updateColor();
     updateEspStatus();
     updateTemperature();
@@ -346,21 +361,26 @@ window.addEventListener("load", () => {
 });
 
 async function captureTemperature() {
-  if (!brokerConnected || capturePending) return;
+  if (!(brokerConnected || httpConnected) || capturePending) return;
   capturePending = true;
   updateControls();
   const status = document.getElementById("camera-status");
-  if (status) status.textContent = "Capturing and reading display...";
+  if (status) status.textContent = "Leyendo el visor…";
   try {
     const response = await fetch("/api/camera/capture", { method: "POST", cache: "no-store" });
     const result = await response.json();
+    if (response.status === 409) {
+      if (status) status.textContent = "Ya hay una captura en curso.";
+      return;
+    }
+    updateCameraIndicator(result);
     if (!response.ok || result.error || typeof result.value !== "number" || !Number.isFinite(result.value)) {
-      if (status) status.textContent = "Display unreadable or capture unavailable. No new temperature confirmed.";
-    } else if (status) status.textContent = `Captured OCR: ${result.value}°C`;
+      if (status) status.textContent = result.observedAt ? "Llegó una imagen. El visor no dio una lectura válida." : "La cámara no entregó una imagen.";
+    } else if (status) status.textContent = `Lectura del visor · ${result.value} °C`;
     const image = document.getElementById("camera-preview");
     if (image) image.src = `/api/camera/image?t=${Date.now()}`;
-  } catch (error) {
-    if (status) status.textContent = "Camera/backend unavailable";
+  } catch {
+    if (status) status.textContent = "El backend no respondió a la captura.";
   } finally { capturePending = false; updateControls(); }
 }
 
@@ -371,6 +391,7 @@ function updateColor() {
 
 function currentOperationLock() {
   if (pendingPowerChange || powerControl?.status === "verifying") return "Confirmando encendido o apagado…";
+  if (temperatureControl?.autoShutdownArmStatus === "verifying") return "Low Cortisol está comprobando la temperatura máx.…";
   if (pendingAutomaticShutdown) return "Confirmando autoapagado…";
   if (pendingTemperatureCommand || temperatureControl?.locked || temperatureControl?.status === "selecting" ||
       (temperatureOperation?.status === "verifying" && temperatureOperation.attempts > 0))
@@ -399,14 +420,18 @@ function updateControls() {
   const powerText = powerControl?.status === "failed"
     ? "Power change not confirmed. Check servo mounting/contact and the camera view before retrying."
     : powerControl?.status === "verifying" ? `Confirming power: attempt ${powerControl.attempts}/3` : observationText;
-  document.getElementById("heater-observation").textContent = available ? powerText : "Waiting for fresh readings";
+  document.getElementById("heater-observation").textContent = heaterState.status === "online" ? powerText : "Esperando al ESP32";
   const lockReason = hardwareLockReason();
   const powerReason = lockReason ?? (temperatureControl ? null : "Esperando estado del controlador.");
   document.getElementById("big-button").disabled = Boolean(powerReason);
   document.getElementById("automated-shutdown").disabled = Boolean(lockReason);
-  document.getElementById("capture-temperature").disabled = !brokerConnected || capturePending;
+  document.getElementById("capture-temperature").disabled = !(brokerConnected || httpConnected) || capturePending;
   showControlFeedback("power-lock-status", powerReason);
-  showControlFeedback("auto-shutdown-status", lockReason ?? (autoShutdownFeedback || null));
+  const autoTarget = temperatureControl?.autoShutdownTarget;
+  const armed = heaterState.autoShutdown && Number.isInteger(autoTarget) && autoTarget >= 30;
+  const autoStatus = armed ? `Objetivo de autoapagado · ${formatTemperature(autoTarget, fahrenheit, fahrenheit ? 1 : 0)}`
+    : heaterState.autoShutdown ? "Autoapagado sin objetivo. Actívalo de nuevo para comprobar la máxima." : null;
+  showControlFeedback("auto-shutdown-status", lockReason ?? (autoShutdownFeedback || autoStatus));
   const status = document.getElementById("connection-status");
   if (status) status.textContent = !available ? (heaterState.cameraTemperature === null ? "Disconnected · controls unavailable" : "Controller offline · camera reading available") :
     typeof heaterState.power !== "boolean" ? "Connected · waiting for power confirmation" :
@@ -419,8 +444,13 @@ async function refreshObservation() {
     const response = await fetch("/api/heater/status", { cache: "no-store", signal: AbortSignal.timeout(4000) });
     if (!response.ok) throw new Error("Status unavailable");
     const state = await response.json();
+    httpConnected = true;
+    updateBackendIndicator();
     receiveHeaterSnapshot(state);
   } catch {
+    httpConnected = false;
+    updateBackendIndicator();
+    updateCameraIndicator(null);
     observationText = "Live status unavailable";
     heaterState.status = "offline";
     heaterState.power = null;
@@ -437,10 +467,10 @@ async function refreshObservation() {
 window.addEventListener("load", refreshObservation);
 
 function updateFlow() {
-  const available = brokerConnected && heaterState.status === "online";
-  const rate = available && typeof heaterState.flowrate === "number" ? `${heaterState.flowrate.toFixed(2)} L/min` : "unavailable";
-  const volume = available && typeof heaterState.volume === "number" ? `${heaterState.volume.toFixed(2)} L since restart` : "unavailable";
-  document.getElementById("flow-display").textContent = `Flow: ${rate} · Volume: ${volume}`;
+  const rate = heaterState.status === "online" && typeof heaterState.flowrate === "number" ? heaterState.flowrate : null;
+  const volume = heaterState.status === "online" && typeof heaterState.volume === "number" ? heaterState.volume : null;
+  document.getElementById("flow-display").textContent = rate === null ? "Caudal no disponible"
+    : `Caudal · ${rate.toFixed(2)} L/min` + (volume === null ? "" : ` · Volumen · ${volume.toFixed(2)} L desde el arranque`);
 }
 
 // The draft stays local. Only Save sends a target; the controller owns the lock.
@@ -456,6 +486,13 @@ function receiveTemperatureControl(control) {
     return;
   }
   temperatureControl = control;
+  if (control.autoShutdownArmStatus === "verifying") {
+    if (pendingAutomaticShutdown?.enabled) pendingAutomaticShutdown = null;
+    autoShutdownFeedback = "";
+  } else if (control.autoShutdownArmStatus === "failed") {
+    if (pendingAutomaticShutdown?.enabled) pendingAutomaticShutdown = null;
+    autoShutdownFeedback = "Low Cortisol no pudo comprobar la máxima. Revisa el visor y vuelve a activar.";
+  }
   if (control.status === "error") temperatureMessage = "Could not confirm the change. Try again.";
   if (pendingTemperatureCommand && control.commandId === pendingTemperatureCommand.id) {
     if (control.result !== "accepted") {
@@ -464,16 +501,14 @@ function receiveTemperatureControl(control) {
         disabled: "Temperature control is disabled.", invalid: "Invalid temperature." };
       temperatureMessage = errors[control.result] || "The command was not accepted.";
     } else {
-      temperatureMessage = pendingTemperatureCommand.calibrate ? "Current setting synchronized. No servos moved." : "";
-      if (!pendingTemperatureCommand.calibrate) savedRequestedTemperature = pendingTemperatureCommand.target;
+      temperatureMessage = "";
+      savedRequestedTemperature = pendingTemperatureCommand.target;
       temperatureDraftDirty = false;
     }
     pendingTemperatureCommand = null;
   }
   if (requestedTemperature === null || (!temperatureDraftDirty && !pendingTemperatureCommand))
     requestedTemperature = savedRequestedTemperature ?? ((control.locked || control.status === "selecting") && control.target >= control.min ? control.target : control.base === -1 ? (control.target >= control.min ? control.target : null) : control.base);
-  const input = document.getElementById("base-temperature");
-  if (document.activeElement !== input) input.value = control.base === -1 ? "" : control.base;
   updateControls();
 }
 function updateTemperatureControls() {
@@ -484,8 +519,6 @@ function updateTemperatureControls() {
   document.getElementById("temperature-up").disabled = !editable;
   const retry = temperatureOperation?.status === "failed" && temperatureOperation.target === requestedTemperature;
   document.getElementById("save-temperature").disabled = !editable || requestedTemperature === null || (requestedTemperature === temperatureControl?.base && !retry);
-  document.getElementById("sync-base").disabled = !online || locked;
-  document.getElementById("base-temperature").disabled = !online || locked;
   const output = document.getElementById("target-temperature");
   output.textContent = formatTemperature(requestedTemperature, fahrenheit, fahrenheit ? 1 : 0);
   document.getElementById("adjustment-lock").hidden = !locked;
@@ -498,7 +531,6 @@ function updateTemperatureControls() {
     confirmed && ["settling", "idle"].includes(temperatureControl.status) ? `Temperatura máx. confirmada: ${output.textContent}` :
     states[temperatureControl.status] || currentOperationLock() || temperatureMessage ||
     (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : (temperatureControl.base === -1 ? "The display will be read before adjusting." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`));
-  document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : (temperatureControl.base === -1 ? "Current setting unknown" : `Estimated setting: ${temperatureControl.base}°C`);
   document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";
 }
 function changeTarget(direction) {
@@ -510,12 +542,12 @@ function changeTarget(direction) {
   temperatureMessage = "";
   updateTemperatureControls();
 }
-function sendTemperatureCommand(calibrate, target) {
+function sendTemperatureCommand(target) {
   if (!temperatureControl || pendingTemperatureCommand || temperatureControl.status !== "idle") return;
   const id = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
-  if (sendCommand(calibrate ? "sync_temperature_base" : "set_temperature", { target, base: temperatureControl.base, requestId: id })) {
-    pendingTemperatureCommand = { id, target, calibrate, timedOut: false, reconciliationStarted: false };
-    if (!calibrate) temperatureOperation = null;
+  if (sendCommand("set_temperature", { target, base: temperatureControl.base, requestId: id })) {
+    pendingTemperatureCommand = { id, target, timedOut: false, reconciliationStarted: false };
+    temperatureOperation = null;
     // Never unlock or replay movement commands on a timeout: their delivery is unknown.
     setTimeout(() => {
       if (pendingTemperatureCommand?.id === id) {
@@ -528,16 +560,5 @@ function sendTemperatureCommand(calibrate, target) {
   }
 }
 function saveTarget() {
-  if (!document.getElementById("save-temperature").disabled) sendTemperatureCommand(false, requestedTemperature);
+  if (!document.getElementById("save-temperature").disabled) sendTemperatureCommand(requestedTemperature);
 }
-function syncTemperatureBase(event) {
-  event.preventDefault();
-  const input = document.getElementById("base-temperature");
-  if (input.reportValidity() && !document.getElementById("sync-base").disabled)
-    sendTemperatureCommand(true, Number(input.value));
-}
-// Keep one diagnostics panel: expanded in the desktop column, collapsible on phones.
-const desktopLayout = matchMedia("(min-width: 960px)");
-function arrangeDiagnostics() { document.querySelector(".diagnostics").open = desktopLayout.matches; }
-desktopLayout.addEventListener("change", arrangeDiagnostics);
-arrangeDiagnostics();

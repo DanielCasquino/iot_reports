@@ -9,27 +9,28 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined&amp;icon_names=add,developer_board,dns,lock,photo_camera,power_settings_new,remove&amp;display=block" />
     <title>Terma Erma</title>
   </head>
   <body>
     <div id="top-bar" class="top-bar">
-      <div id="broker-status" class="icon-wrapper icon-wrapper-off" role="img" aria-label="Disconnected">
-        <span class="material-symbols-outlined" aria-hidden="true">wifi</span>
+      <div id="broker-status" class="icon-wrapper icon-wrapper-off" role="img" aria-label="Backend sin conexión">
+        <span class="material-symbols-outlined" aria-hidden="true">dns</span>
       </div>
-      <div id="esp-status" class="icon-wrapper icon-wrapper-off" role="img" aria-label="Device offline">
+      <div id="esp-status" class="icon-wrapper icon-wrapper-off" role="img" aria-label="ESP32 sin conexión">
         <span class="material-symbols-outlined" aria-hidden="true">developer_board</span>
       </div>
-      <details class="settings base-settings">
-        <summary class="material-symbols-outlined" aria-label="Temperature calibration" title="Temperature calibration">tune</summary>
-        <div class="settings-panel">
-          <form id="base-form" onsubmit="syncTemperatureBase(event)">
-            <label for="base-temperature" lang="es">Temperatura máx. en el visor (°C)</label>
-            <p>Match the number you set on the physical heater. This does not move the servos.</p>
-            <div class="base-input-row"><input id="base-temperature" type="number" min="30" max="75" step="1" value="43" required disabled />
-            <button id="sync-base" type="submit" disabled>Sync</button></div>
-            <p id="base-status" role="status">Waiting for the controller</p>
-          </form>
+      <details class="settings camera-settings">
+        <summary id="camera-indicator" class="icon-wrapper icon-wrapper-off" aria-label="Cámara sin imagen reciente · ver estado y sensores" title="Cámara sin imagen reciente · ver estado y sensores">
+          <span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+        </summary>
+        <div class="settings-panel diagnostics-panel" lang="es">
+          <p id="heater-observation">Esperando lecturas recientes</p>
+          <p id="color-display">Piloto LED · RGB no disponible</p>
+          <p id="flow-display">Caudal no disponible</p>
+          <button id="capture-temperature" disabled onclick="captureTemperature()">Leer visor</button>
+          <p id="camera-status" role="status"></p>
+          <img id="camera-preview" alt="Última foto del visor" />
         </div>
       </details>
     </div>
@@ -62,7 +63,7 @@
           <span>Low Cortisol Mode</span>
           <label class="switch"><input id="automated-shutdown" disabled aria-label="Autoapagado" aria-describedby="auto-shutdown-description auto-shutdown-status" type="checkbox" onchange="toggleAutomatedShutdown(this)" /><span class="slider"></span></label>
         </div>
-          <span id="auto-shutdown-description" class="option-description" lang="es">Apaga la terma cuando el agua alcanza la temperatura objetivo aceptada por el controlador.</span>
+          <span id="auto-shutdown-description" class="option-description" lang="es">Apaga la terma cuando el agua alcanza el objetivo. Si falta, comprueba la máxima del visor.</span>
           <span id="auto-shutdown-status" class="control-feedback" role="status" lang="es" hidden></span>
         </div>
         <div class="option"><div class="option-header">
@@ -71,17 +72,6 @@
         </div>
         </div>
       </div>
-      <details class="settings diagnostics">
-        <summary class="material-symbols-outlined" aria-label="Details" title="Details">more_horiz</summary>
-        <div class="settings-panel diagnostics-panel">
-          <p id="flow-display">Flow unavailable</p>
-          <p id="heater-observation">Waiting for fresh readings</p>
-          <p id="color-display" lang="es">Piloto LED · RGB no disponible</p>
-          <button id="capture-temperature" disabled onclick="captureTemperature()">Read display</button>
-          <p id="camera-status" role="status"></p>
-          <img id="camera-preview" alt="Last captured display" />
-        </div>
-      </details>
       </aside>
     </main>
     <div id="fg" class="fg"></div>
