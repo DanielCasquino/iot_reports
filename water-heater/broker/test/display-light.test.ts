@@ -41,11 +41,13 @@ test("a valid dark frame stays distinct from lost, stale and malformed captures"
     const image = await sharp({ create: { width: 20, height: 20, channels: 3, background: "black" } }).jpeg().toBuffer();
     globalThis.fetch = async () => new Response(image, { headers: { "content-type": "image/jpeg" } });
     assert.equal(await camera.readDisplayTemperature(), false);
+    assert.equal(camera.getState().connected, true);
     assert.equal(camera.getState().displayLight, "dark");
     assert.equal(camera.getState().displayBrightness, 0);
     assert.equal(camera.getState().value, null);
     const capturedAt = Date.parse(camera.getState().observedAt!);
     Date.now = () => capturedAt + 30001;
+    assert.equal(camera.getState().connected, false);
     assert.equal(camera.getState().displayLight, "unknown");
     Date.now = () => capturedAt - 1;
     assert.equal(camera.getState().displayLight, "unknown");
@@ -56,6 +58,7 @@ test("a valid dark frame stays distinct from lost, stale and malformed captures"
     assert.equal(camera.getState().displayBrightness, null);
     globalThis.fetch = async () => { throw new Error("Camera disconnected"); };
     assert.equal(await camera.readDisplayTemperature(), false);
+    assert.equal(camera.getState().connected, false);
     assert.equal(camera.getState().observedAt, null);
     assert.equal(camera.getState().displayLight, "unknown");
     assert.ok(messages.every(value => value === "unavailable"));

@@ -182,7 +182,7 @@ export class CameraModule {
     this.expireCachedMirror();
     const age = this.state.observedAt === null ? NaN : Date.now() - Date.parse(this.state.observedAt);
     const fresh = Number.isFinite(age) && age >= 0 && age <= 30000;
-    return { ...this.state, displayMirror: { ...this.mirrorState, historical: this.mirrorFromCache }, available: this.state.available && fresh,
+    return { ...this.state, connected: fresh, displayMirror: { ...this.mirrorState, historical: this.mirrorFromCache }, available: this.state.available && fresh,
       value: this.state.available && fresh ? this.state.value : null,
       displayBrightness: fresh ? this.state.displayBrightness : null,
       displayLight: fresh ? this.state.displayLight : "unknown" };

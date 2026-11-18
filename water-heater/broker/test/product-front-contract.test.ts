@@ -137,14 +137,18 @@ test("the auto-off switch waits for the controller rather than changing optimist
   assert.match(f.elements.get("auto-shutdown-status")!.textContent, /No auto-off target/);
 });
 
-test("the camera button remains a neutral diagnostics action", () => {
+test("camera diagnostics follow capture connectivity through unreadable, offline and recovered states", async () => {
   const f = front();
-  const initialClass = f.elements.get("camera-indicator")!.className;
-  assert.match(html, /id="camera-indicator" class="icon-wrapper" aria-label="Camera diagnostics"/);
-  f.snapshot({ camera: { available: true, value: 39, observedAt: new Date().toISOString() } });
-  assert.equal(f.elements.get("camera-indicator")!.className, initialClass);
-  f.snapshot({ camera: { available: false, value: null, observedAt: null } });
-  assert.equal(f.elements.get("camera-indicator")!.className, initialClass);
+  const icon = f.elements.get("camera-indicator")!;
+  assert.match(html, /<summary id="camera-indicator" class="icon-wrapper icon-wrapper-off"/);
+  f.snapshot({ power: false, camera: { connected: true, available: false, value: null } });
+  assert.match(icon.className, /icon-wrapper-on/);
+  f.snapshot({ camera: { connected: false, available: false, lastValue: 39 } });
+  assert.match(icon.className, /icon-wrapper-off/);
+  f.disconnect();
+  await f.poll({ online: false, camera: { connected: true, available: false } });
+  assert.match(icon.className, /icon-wrapper-on/);
+  assert.match(icon.title, /Camera connected.*diagnostics/);
 });
 
 test("Wi-Fi shows the live connection even when HTTP is available separately", async () => {

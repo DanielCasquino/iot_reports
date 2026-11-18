@@ -102,6 +102,14 @@ function updateBackendIndicator() {
   indicator.className = `icon-wrapper icon-wrapper-${brokerConnected ? "on" : "off"}`;
 }
 
+function updateCameraIndicator(connected) {
+  const indicator = document.getElementById("camera-indicator");
+  const status = connected === true ? "Camera connected" : connected === false ? "Camera unavailable" : "Camera status unknown";
+  indicator.className = `icon-wrapper icon-wrapper-${connected === true ? "on" : "off"}`;
+  indicator.title = `${status} · Open diagnostics`;
+  indicator.setAttribute("aria-label", indicator.title);
+}
+
 function updateEspStatus() {
   const indicator = document.getElementById("esp-status");
 
@@ -224,6 +232,7 @@ function receiveHeaterSnapshot(state) {
   heaterState.waterTemperature = online && typeof state.temperature === "number" &&
     Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 75 ? state.temperature : null;
   const camera = state.camera;
+  updateCameraIndicator(camera?.connected);
   heaterState.cameraTemperature = camera?.available === true && typeof camera.value === "number" &&
     Number.isFinite(camera.value) && camera.value >= 0 && camera.value <= 75 ? camera.value : null;
   for (const field of ["flowrate", "volume"]) {
@@ -367,6 +376,7 @@ async function captureTemperature() {
       if (status) status.textContent = "A capture is already in progress.";
       return;
     }
+    updateCameraIndicator(result.connected);
     if (!response.ok || result.error || typeof result.value !== "number" || !Number.isFinite(result.value)) {
       if (status) status.textContent = result.observedAt ? "The camera responded. The display could not be read." : "The camera did not return an image.";
     } else if (status) status.textContent = `Display reading · ${result.value} °C`;
@@ -442,6 +452,7 @@ async function refreshObservation() {
     receiveHeaterSnapshot(state);
   } catch {
     httpConnected = false;
+    updateCameraIndicator();
     updateBackendIndicator();
     observationText = "Live status unavailable";
     heaterState.status = "offline";

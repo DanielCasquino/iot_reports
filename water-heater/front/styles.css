@@ -349,7 +349,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 .fg { position: absolute; inset: 0; z-index: -1; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .settings { position: relative; }
-.settings > summary { list-style: none; color: var(--terma-off); cursor: pointer; line-height: 1; }
+.settings > summary { list-style: none; cursor: pointer; line-height: 1; }
 .settings > summary::-webkit-details-marker { display: none; }
 .settings-panel { position: absolute; z-index: 3; right: 0; top: 44px; width: min(300px, 84vw); padding: 20px; border-radius: 20px; background: var(--up); box-shadow: 8px 8px 24px var(--shadow); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .settings-panel button { font: inherit; color: var(--text); background: transparent; border: 1px solid var(--terma-off); border-radius: 12px; padding: 8px 14px; cursor: pointer; }
