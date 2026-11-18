@@ -326,8 +326,15 @@ app.get("/api/heater/status", (_req, res) => {
 function publishTemperatureCommand(payload: string) {
   const transport = temperatureTransport(payload, heaterState.temperatureControl,
     temperatureTokenReceivedAt, Date.now(), process.env.MQTT_TEMPERATURE_QOS1 === "true");
-  if (transport) mqttClient.publish(transport.topic, transport.payload, { qos: transport.qos, retain: false });
-  else controlLog("temperature_transport_rejected", { reason: "stale_controller_token" });
+  const commandId = Number(payload.slice(0, payload.indexOf(",")));
+  if (!transport) {
+    controlLog("temperature_transport_rejected", { commandId, reason: "stale_controller_token" });
+    return;
+  }
+  mqttClient.publish(transport.topic, transport.payload, { qos: transport.qos, retain: false }, error => {
+    controlLog("temperature_transport_result", { commandId, qos: transport.qos,
+      result: error ? "publish_failed" : transport.qos === 1 ? "broker_acknowledged" : "sent" });
+  });
 }
 
 const panelEffects: Record<PanelEffect, () => void> = {

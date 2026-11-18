@@ -179,11 +179,13 @@ public:
             heaterModule->setTemperature(value, receivedAt);
     }
 
-    void renewTemperatureToken()
+    void renewTemperatureToken(bool keepPrevious = false)
     {
         uint32_t nextToken = esp_random();
-        if (!nextToken || nextToken == temperatureToken)
-            nextToken = temperatureToken == UINT32_MAX ? 1 : temperatureToken + 1;
+        while (!nextToken || nextToken == temperatureToken || nextToken == previousTemperatureToken)
+            ++nextToken;
+        previousTemperatureToken = keepPrevious ? temperatureToken : 0;
+        previousTemperatureTokenAt = temperatureTokenAt;
         temperatureToken = nextToken;
         temperatureTokenAt = millis();
     }
@@ -193,9 +195,13 @@ public:
         const auto separator = payload.rfind(',');
         if (separator == std::string::npos) return;
         uint32_t token = 0;
-        if (!parseUnsigned(payload.substr(separator + 1), token) || token != temperatureToken ||
-            uint32_t(millis() - temperatureTokenAt) >= 5000UL) return;
-        // Consume before queuing; duplicate messages cannot actuate again.
+        if (!parseUnsigned(payload.substr(separator + 1), token) || token == 0) return;
+        const uint32_t now = millis();
+        const bool current = token == temperatureToken && now - temperatureTokenAt < TEMPERATURE_TOKEN_TTL_MS;
+        const bool previous = token == previousTemperatureToken &&
+                              now - previousTemperatureTokenAt < TEMPERATURE_TOKEN_TTL_MS;
+        if (!current && !previous) return;
+        // Consume both outstanding tokens when admitting one command.
         renewTemperatureToken();
         handleTemperatureControl(payload.substr(0, separator), false);
         publishTemperatureControl();
@@ -217,8 +223,10 @@ public:
     void publishTemperatureControl(int qos = 0)
     {
         if (!heaterModule || !mqttClient.isConnected()) return;
-        if (!temperatureToken || uint32_t(millis() - temperatureTokenAt) >= 5000UL)
-            renewTemperatureToken();
+        // Every snapshot advertises a token with enough life for the backend's
+        // 2.5 s freshness limit. The preceding one can still be in flight.
+        if (!temperatureToken || uint32_t(millis() - temperatureTokenAt) >= TEMPERATURE_TOKEN_TTL_MS / 2)
+            renewTemperatureToken(true);
         std::string payload = "{\"temperatureV2Token\":" + std::to_string(temperatureToken) +
             ",\"base\":" + std::to_string(heaterModule->getSetpoint()) +
             ",\"target\":" + std::to_string(heaterModule->getTargetTemperature()) +
@@ -369,6 +377,9 @@ private:
     }
     uint32_t temperatureToken = 0;
     uint32_t temperatureTokenAt = 0;
+    uint32_t previousTemperatureToken = 0;
+    uint32_t previousTemperatureTokenAt = 0;
+    static constexpr uint32_t TEMPERATURE_TOKEN_TTL_MS = 6000UL;
     MqttInbox inbox;
     bool wasConnected = false;
     static MqttModule *instance;
