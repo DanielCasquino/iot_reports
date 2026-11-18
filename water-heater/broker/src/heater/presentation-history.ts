@@ -1,6 +1,7 @@
 import type { MqttClient } from "mqtt";
 
 export const WATER_HISTORY = "heater/presentation/last-water";
+export const MAXIMUM_HISTORY = "heater/presentation/last-maximum";
 export const POWER_HISTORY = "heater/presentation/last-power";
 
 interface Reading<T> { value: T; observedAt: number }

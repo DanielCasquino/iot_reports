@@ -19,15 +19,21 @@ import { PowerOperation } from "./heater/power-operation.js";
 import { controlLog, logServoSequence } from "./heater/control-log.js";
 import { DesiredState } from "./heater/desired-state.js";
 import { buildStatusResponse } from "./heater/status-response.js";
-import { PresentationHistory, WATER_HISTORY, POWER_HISTORY } from "./heater/presentation-history.js";
+import { PresentationHistory, WATER_HISTORY, POWER_HISTORY, MAXIMUM_HISTORY } from "./heater/presentation-history.js";
 import { ObservedMaximum } from "./heater/observed-max.js";
 
 const waterHistory = new PresentationHistory(WATER_HISTORY, (value): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 75);
 const powerHistory = new PresentationHistory(POWER_HISTORY, (value): value is boolean => typeof value === "boolean");
 
+const maximumHistory = new PresentationHistory(MAXIMUM_HISTORY, (value): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 30 && value <= 75);
+const presentationTopics = new Map<string, PresentationHistory<number> | PresentationHistory<boolean>>([
+  [WATER_HISTORY, waterHistory], [POWER_HISTORY, powerHistory], [MAXIMUM_HISTORY, maximumHistory],
+]);
+
 function presentationSnapshot() {
-  return { lastWater: waterHistory.snapshot(), lastPower: powerHistory.snapshot() };
+  return { lastWater: waterHistory.snapshot(), lastPower: powerHistory.snapshot(), lastMaximum: maximumHistory.snapshot() };
 }
 
 interface HeaterState {
@@ -58,7 +64,12 @@ let lastMaximumSignature = "";
 function publishMaximumIfChanged() {
   const data = observedMaximum.snapshot();
   const signature = JSON.stringify(data);
-  if (signature !== lastMaximumSignature) { lastMaximumSignature = signature; broadcast({ event: "temperature_max", data }); }
+  if (signature !== lastMaximumSignature) {
+    lastMaximumSignature = signature;
+    if (data.temperatureMax !== null && data.temperatureMaxObservedAt !== null)
+      maximumHistory.observe(data.temperatureMax, Date.parse(data.temperatureMaxObservedAt), mqttClient);
+    broadcast({ event: "temperature_max", data: { ...data, lastMaximum: maximumHistory.snapshot() } });
+  }
 }
 const displayPower = new DisplayPowerObservation();
 const powerOperation = new PowerOperation();
@@ -100,8 +111,9 @@ if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !p
 }
 
 mqttClient.on("message", (topic, payload, packet) => {
-  if (topic === WATER_HISTORY || topic === POWER_HISTORY) {
-    if (packet.retain && (topic === WATER_HISTORY ? waterHistory : powerHistory).restore(payload))
+  const history = presentationTopics.get(topic);
+  if (history) {
+    if (packet.retain && history.restore(payload))
       broadcast({ event: "presentation_history", data: presentationSnapshot() });
     return;
   }

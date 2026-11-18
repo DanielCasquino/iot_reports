@@ -43,8 +43,9 @@ Each native process has a1.5s deadline and is reaped on failure or shutdown.
 Temporary images are private and removed after every read.
 
 New HTTP and WebSocket dashboard clients receive the last confirmed water reading
-and optically confirmed power state from memory. Mosquitto retains each with QoS 1
-on `heater/presentation/last-water` and `heater/presentation/last-power`.
+and the optically confirmed maximum and power state from memory. Mosquitto retains each with QoS 1
+on `heater/presentation/last-water`,
+`heater/presentation/last-power` and `heater/presentation/last-maximum`.
 The payload contains `value` and `observedAt` (Unix milliseconds). Changes publish
 immediately, and repeated values refresh the retained timestamp at most once per
 30 seconds. On reconnect the backend restores these as historical observations

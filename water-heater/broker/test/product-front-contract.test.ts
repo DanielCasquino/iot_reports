@@ -328,7 +328,8 @@ test("a new dashboard holds water through maximum digits and blanks while power 
   const lastWater = { value: 31, observedAt: 1800 };
   f.snapshot({ power: null, temperature: null, temperatureMax: 34, temperatureMaxSelected: true,
     camera: { available: true, value: 34 } });
-  f.message("presentation_history", { lastWater, lastPower: { value: false, observedAt: 2000 } });
+  f.message("presentation_history", { lastWater, lastPower: { value: false, observedAt: 2000 },
+    lastMaximum: { value: 34, observedAt: 1600 } });
   assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
   assert.equal(f.run("heaterState.waterTemperature"), null);
   assert.equal(f.elements.get("big-button")!.disabled, true);
@@ -337,5 +338,7 @@ test("a new dashboard holds water through maximum digits and blanks while power 
     camera: { available: false, displayMirror: { text: "blank" } } });
   assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
   assert.match(f.elements.get("temperature-status")!.textContent, /heater off/);
+  assert.equal(f.elements.get("observed-maximum")!.textContent, "Last seen · 34°C");
+  assert.equal(f.run("heaterState.temperatureMax"), null);
   assert.equal(f.sent.length, 0);
 });

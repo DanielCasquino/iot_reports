@@ -4,15 +4,19 @@ function formatTemperature(value, fahrenheit, precision = 1) {
   return (fahrenheit ? value * 9 / 5 + 32 : value).toFixed(precision) + unit;
 }
 
-function renderTemperatureReadout({ reading, lastReading, lastWaterAt, temperatureMax, heaterOff, lastConfirmedOff, fromCamera, fahrenheit }) {
+function renderTemperatureReadout({ reading, lastReading, lastWaterAt, temperatureMax, lastMaximum, heaterOff, lastConfirmedOff, fromCamera, fahrenheit }) {
   const display = document.getElementById("temp-display");
   const maximum = document.getElementById("observed-maximum");
   const status = document.getElementById("temperature-status");
   const effect = document.getElementById("fg");
   const displayedTemperature = reading ?? lastReading;
 
-  if (maximum) maximum.textContent = temperatureMax === null ? "Unconfirmed"
-    : formatTemperature(temperatureMax, fahrenheit, fahrenheit ? 1 : 0);
+  if (maximum) {
+    const value = temperatureMax ?? lastMaximum?.value;
+    maximum.textContent = value == null ? "Unconfirmed"
+      : (temperatureMax === null ? "Last seen · " : "") + formatTemperature(value, fahrenheit, fahrenheit ? 1 : 0);
+    maximum.title = temperatureMax === null && lastMaximum ? new Date(lastMaximum.observedAt).toLocaleString() : "";
+  }
   if (effect) effect.style.opacity = displayedTemperature === null ? 0
     : Math.max(0, Math.min(0.6, ((displayedTemperature - 30) / (40 - 30)) * 0.6));
   if (display) {

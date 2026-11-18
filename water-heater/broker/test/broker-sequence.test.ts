@@ -297,6 +297,7 @@ test("new clients receive confirmed history across a restart without replaying c
   try {
     cached(history.WATER_HISTORY, 31);
     cached(history.POWER_HISTORY, false);
+    cached(history.MAXIMUM_HISTORY, 34);
     cached(history.WATER_HISTORY, 34, at - 1);
     cached(history.WATER_HISTORY, 75, at + 1, false);
     cached(history.WATER_HISTORY, 200, at + 2);
@@ -307,6 +308,8 @@ test("new clients receive confirmed history across a restart without replaying c
       assert.equal(state.lastWater.value, 31);
       assert.equal(state.lastWater.observedAt, at);
       assert.equal(state.lastPower.value, false);
+      assert.equal(state.lastMaximum.value, 34);
+      assert.equal(state.temperatureMax, null);
       assert.equal(state.temperature, null);
       assert.equal(state.power, null);
     }
@@ -322,4 +325,27 @@ test("new clients receive confirmed history across a restart without replaying c
     f.frame(34, "mirror");
     assert.equal(f.status().lastWater.value, 32);
   } finally { f.cleanup(); }
+});
+
+test("a confirmed optical maximum is retained independently of water", () => {
+  const originalNow = Date.now;
+  let now = originalNow() - 2000;
+  Date.now = () => now;
+  const f = fixture();
+  try {
+    f.mqtt.emit("connect");
+    f.send("heater/status", "online");
+    for (const value of [34, null, 34]) {
+      now += 250;
+      f.frame(value, "mirror", value === null ? "dark" : "lit");
+    }
+    assert.equal(f.status().lastMaximum.value, 34);
+    assert.equal(f.status().lastWater, null);
+    const sent = f.publishes.filter(m => m[0] === history.MAXIMUM_HISTORY);
+    assert.equal(sent.length, 1);
+    assert.deepEqual(sent[0]![2], { qos: 1, retain: true });
+    now += 301000;
+    assert.equal(f.status().temperatureMax, null);
+    assert.equal(f.status().lastMaximum.value, 34);
+  } finally { Date.now = originalNow; f.cleanup(); }
 });

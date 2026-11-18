@@ -32,6 +32,7 @@ const heaterState = {
   power: null,
   lastConfirmedOff: false,
   lastPower: null,
+  lastMaximum: null,
   lastWater: null,
   autoShutdown: false,
   waterTemperature: null,
@@ -93,7 +94,7 @@ function updateTemperature() {
   renderTemperatureReadout({
     reading, lastReading, lastWaterAt: heaterState.lastWater?.observedAt, heaterOff,
     lastConfirmedOff: heaterState.status === "online" && heaterState.power === null && heaterState.lastConfirmedOff,
-    temperatureMax: heaterState.temperatureMax,
+    temperatureMax: heaterState.temperatureMax, lastMaximum: heaterState.lastMaximum,
     fromCamera: heaterState.waterTemperature === null && reading !== null,
     fahrenheit,
   });
@@ -203,6 +204,7 @@ function handleMessage(message) {
       updateControls();
       break;
     case "temperature_max":
+      receivePresentationHistory(message.data);
       receiveTemperatureMaximum(message.data);
       updateTemperature();
       break;
@@ -240,11 +242,11 @@ function receiveTemperatureMaximum(data) {
 }
 
 function receivePresentationHistory(state) {
-  for (const field of ["lastWater", "lastPower"]) {
+  for (const field of ["lastWater", "lastPower", "lastMaximum"]) {
     const sample = state?.[field];
     if (!sample || !Number.isSafeInteger(sample.observedAt) || sample.observedAt <= (heaterState[field]?.observedAt ?? 0)) continue;
     const valid = field === "lastPower" ? typeof sample.value === "boolean"
-      : Number.isInteger(sample.value) && sample.value >= 0 && sample.value <= 75;
+      : Number.isInteger(sample.value) && sample.value >= (field === "lastMaximum" ? 30 : 0) && sample.value <= 75;
     if (valid) heaterState[field] = sample;
   }
 }
