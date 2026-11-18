@@ -51,6 +51,44 @@ int main() {
             }
         }
     }
+    // First press opened selection: accept fresh two-frame evidence and skip
+    // the second plus rather than always waiting six seconds.
+    TemperatureAdjustment fast;
+    assert(fast.applyTarget(45, -1));
+    assert(fast.tick(0) == 1);
+    assert(!fast.needsVerification(1000)); // servo not yet returned
+    fast.completedPress(500);
+    assert(!fast.needsVerification(1499));
+    assert(fast.needsVerification(1500));
+    const uint32_t firstId = fast.requestId;
+    fast.verify(firstId, 37, 1500);
+    assert(fast.state == State::Opening);
+    fast.verify(firstId, 37, 1750);
+    assert(fast.state == State::Applying && fast.estimated == 37);
+    assert(fast.tick(1751) == 1);
+    fast.completedPress(2251);
+
+    // First press merely wakes: after timeout use the second press and a new
+    // request ID. A late reply from the first window must never set the base.
+    TemperatureAdjustment waking;
+    assert(waking.applyTarget(45, -1));
+    assert(waking.tick(0) == 1);
+    waking.completedPress(500);
+    assert(waking.needsVerification(1500));
+    const uint32_t oldId = waking.requestId;
+    waking.verify(oldId, 38, 1500); // one candidate is insufficient
+    assert(waking.tick(6499) == 0);
+    assert(waking.tick(6500) == 1);
+    assert(waking.requestId != oldId);
+    waking.completedPress(7000);
+    assert(waking.needsVerification(8000));
+    waking.verify(oldId, 38, 8000);
+    waking.verify(oldId, 38, 8300);
+    assert(waking.state == State::Reading);
+    waking.verify(waking.requestId, 37, 8300);
+    waking.verify(waking.requestId, 37, 8550);
+    assert(waking.state == State::Applying && waking.estimated == 37);
+
     TemperatureAdjustment timeout;
     timeout.applyTarget(44, 43); open(timeout);
     assert(timeout.tick(11500) == 0 && timeout.state == State::Error);

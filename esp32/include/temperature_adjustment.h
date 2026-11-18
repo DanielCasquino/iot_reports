@@ -49,6 +49,10 @@ public:
             if (!hasPressed) { hasPressed = true; pressedAt = now; return 1; }
             if (uint32_t(now - pressedAt) < TEMPERATURE_ADJUST_SETTLE_MS) return 0;
             if (uint32_t(now - pressedAt) >= TEMPERATURE_ADJUST_SETTLE_MS + 2500UL) { state = State::Error; verifyingAt = now; return 0; }
+            // Invalidate the first request before the fallback press.
+            ++requestId;
+            requested = false;
+            candidate = -1;
             state = State::Reading;
             readingStarted = true;
             pressedAt = now;
@@ -78,7 +82,8 @@ public:
     // Call after the servo has returned, so settle time starts after completion.
     void completedPress(uint32_t now) {
         pressedAt = now;
-        if (state == State::Opening || state == State::Reading) return;
+        if (state == State::Opening) { readingStarted = true; return; }
+        if (state == State::Reading) return;
         if (estimated == target) {
             state = State::Confirming;
             requested = false;
@@ -92,7 +97,7 @@ public:
         ++requestId;
     }
     bool needsVerification(uint32_t now) {
-        if (state == State::Reading || state == State::Confirming) {
+        if (state == State::Opening || state == State::Reading || state == State::Confirming) {
             if (!readingStarted || uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) return false;
             // The heater/camera can still show water immediately after opening
             // selection. Allow the display and capture pipeline to catch up.
@@ -106,7 +111,7 @@ public:
         return false;
     }
     bool verify(uint32_t id, float observed, uint32_t now = 0) {
-        if (state == State::Reading || state == State::Confirming) {
+        if (state == State::Opening || state == State::Reading || state == State::Confirming) {
             if (!requested || id != requestId || !isfinite(observed) ||
                 observed < MIN_TEMPERATURE_C || observed > MAX_TEMPERATURE_C || observed != roundf(observed) ||
                 uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) return false;

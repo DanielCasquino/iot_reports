@@ -167,7 +167,7 @@ public:
             {
                 auto beforeReading = adjustment.state;
                 adjustment.verify(observation.id, observation.value, millis());
-                if (beforeReading == TemperatureAdjustment::State::Reading &&
+                if ((beforeReading == TemperatureAdjustment::State::Opening || beforeReading == TemperatureAdjustment::State::Reading) &&
                     adjustment.state != beforeReading && adjustment.state != TemperatureAdjustment::State::Error)
                     setpoint = adjustment.estimated;
             }
@@ -367,7 +367,8 @@ public:
     }
     uint32_t wakeVerificationId() const { return wakeRequestId; }
     bool needsTemperatureVerification() {
-        return (adjustment.state == TemperatureAdjustment::State::Reading ||
+        return (adjustment.state == TemperatureAdjustment::State::Opening ||
+                adjustment.state == TemperatureAdjustment::State::Reading ||
                 adjustment.state == TemperatureAdjustment::State::Confirming) && adjustment.needsVerification(millis());
     }
     uint32_t temperatureVerificationId() { return adjustment.requestId; }
