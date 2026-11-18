@@ -10,6 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "config.h"
+#include "recent_command_ids.h"
 
 class HeaterModule
 {
@@ -125,7 +126,7 @@ public:
         TemperatureRequest request;
         if (temperatureRequests && xQueueReceive(temperatureRequests, &request, 0) == pdTRUE)
         {
-            if (request.id != lastTemperatureCommandId)
+            if (recentTemperatureCommands.accept(request.id))
             {
                 lastTemperatureCommandId = request.id;
                 resetWakeFailure();
@@ -525,6 +526,7 @@ private:
         bool calibrate;
     };
     QueueHandle_t temperatureRequests = nullptr;
+    RecentCommandIds recentTemperatureCommands;
     uint32_t lastTemperatureCommandId = 0;
     const char *temperatureCommandResult = "none";
     bool temperatureControlChanged = true;
