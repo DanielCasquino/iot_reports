@@ -93,7 +93,9 @@ if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !p
 mqttClient.on("message", (topic, payload, packet) => {
   const value = payload.toString();
   if (topic === "heater/diagnostic/servo") {
-    if (!packet.retain) logServoSequence(value);
+    if (packet.retain) return;
+    const tap = logServoSequence(value);
+    if (tap?.button === "plus" && tap.reason === "manual_plus") cameraModule.observeManualPlus();
     return;
   }
   observation.update(topic, value, packet.retain);

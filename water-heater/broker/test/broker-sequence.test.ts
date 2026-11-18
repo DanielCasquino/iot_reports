@@ -35,7 +35,9 @@ function fixture() {
   const app = { get: (route: string, handler: (...args: any[]) => void) => routes.set(route, handler), use() {}, listen() {} };
   let cameraState: { available: boolean; value: number | null; observedAt: string | null } = { available: false, value: null, observedAt: null };
   let observeFrame: (frame: DisplayFrame) => boolean;
+  let manualWindows = 0;
   class Camera {
+    observeManualPlus() { manualWindows++; }
     constructor(_mqtt: unknown, onFrame: typeof observeFrame) { observeFrame = onFrame; }
     setup() {}
     getState() { return cameraState; }
@@ -68,7 +70,7 @@ function fixture() {
   const replies: any[] = [];
   socket.send = raw => replies.push(JSON.parse(raw));
   const connectSocket = () => wss.emit("connection", socket);
-  return { mqtt, send, publishes, replies, connectSocket,
+  return { get manualWindows() { return manualWindows; }, mqtt, send, publishes, replies, connectSocket,
     status: () => {
       let body: any;
       routes.get("/api/heater/status")!({}, { set() { return this; }, json(value: unknown) { body = value; } });
@@ -266,4 +268,22 @@ test("a frame captured during Power cannot restore ON or water after the unknown
     assert.equal(f.frame(59, "water", "lit", 101600), true);
     assert.equal(f.publishes.some(m => m[0] === "heater/input/power" && m[1] === "true"), true);
   } finally { f.cleanup(); Date.now = originalNow; }
+});
+
+test("only a live manual plus starts the camera mirror burst without a control publication", () => {
+  const f = fixture();
+  const tap = { pin: 27, button: "plus", reason: "manual_plus", commandId: 0,
+    estimatedBefore: -1, estimatedAfter: -1, target: -1, press: 16, rest: 0,
+    startedAt: 1000, completedAt: 1500, mechanicalConfirmed: false };
+  try {
+    const topic = "heater/diagnostic/servo";
+    f.send(topic, JSON.stringify(tap), true);
+    f.send(topic, JSON.stringify({ ...tap, reason: "open_target" }));
+    f.send(topic, JSON.stringify({ ...tap, pin: 25, button: "power" }));
+    f.send(topic, "{");
+    assert.equal(f.manualWindows, 0);
+    f.send(topic, JSON.stringify(tap));
+    assert.equal(f.manualWindows, 1);
+    assert.equal(f.publishes.length, 0);
+  } finally { f.cleanup(); }
 });

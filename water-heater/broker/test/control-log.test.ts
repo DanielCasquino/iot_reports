@@ -10,7 +10,7 @@ test("servo log distinguishes a PWM sequence from physical confirmation and reje
   const previous = console.log;
   console.log = line => entries.push(line);
   try {
-    assert.equal(logServoSequence(JSON.stringify(tap)), true);
+    assert.deepEqual(logServoSequence(JSON.stringify(tap)), { button: "plus", reason: "open_target" });
     const logged = JSON.parse(entries[0]!);
     assert.equal(logged.event, "servo_sequence_sent");
     assert.equal(logged.mechanicalConfirmed, false);
@@ -19,10 +19,10 @@ test("servo log distinguishes a PWM sequence from physical confirmation and reje
     assert.ok(Number.isFinite(Date.parse(logged.at)));
     for (const invalid of [{ ...tap, mechanicalConfirmed: true }, { ...tap, pin: 26 },
       { ...tap, pin: "27" }, { ...tap, reason: "physical_success" }, { ...tap, press: 999 }])
-      assert.equal(logServoSequence(JSON.stringify(invalid)), false);
-    assert.equal(logServoSequence("not JSON"), false);
+      assert.equal(logServoSequence(JSON.stringify(invalid)), null);
+    assert.equal(logServoSequence("not JSON"), null);
     assert.equal(entries.length, 1);
-    assert.equal(logServoSequence(JSON.stringify({ ...tap, pin: 25, button: "power", reason: "auto_shutdown_at_target", target: 42 })), true);
+    assert.deepEqual(logServoSequence(JSON.stringify({ ...tap, pin: 25, button: "power", reason: "auto_shutdown_at_target", target: 42 })), { button: "power", reason: "auto_shutdown_at_target" });
     assert.equal(JSON.parse(entries[1]!).reason, "auto_shutdown_at_target");
   } finally { console.log = previous; }
 });

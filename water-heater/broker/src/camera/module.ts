@@ -51,6 +51,7 @@ export class CameraModule {
   private verificationAttempts = 0;
   private verificationStartedAt = 0;
   private targetBlankSeen = false;
+  private manualSelectionUntil = 0;
   private mqttGeneration = 0;
   private state: { available: boolean; value: number | null; lastValue: number | null;
     observedAt: string | null; text: string; confidence: number | null; reader: string; error: string | null;
@@ -72,6 +73,7 @@ export class CameraModule {
     this.mqttGeneration++;
     this.verificationId = null;
     this.verificationPurpose = null;
+    this.manualSelectionUntil = 0;
     this.verificationAttempts = 0;
     this.verificationStartedAt = 0;
     this.targetBlankSeen = false;
@@ -115,6 +117,11 @@ export class CameraModule {
     void this.readDisplayTemperature(false, id, false, purpose === "wake");
   };
 
+  observeManualPlus() {
+    this.manualSelectionUntil = Date.now() + 5000;
+    controlLog("camera_manual_selection_window", { button: "plus", durationMs: 5000 });
+  }
+
   setup(app: Express) {
     this.mqtt.on("connect", this.subscribeVerification);
     this.mqtt.on("offline", this.invalidateMqttSession);
@@ -144,7 +151,8 @@ export class CameraModule {
     if (process.env.CAMERA_URL && (interval > 0 || mirrorInterval > 0)) {
       const poll = async () => {
         const startedAt = Date.now();
-        const normalDue = interval > 0 && Date.now() - this.lastTemperaturePollAt >= interval &&
+        const manualSelection = mirrorInterval > 0 && startedAt < this.manualSelectionUntil;
+        const normalDue = !manualSelection && interval > 0 && startedAt - this.lastTemperaturePollAt >= interval &&
           Date.now() - this.verificationStartedAt >= 5000;
         if (!this.busy && (normalDue || mirrorInterval > 0)) {
           if (normalDue) this.lastTemperaturePollAt = Date.now();
@@ -152,11 +160,12 @@ export class CameraModule {
         }
         const period = mirrorInterval || interval;
         const retryDelay = this.transportFailures === 0 ? 0 : 500 * 2 ** this.transportFailures;
-        // During an explicit verification, count acquisition and OCR toward
+        // While viewing a selection or verifying a command, count acquisition and OCR toward
         // the poll period. Keep captures serial and keep the transport backoff.
         const verifying = mirrorInterval > 0 && this.verificationId !== null &&
           Date.now() - this.verificationStartedAt < 4500;
-        const wait = verifying ? Math.max(50, Math.min(period, 220) - (Date.now() - startedAt)) : period;
+        const fastMirror = verifying || (mirrorInterval > 0 && Date.now() < this.manualSelectionUntil);
+        const wait = fastMirror ? Math.max(50, Math.min(period, 220) - (Date.now() - startedAt)) : period;
         if (!this.stopped) this.timer = setTimeout(poll, Math.max(wait, retryDelay));
       };
       this.timer = setTimeout(poll, 0);
