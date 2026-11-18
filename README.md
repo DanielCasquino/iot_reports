@@ -1,113 +1,53 @@
-# How to run dis
+# Terma Erma
 
-## How to run esp32
+Prototipo para observar el visor y operar los botones de una terma Rheem desde
+la web. La cámara y el sensor RGB observan el panel. El ESP32 principal mueve
+los servos exteriores y actualiza el OLED. La termorregulación sigue a cargo de
+la terma.
 
-js open the esp32 folder as a platformio project in vscode, then upload and monitor
-dont forget to put ur stuff in include/secrets.h (ssid, password)
-
-## how to run broker
-
-go to broker folder, npm i, npm run dev, profit. node app runs both broker and frontend.
-
-## firewall
-
-don't forget to open ports lol, smth like this:
-
-```
-sudo ufw allow from 192.168.1.0/24 to any port 8080 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 3000 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 1883 proto tcp
-```
-
-8080 for broker,
-3000 for front,
-1883 for mqtt
-
-## Arquitectura general
 ```mermaid
 flowchart LR
-    UI["water-heater/front<br/>HTML + CSS + JavaScript"]
-    WS["water-heater/broker/src/websocket/server.ts<br/>WebSocket :8080"]
-    APP["water-heater/broker/src/index.ts<br/>Express :3000<br/>Estado en memoria"]
-    MQTT["water-heater/broker/src/mqtt/client.ts<br/>Cliente MQTT"]
-    BROKER["Mosquitto<br/>MQTT :1883"]
-    ESP["esp32/src/main.cpp<br/>ESP32 + sensor/modelo térmico"]
-    LED["LED integrado"]
-    UI -->|"set_heater_power<br/>set_auto_shutdown"| WS
-    WS --> APP
-    APP -->|"heater/set/power<br/>heater/set/autoshutdown"| MQTT
-    MQTT <-->|"MQTT"| BROKER
-    BROKER <-->|"heater/set/*<br/>heater/state/*"| ESP
-    ESP --> LED
-    MQTT -->|"heater/state/*"| APP
-    APP -->|"mqtt_message<br/>state_snapshot"| WS
-    WS --> UI
+    Web["Web"] <-->|"HTTP / WebSocket"| Backend["Node.js en Raspberry Pi"]
+    Backend -->|"HTTP JPEG"| Cam["ESP32-CAM"]
+    Backend <-->|"Estado, órdenes y verificación"| MQTT["Mosquitto"]
+    MQTT <-->|"MQTT"| ESP["ESP32 principal"]
+    ESP -->|"GPIO / I²C"| Panel["Servos, botones, RGB y OLED"]
 ```
-## Inicio de los componentes
-```mermaid
-flowchart TD
-    START([Inicio])
-    ESPSETUP["ESP32: iniciar Serial, WiFi y cliente MQTT<br/>configurar LED y temporizador"]
-    BROKERSTART["Broker: conectar a MQTT<br/>crear WebSocket :8080<br/>servir front por Express :3000"]
-    FRONTSTART["Front: cargar ajustes locales<br/>inicializar UI y abrir WebSocket"]
-    CONNECT{"¿Conexión disponible?"}
-    SNAPSHOT["Broker envía state_snapshot<br/>con power, autoShutdown y temperature"]
-    RETRY["Reintentar conexión cada 2 s"]
-    START --> ESPSETUP
-    START --> BROKERSTART
-    START --> FRONTSTART
-    FRONTSTART --> CONNECT
-    CONNECT -->|Sí| SNAPSHOT
-    CONNECT -->|No| RETRY --> CONNECT
-```
-## Flujo de control del calentador
-```mermaid
-flowchart TD
-    USER["Usuario pulsa encendido<br/>o cambia Low Cortisol Mode"]
-    COMMAND["Front crea mensaje WebSocket<br/>con el evento y enabled"]
-    ROUTE{"Evento recibido por el broker"}
-    POWER["Publicar heater/set/power"]
-    AUTO["Publicar heater/set/autoshutdown"]
-    SUBSCRIBE["ESP32 recibe el tópico MQTT"]
-    VALIDATE{"¿Payload es true o false?"}
-    UPDATE["Actualizar estado del ESP32<br/>y LED si cambia power"]
-    INVALID["Registrar payload inválido"]
-    PUBLISH["Publicar el estado actualizado<br/>en heater/state/*"]
-    BROKERSTATE["Broker actualiza heaterState<br/>y retransmite mqtt_message"]
-    UIUPDATE["Front actualiza botón,<br/>interruptor y temperatura"]
-    USER --> COMMAND --> ROUTE
-    ROUTE -->|set_heater_power| POWER
-    ROUTE -->|set_auto_shutdown| AUTO
-    POWER --> SUBSCRIBE
-    AUTO --> SUBSCRIBE
-    SUBSCRIBE --> VALIDATE
-    VALIDATE -->|No| INVALID
-    VALIDATE -->|Sí| UPDATE --> PUBLISH --> BROKERSTATE --> UIUPDATE
-```
-## Ciclo térmico del ESP32
-El ESP32 usa `tick()` cada 2 segundos. La temperatura simulada aumenta
-cuando el calentador está encendido y disminuye cuando está apagado (20 °C - 40 °C).
-```mermaid
-flowchart TD
-    TICK([Cada 2 segundos])
-    POWERSTATE{"¿Calentador encendido?"}
-    HEAT["Aumentar 0.1 °C"]
-    COOL["Disminuir 0.1 °C"]
-    LIMIT["Limitar temperatura entre<br/>20 °C y 40 °C"]
-    AUTO{"¿Autoapagado activo,<br/>temperatura = 40 °C<br/>y power = true?"}
-    OFF["Apagar calentador<br/>y publicar power = false"]
-    MQTT{"¿MQTT conectado?"}
-    TEMP["Publicar heater/state/temperature"]
-    WAIT["Esperar al siguiente ciclo"]
-    TICK --> POWERSTATE
-    POWERSTATE -->|Sí| HEAT
-    POWERSTATE -->|No| COOL
-    HEAT --> LIMIT
-    COOL --> LIMIT
-    LIMIT --> AUTO
-    AUTO -->|Sí| OFF --> MQTT
-    AUTO -->|No| MQTT
-    MQTT -->|Sí| TEMP --> WAIT
-    MQTT -->|No| WAIT
-    WAIT --> TICK
-```
+
+## Código
+
+| Ruta | Responsabilidad |
+| --- | --- |
+| [esp32](esp32/README.md) | Periféricos, control de la terma, máquina de ajuste y protocolo MQTT. |
+| `water-heater/broker/src/camera/` | Capturas JPEG, brillo, recorte adaptable, OCR y evidencia del visor. |
+| `water-heater/broker/src/heater/` | Estado observado, objetivo de la web, verificación de operaciones y diagnóstico. |
+| `water-heater/front/` | Controles y presentación. `js/socket.js` gestiona la conexión y `js/temperature-view.js` presenta las lecturas. |
+
+## Vocabulario
+
+| Nombre en la web | Significado | Campo en el sistema |
+| --- | --- | --- |
+| Temperatura | Temperatura del agua que muestra el visor en reposo. | API `temperature`; código `waterTemperature`. |
+| Temperatura máx. | Consigna física observada en el visor durante la selección. | API `temperatureMax`. La estimación interna del ESP es `base` en MQTT. |
+| Temperatura objetivo | Máxima solicitada en la web. El objetivo guardado y la máxima observada pueden estar temporalmente separados. | Web `requestedTemperature`, API `desired.temperature`. |
+| Piloto LED | Luz de la terma. El sensor RGB distingue rojo (calentando) y verde (lista). | API `pilot`; muestra cruda en `heater/state/color`. |
+| Última lectura | Valor histórico de temperatura que sigue visible durante una falta de lectura o mientras la terma está apagada. | La web lo etiqueta. El valor retenido del OLED también es de presentación. |
+
+El ajuste toma el trayecto con menos pulsaciones en el rango circular de 30
+a 75 °C. Empieza mientras el visor parpadea si la cámara puede leer la máxima
+tras el primer toque. Las órdenes de temperatura usan QoS 1 con capacidad del
+ESP y configuración activadas. El ESP deduplica por ID y valida la vigencia.
+La cámara confirma el resultado físico. El OLED usa una caché retenida
+separada del control.
+
+## Desarrollo y operación
+
+- Backend y web juntos. En `water-heater/broker`, usar `npm ci`,
+  `npm test` y `npm run build`. La Pi sirve HTTP en 3000 y WebSocket en 8080.
+  La configuración privada va en `.env`; sus claves se describen en
+  [el ejemplo](water-heater/broker/.env.example).
+- Firmware principal. Usar las instrucciones de [ESP32](esp32/README.md).
+  La configuración de la red va en `include/secrets.h`, fuera de Git.
+  El banco Hall habilita `FLOW_SENSOR_ENABLED=1`; en la terma sin cablear
+  el canal figura como no disponible.
+- [Despliegue, aceptación y diagnóstico en la Pi](water-heater/broker/deploy/rpi/README.md).

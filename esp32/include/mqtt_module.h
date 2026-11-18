@@ -230,8 +230,11 @@ public:
             ",\"min\":" + std::to_string(int(MIN_TEMPERATURE_C)) + ",\"max\":" + std::to_string(int(MAX_TEMPERATURE_C)) +
             ",\"commandId\":" + std::to_string(heaterModule->getTemperatureCommandId()) +
             ",\"result\":\"" + heaterModule->getTemperatureCommandResult() +
-            "\",\"autoShutdownTarget\":" + std::to_string(heaterModule->getAutoShutdownTarget()) + "}";
-        mqttClient.publish("heater/state/temperature_control", payload, qos, false);
+            "\",\"autoShutdownTarget\":" + std::to_string(heaterModule->getAutoShutdownTarget());
+        if (const char *failure = heaterModule->getAdjustmentFailure())
+            payload += std::string(",\"failureReason\":\"") + failure + "\",\"observedMaximumAtFailure\":" +
+                       std::to_string(heaterModule->getObservedMaximumAtFailure());
+        mqttClient.publish("heater/state/temperature_control", payload + "}", qos, false);
     }
     void handlePower(const std::string &payload)
     {

@@ -163,7 +163,11 @@ export class CameraModule {
     }
   }
 
-  getFrameDiagnostic() { return this.frameDiagnostic.snapshot(); }
+  getDiagnosticEvidence() {
+    const { available, value, observedAt, displayLight, displayBrightness } = this.getState();
+    return { available, value, observedAt, displayLight, displayBrightness, transportStatus: this.captureDiagnostic,
+      frameDiagnostic: this.frameDiagnostic.snapshot() };
+  }
 
   getState() {
     this.expireCachedMirror();

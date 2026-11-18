@@ -402,6 +402,8 @@ public:
     }
     bool isTemperatureLocked() { return waking || wakeFailed || pendingPowerOff || adjustment.locked(); }
     int getTargetTemperature() { return adjustment.target; }
+    const char *getAdjustmentFailure() const { return adjustment.failureReason(); }
+    int getObservedMaximumAtFailure() const { return adjustment.observedMaximumAtFailure(); }
     bool acceptsObservation(uint32_t observedAt) const
     {
         return !hasObservationBarrier || static_cast<int32_t>(observedAt - observationBarrier) >= 0;

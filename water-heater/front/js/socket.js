@@ -21,8 +21,10 @@ function createHeaterSocket({ url, onConnection, onMessage }) {
 
   function send(event, data) {
     if (socket?.readyState !== WebSocket.OPEN) return false;
-    socket.send(JSON.stringify({ event, data }));
-    return true;
+    try {
+      socket.send(JSON.stringify({ event, data }));
+      return true;
+    } catch { return false; }
   }
 
   return { connect, send };

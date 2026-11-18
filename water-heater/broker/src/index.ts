@@ -138,7 +138,9 @@ mqttClient.on("message", (topic, payload, packet) => {
       const observed = observedState();
       const pilot = observed.pilot;
       if (pilot !== lastPilot) {
-        console.log(`Pilot state ${lastPilot ?? "none"} -> ${pilot} (raw ${heaterState.color ?? "unavailable"})`);
+        const sample = heaterState.color;
+        controlLog("pilot_observation", { previousPilot: lastPilot, pilot,
+          rawRgbClear: sample && /^\d{1,5}(,\d{1,5}){3}$/.test(sample) ? sample : null });
         lastPilot = pilot;
       }
       const command = pilotCommand(pilot, {
@@ -222,7 +224,7 @@ wss.on("connection", (ws) => {
     }
     const requestId = command.topic === "heater/set/temperature" || command.topic === "heater/set/temperature_base"
       ? Number(command.payload.split(",")[0]) : undefined;
-    const reject = (error: string) => ws.send(JSON.stringify({ event: "command_error", data: { error, requestId } }));
+    const reject = (error: string) => ws.send(JSON.stringify({ event: "command_error", data: { error, requestId, topic: command.topic } }));
     const currentObservation = observedState();
     if (["settling", "reading"].includes(panel.snapshot().recovery)) {
       reject("Display is waking; please wait");
@@ -361,7 +363,10 @@ setInterval(() => {
   if (powerSignature !== lastPowerResult) {
     lastPowerResult = powerSignature;
     broadcast({ event: "power_result", data: powerResult });
-    controlLog("power_operation", { ...powerResult, manualCheckRequired: powerResult.status === "failed" });
+    const failed = powerResult.status === "failed";
+    controlLog("power_operation", { ...powerResult, manualCheckRequired: failed,
+      ...(failed ? { display: displayPower.snapshot(), camera: cameraModule.getDiagnosticEvidence(),
+        mechanicalConfirmed: false } : {}) });
   }
   let command;
   try {
@@ -382,16 +387,14 @@ setInterval(() => {
   if (reconciliation.status !== lastReconciliationStatus) {
     lastReconciliationStatus = reconciliation.status;
     broadcast({ event: "temperature_result", data: reconciliation });
-    const camera = cameraModule.getState();
-    controlLog("temperature_operation", { ...reconciliation, manualCheckRequired: reconciliation.status === "failed",
-      ...(reconciliation.status === "failed" ? { requestedTemperature: reconciliation.target,
-        controller: heaterState.temperatureControl && { commandId: heaterState.temperatureControl.commandId,
-          result: heaterState.temperatureControl.result, phase: heaterState.temperatureControl.status,
-          estimatedTemperatureMax: heaterState.temperatureControl.base },
-        camera: { available: camera.available, value: camera.value, observedAt: camera.observedAt,
-          displayLight: camera.displayLight, displayBrightness: camera.displayBrightness,
-          frameDiagnostic: cameraModule.getFrameDiagnostic() },
-        mechanicalConfirmed: false } : {}) });
+    const failed = reconciliation.status === "failed";
+    const control = heaterState.temperatureControl;
+    controlLog("temperature_operation", { ...reconciliation, manualCheckRequired: failed,
+      ...(failed ? { requestedTemperature: reconciliation.target,
+        controller: control && { commandId: control.commandId, result: control.result, phase: control.status,
+          estimatedTemperatureMax: control.base, failureReason: control.failureReason,
+          observedMaximumAtFailure: control.observedMaximumAtFailure },
+        camera: cameraModule.getDiagnosticEvidence(), mechanicalConfirmed: false } : {}) });
   }
 }, 1000);
 

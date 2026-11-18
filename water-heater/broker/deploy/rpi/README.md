@@ -47,3 +47,27 @@ de órdenes y las verificaciones ópticas conservan su política sin retain.
 En la Pi con journal aislado, usar
 `journalctl --namespace=terma -u terma-erma.service` para seguir la solicitud,
 las pulsaciones y el resultado.
+
+## Leer una falla
+
+```sh
+journalctl --namespace=terma -u terma-erma.service -n 120 --no-pager
+```
+
+- `temperature_transport_result` indica si hubo acuse de Mosquitto.
+  `temperature_controller_state` indica si el ESP admitió la orden y en qué fase quedó.
+- `servo_sequence_sent` indica el botón y el pulso enviado. Si hay
+  `maximum_mismatch`, comparar `observedMaximumAtFailure` con el objetivo
+  pedido y revisar contacto y alineación del brazo.
+- `camera_capture_connection` distingue falta de red, timeout y recuperación.
+  `camera_frame_diagnostic` muestra brillo, lectura y recorte. `crop: guard`
+  señala que el recorte primario cortaba señal y se amplió. Un visor iluminado
+  que sigue ilegible invita a revisar el encuadre, la luz y la imagen de
+  `/api/camera/image`. Una ventana de lectura vencida puede deberse al visor
+  o al contacto, así que conviene mirar ambas evidencias de la misma operación.
+- El resultado terminal de temperatura o encendido conserva una captura
+  resumida del estado. Se registra por transición para que las muestras
+  periódicas y los cambios de brillo durante un parpadeo ocupen poco journal.
+- `pilot_observation` registra cambios del piloto LED. Si su lectura es
+  desconocida, verificar si el visor sigue visible y tenue antes de dar la
+  terma por apagada.

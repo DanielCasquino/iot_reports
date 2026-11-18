@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <initializer_list>
+#include <string>
 #include "temperature_adjustment.h"
 using State = TemperatureAdjustment::State;
 void open(TemperatureAdjustment &a) {
@@ -108,10 +109,12 @@ int main() {
     TemperatureAdjustment timeout;
     timeout.applyTarget(44, 43); open(timeout);
     assert(timeout.tick(11500) == 0 && timeout.state == State::Error);
+    assert(std::string(timeout.failureReason()) == "maximum_read_timeout");
     assert(!timeout.verify(timeout.requestId, 43, 11501));
     assert(!timeout.finishSettling(17499));
     assert(timeout.finishSettling(17500));
     assert(timeout.applyTarget(44, 43));
+    assert(timeout.failureReason() == nullptr);
     TemperatureAdjustment late;
     late.applyTarget(44, 43); open(late);
     assert(!late.verify(late.requestId, 43, 11500));
@@ -125,6 +128,8 @@ int main() {
     assert(mismatch.state == State::Confirming);
     mismatch.needsVerification(11500); mismatch.verify(mismatch.requestId, 43, 11500);
     assert(mismatch.state == State::Error);
+    assert(std::string(mismatch.failureReason()) == "maximum_mismatch");
+    assert(mismatch.observedMaximumAtFailure() == 43);
     TemperatureAdjustment stale;
     stale.applyTarget(50, -1); open(stale);
     stale.verify(stale.requestId, 54, 8000); // Old water frame, then actual target31.

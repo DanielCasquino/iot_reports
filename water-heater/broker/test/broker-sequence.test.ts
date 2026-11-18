@@ -39,7 +39,7 @@ function fixture() {
     constructor(_mqtt: unknown, onFrame: typeof observeFrame) { observeFrame = onFrame; }
     setup() {}
     getState() { return cameraState; }
-    getFrameDiagnostic() { return null; }
+    getDiagnosticEvidence() { return { ...cameraState, frameDiagnostic: null }; }
     async readDisplayTemperature() { return false; }
   }
   const modules: Record<string, unknown> = {

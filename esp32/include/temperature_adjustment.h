@@ -25,10 +25,13 @@ public:
         default: return "idle";
         }
     }
-    void cancel() { state = State::Idle; }
+    void cancel() { state = State::Idle; clearFailure(); }
+    const char *failureReason() const { return failure; }
+    int observedMaximumAtFailure() const { return failedMaximum; }
     bool applyTarget(int value, int base) {
         if (state != State::Idle || value < MIN_TEMPERATURE_C || value > MAX_TEMPERATURE_C ||
             (base != -1 && (base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return false;
+        clearFailure();
         target = value;
         estimated = base;
         hasPressed = false;
@@ -48,7 +51,10 @@ public:
         if (state == State::Opening) {
             if (!hasPressed) { hasPressed = true; pressedAt = now; return 1; }
             if (uint32_t(now - pressedAt) < TEMPERATURE_ADJUST_SETTLE_MS) return 0;
-            if (uint32_t(now - pressedAt) >= TEMPERATURE_ADJUST_SETTLE_MS + 2500UL) { state = State::Error; verifyingAt = now; return 0; }
+            if (uint32_t(now - pressedAt) >= TEMPERATURE_ADJUST_SETTLE_MS + 2500UL) {
+                fail(now, "opening_window_expired");
+                return 0;
+            }
             // Invalidate the first request before the fallback press.
             ++requestId;
             requested = false;
@@ -60,19 +66,18 @@ public:
         }
         if ((state == State::Reading || state == State::Confirming) &&
             uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) {
-            state = State::Error;
-            verifyingAt = now;
+            fail(now, state == State::Reading ? "maximum_read_timeout" : "confirmation_timeout");
             return 0;
         }
         if (state != State::Applying || (hasPressed && uint32_t(now - pressedAt) < TEMPERATURE_PRESS_INTERVAL_MS)) return 0;
         if (hasPressed && uint32_t(now - pressedAt) >= TEMPERATURE_SELECT_MS - 500UL) {
-            state = State::Error;
-            verifyingAt = now;
+            fail(now, "selection_window_expired");
             return 0;
         }
-        int count = (MAX_TEMPERATURE_C - MIN_TEMPERATURE_C) / TEMPERATURE_STEP_C + 1;
-        int increase = (target - estimated + count * TEMPERATURE_STEP_C) % (count * TEMPERATURE_STEP_C);
-        int decrease = (estimated - target + count * TEMPERATURE_STEP_C) % (count * TEMPERATURE_STEP_C);
+        const int steps = (MAX_TEMPERATURE_C - MIN_TEMPERATURE_C) / TEMPERATURE_STEP_C + 1;
+        const int range = steps * TEMPERATURE_STEP_C;
+        const int increase = (target - estimated + range) % range;
+        const int decrease = (estimated - target + range) % range;
         int direction = increase <= decrease ? 1 : -1;
         estimated = nextSetpoint(estimated, direction);
         pressedAt = now;
@@ -122,7 +127,10 @@ public:
                 return false;
             }
             if (uint32_t(now - candidateAt) < 250UL) return false;
-            if (state == State::Confirming && int(observed) != target) { state = State::Error; verifyingAt = now; return false; }
+            if (state == State::Confirming && int(observed) != target) {
+                fail(now, "maximum_mismatch", int(observed));
+                return false;
+            }
             estimated = int(observed);
             hasPressed = true;
             // The remaining display selection window runs from the press,
@@ -134,6 +142,19 @@ public:
         return false;
     }
 private:
+    void clearFailure() {
+        failure = nullptr;
+        failedMaximum = -1;
+    }
+    void fail(uint32_t now, const char *reason, int observedMaximum = -1) {
+        state = State::Error;
+        verifyingAt = now;
+        failure = reason;
+        failedMaximum = observedMaximum;
+    }
+
+    const char *failure = nullptr;
+    int failedMaximum = -1;
     int candidate = -1;
     uint32_t candidateAt = 0;
     static int nextSetpoint(int value, int direction) {
