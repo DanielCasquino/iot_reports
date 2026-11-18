@@ -19,22 +19,10 @@ import { PowerOperation } from "./heater/power-operation.js";
 import { controlLog, logServoSequence } from "./heater/control-log.js";
 import { DesiredState } from "./heater/desired-state.js";
 import { buildStatusResponse } from "./heater/status-response.js";
-import { PresentationHistory, WATER_HISTORY, POWER_HISTORY, MAXIMUM_HISTORY } from "./heater/presentation-history.js";
+import { createPresentationHistory } from "./heater/presentation-history.js";
 import { ObservedMaximum } from "./heater/observed-max.js";
 
-const waterHistory = new PresentationHistory(WATER_HISTORY, (value): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 75);
-const powerHistory = new PresentationHistory(POWER_HISTORY, (value): value is boolean => typeof value === "boolean");
-
-const maximumHistory = new PresentationHistory(MAXIMUM_HISTORY, (value): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 30 && value <= 75);
-const presentationTopics = new Map<string, PresentationHistory<number> | PresentationHistory<boolean>>([
-  [WATER_HISTORY, waterHistory], [POWER_HISTORY, powerHistory], [MAXIMUM_HISTORY, maximumHistory],
-]);
-
-function presentationSnapshot() {
-  return { lastWater: waterHistory.snapshot(), lastPower: powerHistory.snapshot(), lastMaximum: maximumHistory.snapshot() };
-}
+const dashboardHistory = createPresentationHistory(mqttClient);
 
 interface HeaterState {
   temperatureControl: TemperatureControl | null;
@@ -67,8 +55,8 @@ function publishMaximumIfChanged() {
   if (signature !== lastMaximumSignature) {
     lastMaximumSignature = signature;
     if (data.temperatureMax !== null && data.temperatureMaxObservedAt !== null)
-      maximumHistory.observe(data.temperatureMax, Date.parse(data.temperatureMaxObservedAt), mqttClient);
-    broadcast({ event: "temperature_max", data: { ...data, lastMaximum: maximumHistory.snapshot() } });
+      dashboardHistory.maximum.observe(data.temperatureMax, Date.parse(data.temperatureMaxObservedAt));
+    broadcast({ event: "temperature_max", data: { ...data, lastMaximum: dashboardHistory.maximum.snapshot() } });
   }
 }
 const displayPower = new DisplayPowerObservation();
@@ -111,10 +99,10 @@ if (!process.env.COLOR_RED_REFERENCE && !process.env.COLOR_GREEN_REFERENCE && !p
 }
 
 mqttClient.on("message", (topic, payload, packet) => {
-  const history = presentationTopics.get(topic);
+  const history = dashboardHistory.forTopic(topic);
   if (history) {
     if (packet.retain && history.restore(payload))
-      broadcast({ event: "presentation_history", data: presentationSnapshot() });
+      broadcast({ event: "presentation_history", data: dashboardHistory.snapshot() });
     return;
   }
   const value = payload.toString();
@@ -233,7 +221,7 @@ wss.on("connection", (ws) => {
     JSON.stringify({
       event: "state_snapshot",
       data: { ...heaterState, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
-        ...presentationSnapshot(),
+        ...dashboardHistory.snapshot(),
         status: currentObservation.online ? "online" : "offline",
         power: currentObservation.power,
         displayState: currentObservation.displayState,
@@ -363,18 +351,18 @@ const cameraModule = new CameraModule(mqttClient, frame => {
     mqttClient.publish("heater/input/power", String(power), { qos: 0, retain: false });
   }
   if (idle && power !== null && displayObservation.observedAt === frame.observedAt)
-    powerHistory.observe(power, frame.observedAt, mqttClient);
+    dashboardHistory.power.observe(power, frame.observedAt);
   const acceptedWater = frame.purpose === "water" && idle && currentCapture &&
     !observedMaximum.snapshot().temperatureMaxSelected && panel.snapshot(frame.observedAt).waterFresh;
   if (acceptedWater && frame.value !== null && !sensorTestMode)
-    waterHistory.observe(frame.value, frame.observedAt, mqttClient);
+    dashboardHistory.water.observe(frame.value, frame.observedAt);
   return acceptedWater;
 });
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
   res.set("Cache-Control", "no-store").json(buildStatusResponse({
-    ...state, ...presentationSnapshot(), ...observedMaximum.snapshot(), panel: panel.snapshot(), desired: desiredState.snapshot(),
+    ...state, ...dashboardHistory.snapshot(), ...observedMaximum.snapshot(), panel: panel.snapshot(), desired: desiredState.snapshot(),
     reconciliation: temperatureReconciliation.snapshot(), autoShutdown: heaterState.autoShutdown,
     temperatureControl: heaterState.temperatureControl, flowrate: heaterState.flowrate, volume: heaterState.volume,
     camera: cameraModule.getState(),

@@ -295,13 +295,13 @@ test("new clients receive confirmed history across a restart without replaying c
   const cached = (topic: string, value: unknown, observedAt = at, retain = true) =>
     f.send(topic, JSON.stringify({ value, observedAt }), retain);
   try {
-    cached(history.WATER_HISTORY, 31);
-    cached(history.POWER_HISTORY, false);
-    cached(history.MAXIMUM_HISTORY, 34);
-    cached(history.WATER_HISTORY, 34, at - 1);
-    cached(history.WATER_HISTORY, 75, at + 1, false);
-    cached(history.WATER_HISTORY, 200, at + 2);
-    cached(history.WATER_HISTORY, 42, Date.now() + 100000);
+    cached(history.presentationTopics.water, 31);
+    cached(history.presentationTopics.power, false);
+    cached(history.presentationTopics.maximum, 34);
+    cached(history.presentationTopics.water, 34, at - 1);
+    cached(history.presentationTopics.water, 75, at + 1, false);
+    cached(history.presentationTopics.water, 200, at + 2);
+    cached(history.presentationTopics.water, 42, Date.now() + 100000);
     f.frame(34, "mirror");
     f.connectSocket();
     for (const state of [f.status(), f.replies.at(-1).data]) {
@@ -319,7 +319,7 @@ test("new clients receive confirmed history across a restart without replaying c
       locked: false, min: 30, max: 75, commandId: 0, result: "none" }));
     assert.equal(f.frame(32), true);
     assert.equal(f.status().lastWater.value, 32);
-    const publication = f.publishes.find(m => m[0] === history.WATER_HISTORY)!;
+    const publication = f.publishes.find(m => m[0] === history.presentationTopics.water)!;
     assert.deepEqual(JSON.parse(String(publication[1])).value, 32);
     assert.deepEqual(publication[2], { qos: 1, retain: true });
     f.frame(34, "mirror");
@@ -341,7 +341,7 @@ test("a confirmed optical maximum is retained independently of water", () => {
     }
     assert.equal(f.status().lastMaximum.value, 34);
     assert.equal(f.status().lastWater, null);
-    const sent = f.publishes.filter(m => m[0] === history.MAXIMUM_HISTORY);
+    const sent = f.publishes.filter(m => m[0] === history.presentationTopics.maximum);
     assert.equal(sent.length, 1);
     assert.deepEqual(sent[0]![2], { qos: 1, retain: true });
     now += 301000;

@@ -1,17 +1,21 @@
 import type { MqttClient } from "mqtt";
 
-export const WATER_HISTORY = "heater/presentation/last-water";
-export const MAXIMUM_HISTORY = "heater/presentation/last-maximum";
-export const POWER_HISTORY = "heater/presentation/last-power";
+export const presentationTopics = {
+  water: "heater/presentation/last-water",
+  power: "heater/presentation/last-power",
+  maximum: "heater/presentation/last-maximum",
+} as const;
+
+const REFRESH_INTERVAL_MS = 30_000;
 
 interface Reading<T> { value: T; observedAt: number }
 
 // A retained reading can seed a dashboard. Only a new observation can drive control.
-export class PresentationHistory<T> {
+class RetainedReading<T> {
   private latest: Reading<T> | null = null;
   private publishedAt = -Infinity;
 
-  constructor(private readonly topic: string, private readonly accepts: (value: unknown) => value is T) {}
+  constructor(readonly topic: string, private readonly mqtt: MqttClient, private readonly accepts: (value: unknown) => value is T) {}
 
   snapshot() { return this.latest; }
 
@@ -27,12 +31,12 @@ export class PresentationHistory<T> {
     return false;
   }
 
-  observe(value: T, observedAt: number, mqtt: MqttClient) {
+  observe(value: T, observedAt: number) {
     if (!this.accepts(value) || !this.isNewer(observedAt)) return;
     const changed = this.latest?.value !== value;
     this.latest = { value, observedAt };
-    if (changed || observedAt - this.publishedAt >= 30000) {
-      mqtt.publish(this.topic, JSON.stringify(this.latest), { qos: 1, retain: true });
+    if (changed || observedAt - this.publishedAt >= REFRESH_INTERVAL_MS) {
+      this.mqtt.publish(this.topic, JSON.stringify(this.latest), { qos: 1, retain: true });
       this.publishedAt = observedAt;
     }
   }
@@ -40,4 +44,24 @@ export class PresentationHistory<T> {
   private isNewer(at: number) {
     return Number.isSafeInteger(at) && at > (this.latest?.observedAt ?? 0) && at <= Date.now();
   }
+}
+
+function temperatureFrom(minimum: number) {
+  return (value: unknown): value is number =>
+    typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= 75;
+}
+
+export function createPresentationHistory(mqtt: MqttClient) {
+  const water = new RetainedReading(presentationTopics.water, mqtt, temperatureFrom(0));
+  const power = new RetainedReading(presentationTopics.power, mqtt, (value): value is boolean => typeof value === "boolean");
+  const maximum = new RetainedReading(presentationTopics.maximum, mqtt, temperatureFrom(30));
+  const byTopic = new Map<string, RetainedReading<number> | RetainedReading<boolean>>(
+    [water, power, maximum].map(reading => [reading.topic, reading]),
+  );
+
+  return {
+    water, power, maximum,
+    forTopic: (topic: string) => byTopic.get(topic),
+    snapshot: () => ({ lastWater: water.snapshot(), lastPower: power.snapshot(), lastMaximum: maximum.snapshot() }),
+  };
 }
