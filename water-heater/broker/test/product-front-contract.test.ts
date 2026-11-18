@@ -309,3 +309,12 @@ test("uncorrelated command errors cannot unlock an in-flight temperature request
   assert.equal(f.elements.get("save-temperature")!.disabled, false);
   assert.equal(f.sent.length, 1);
 });
+
+test("recent OFF under glare is presented as historical and leaves the power button locked", () => {
+  const f = front();
+  f.snapshot({ power: null, temperature: null, displayState: { power: null, lastConfirmedOff: true } });
+  assert.equal(f.elements.get("temperature-status")!.textContent, "Last confirmed off · checking display");
+  assert.equal(f.elements.get("big-button")!.disabled, true);
+  f.snapshot({ power: true, temperature: 34 });
+  assert.equal(f.elements.get("temperature-status")!.hidden, true);
+});

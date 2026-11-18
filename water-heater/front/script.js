@@ -30,6 +30,7 @@ function receivePowerResult(result) {
 
 const heaterState = {
   power: null,
+  lastConfirmedOff: false,
   autoShutdown: false,
   waterTemperature: null,
   temperatureMax: null,
@@ -80,6 +81,7 @@ function updateTemperature() {
 
   renderTemperatureReadout({
     reading, lastReading: heaterState.lastValidTemperature, heaterOff,
+    lastConfirmedOff: heaterState.status === "online" && heaterState.power === null && heaterState.lastConfirmedOff,
     temperatureMax: heaterState.temperatureMax,
     fromCamera: heaterState.waterTemperature === null && reading !== null,
     fahrenheit,
@@ -120,6 +122,7 @@ function handleMqttMessage(data) {
       break;
     }
     case "heater/state/power": {
+      if (payload === "true") heaterState.lastConfirmedOff = false;
       heaterState.power = payload === "true" ? true : payload === "false" ? false : null;
       if (heaterState.power !== true) heaterState.waterTemperature = null;
       if (pendingPowerChange?.enabled === heaterState.power) pendingPowerChange = null;
@@ -153,6 +156,7 @@ function handleMqttMessage(data) {
     case "heater/status": {
       heaterState.status = payload === "online" ? "online" : "offline";
       heaterState.power = null;
+      heaterState.lastConfirmedOff = false;
       heaterState.waterTemperature = null;
       heaterState.flowrate = null;
       heaterState.volume = null;
@@ -215,6 +219,7 @@ function receiveHeaterSnapshot(state) {
   receiveTemperatureMaximum(state);
   const online = typeof state.online === "boolean" ? state.online : state.status === "online";
   heaterState.status = online ? "online" : "offline";
+  heaterState.lastConfirmedOff = online && state.displayState?.lastConfirmedOff === true;
   heaterState.power = online && typeof state.power === "boolean" ? state.power : null;
   heaterState.waterTemperature = online && typeof state.temperature === "number" &&
     Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 75 ? state.temperature : null;

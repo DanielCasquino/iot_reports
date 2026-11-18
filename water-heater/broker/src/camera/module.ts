@@ -16,6 +16,7 @@ export interface DisplayFrame {
   purpose: "water" | "target" | "mirror" | "wake";
   light?: "dark" | "lit" | "unknown";
   brightness?: number | null;
+  daylightGlare?: boolean;
   captureStartedAt?: number;
 }
 
@@ -142,6 +143,7 @@ export class CameraModule {
       throw new Error("CAMERA_MIRROR_POLL_MS must be 0 or at least 200");
     if (process.env.CAMERA_URL && (interval > 0 || mirrorInterval > 0)) {
       const poll = async () => {
+        const startedAt = Date.now();
         const normalDue = interval > 0 && Date.now() - this.lastTemperaturePollAt >= interval &&
           Date.now() - this.verificationStartedAt >= 5000;
         if (!this.busy && (normalDue || mirrorInterval > 0)) {
@@ -150,7 +152,12 @@ export class CameraModule {
         }
         const period = mirrorInterval || interval;
         const retryDelay = this.transportFailures === 0 ? 0 : 500 * 2 ** this.transportFailures;
-        if (!this.stopped) this.timer = setTimeout(poll, Math.max(period, retryDelay));
+        // During an explicit verification, count acquisition and OCR toward
+        // the poll period. Keep captures serial and keep the transport backoff.
+        const verifying = mirrorInterval > 0 && this.verificationId !== null &&
+          Date.now() - this.verificationStartedAt < 4500;
+        const wait = verifying ? Math.max(50, Math.min(period, 220) - (Date.now() - startedAt)) : period;
+        if (!this.stopped) this.timer = setTimeout(poll, Math.max(wait, retryDelay));
       };
       this.timer = setTimeout(poll, 0);
     }
@@ -349,7 +356,7 @@ export class CameraModule {
       }
       frameReported = true;
       const waterAccepted = sameSession ? this.onDisplayFrame?.({ value, visible: displayVisible, observedAt: Date.parse(observedAt),
-        light: readingState.displayLight, brightness: readingState.displayBrightness, captureStartedAt,
+        light: readingState.displayLight, daylightGlare: ambiguousDaylight, brightness: readingState.displayBrightness, captureStartedAt,
         purpose: verificationId !== undefined ? wakeVerification ? "wake" : "target" : mirrorOnly ? "mirror" : "water" }) : false;
       captureSucceeded = value !== null;
       if (value !== null) readingState.lastValue = value;
@@ -363,7 +370,8 @@ export class CameraModule {
           this.mqtt.publish(CACHE_TOPIC, JSON.stringify({ value, observedAt }), { qos: 1, retain: true });
         }
       }
-      const rawMirrorText = value !== null ? String(value) : displayVisible || ambiguousDaylight ? "unknown" : "blank";
+      const rawMirrorText = value !== null ? String(value) :
+        !displayVisible && readingState.displayLight === "dark" && rejectedValue === null ? "blank" : "unknown";
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         this.publishMirror(rawMirrorText, observedAt, rejectedValue, value !== null && waterReading && waterAccepted !== false);
         mirrored = true;
@@ -428,19 +436,20 @@ export class CameraModule {
     // for temperature/control and still establish selection blink separately.
     this.expireCachedMirror();
     const { text, observedAt } = this.mirrorState;
-    const held = rawText !== text;
+    const blank = rawText === "blank";
+    const held = !blank && rawText !== text;
     // Reserve 5 s for broker delivery and the ESP inbox; expired historical
     // samples are never sent as fresh presentation.
     const remaining = observedAt ? CACHE_MAX_AGE_MS - (Date.now() - Date.parse(observedAt)) - 5000 : 0;
-    const display = this.mirrorFromCache
+    const display = blank ? "blank" : this.mirrorFromCache
       ? remaining > 0 ? `h${text}:${Math.min(30000, Math.floor(remaining))}` : "unknown"
       : text;
     this.mqtt.publish(MIRROR_TOPIC, display, { qos: 0, retain: false });
     const signature = JSON.stringify([text, rawText, rejectedValue, held, waterEligible]);
     if (signature === this.mirrorLogSignature) return;
     this.mirrorLogSignature = signature;
-    controlLog("display_mirror_sent", { topic: MIRROR_TOPIC, text, rawText, observedAt, capturedAt, rejectedValue, held, waterEligible,
-      effect: text === "unknown" ? "no_valid_reading_yet" : held ? "show_last_coherent" : "show_new_reading",
+    controlLog("display_mirror_sent", { topic: MIRROR_TOPIC, text: blank ? "blank" : text, rawText, observedAt, capturedAt, rejectedValue, held, waterEligible,
+      effect: blank ? "show_blank" : text === "unknown" ? "no_valid_reading_yet" : held ? "show_last_coherent" : "show_new_reading",
       delivery: "published_to_mqtt" });
   }
 

@@ -12,10 +12,14 @@ export class DisplayPowerObservation {
   private darkFrames = 0;
   private litSince: number | null = null;
   private brightness: number | null = null;
+  private lastOffAt = -Infinity;
+  private glareAt = -Infinity;
   private readySeen = false;
   private standbySince: number | null = null;
 
-  reset(captureAfter = Date.now()) {
+  reset(captureAfter = Date.now(), keepOffHistory = false) {
+    if (!keepOffHistory) this.lastOffAt = -Infinity;
+    this.glareAt = -Infinity;
     this.power = null;
     this.confirmedAt = this.lastFrameAt = -Infinity;
     this.captureAfter = Math.max(this.captureAfter, captureAfter);
@@ -46,6 +50,8 @@ export class DisplayPowerObservation {
       return;
     }
     const number = frame.value !== null && Number.isInteger(frame.value) && frame.value >= 0 && frame.value <= 100;
+    this.glareAt = frame.daylightGlare && !frame.visible && !number ? at : -Infinity;
+    if (number || frame.visible || pilot === "ready" || pilot === "heating") this.lastOffAt = -Infinity;
     if (pilot === "ready") this.readySeen = true;
     if (pilot === "heating") { this.readySeen = false; this.standbySince = null; }
     if (number || (frame.visible && frame.light === "lit")) {
@@ -70,6 +76,7 @@ export class DisplayPowerObservation {
       // captures. A gap, ambiguous frame, active pilot or failed capture resets it.
       if (this.darkFrames >= 4 && at - this.darkSince >= 6500) {
         this.power = false;
+        this.lastOffAt = at;
         this.confirmedAt = at;
         this.readySeen = false;
       }
@@ -89,7 +96,9 @@ export class DisplayPowerObservation {
     const power = fresh ? this.power : null;
     const mode = power === false ? "off" : power === true
       ? this.standbySince !== null && now - this.standbySince >= 1000 ? "standby" : "on" : "unknown";
-    return { power, mode, display: power === false ? "off" : power === true
+    const lastConfirmedOff = power === null && now >= this.glareAt && now - this.glareAt <= 3000 &&
+      now >= this.lastOffAt && now - this.lastOffAt <= 60000;
+    return { power, mode, lastConfirmedOff, display: power === false ? "off" : power === true
       ? this.brightness !== null && this.brightness < 180 ? "dim" : "lit" : "unknown",
       observedAt: fresh ? this.confirmedAt : null };
   }

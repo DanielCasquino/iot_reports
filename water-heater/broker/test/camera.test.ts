@@ -6,7 +6,7 @@ import sharp from "sharp";
 import type { MqttClient } from "mqtt";
 import { CameraModule } from "../src/camera/module.js";
 
-test("OLED retains its last coherent number through98, blink and capture failure without reusing it as control data", async () => {
+test("OLED mirrors a confirmed blink while retaining its coherent number through98 and capture failure", async () => {
   const previous = { ...process.env };
   const oldFetch = globalThis.fetch, oldLog = console.log;
   Object.assign(process.env, { CAMERA_URL: "http://camera.test", CAMERA_READER: "tesseract", CAMERA_CROP: "",
@@ -39,11 +39,11 @@ test("OLED retains its last coherent number through98, blink and capture failure
     assert.equal(await camera.readDisplayTemperature(), false);
     assert.equal(camera.getState().displayMirror.text, "22");
     assert.equal(camera.getState().displayMirror.observedAt, observedAt);
-    assert.deepEqual(messages.filter(m => m.topic === "heater/input/display").map(m => m.payload), ["22", "22", "22", "22"]);
+    assert.deepEqual(messages.filter(m => m.topic === "heater/input/display").map(m => m.payload), ["22", "22", "blank", "22"]);
     assert.deepEqual(messages.filter(m => m.topic === "heater/input/temperature").map(m => m.payload),
       ["22", "unavailable", "unavailable", "unavailable"]);
     assert.ok(logs.some(entry => entry.event === "display_mirror_sent" && entry.held === true && entry.rejectedValue === 98));
-    assert.ok(logs.some(entry => entry.event === "display_mirror_sent" && entry.rawText === "blank" && entry.text === "22"));
+    assert.ok(logs.some(entry => entry.event === "display_mirror_sent" && entry.rawText === "blank" && entry.text === "blank" && entry.held === false));
     failed = false; digits = "23";
     assert.equal(await camera.readDisplayTemperature(), true);
     assert.equal(camera.getState().displayMirror.text, "23");

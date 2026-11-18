@@ -69,3 +69,17 @@ test("capture gaps, failed captures, lit RGB, selection and stale requests canno
   observation.observe(dark(30000), true, "unlit", 29000); // Future.
   assert.equal(observation.snapshot(30000).power, null);
 });
+
+test("glare after confirmed OFF exposes bounded history while control still requires fresh evidence", () => {
+  const observation = new DisplayPowerObservation();
+  for (let at = 0; at <= 7000; at += 1000) observation.observe(dark(at), true, "unknown", at);
+  const glare = (at: number) => ({ ...dark(at), light: "unknown" as const, daylightGlare: true });
+  for (let at = 8000; at <= 11000; at += 1000) observation.observe(glare(at), true, "unknown", at);
+  assert.equal(observation.snapshot(11000).lastConfirmedOff, true);
+  assert.equal(observation.snapshot(11000).power, null);
+  assert.equal(observation.snapshot(14001).lastConfirmedOff, false);
+  observation.observe(glare(68000), true, "unknown", 68000);
+  assert.equal(observation.snapshot(68000).lastConfirmedOff, false);
+  observation.reset();
+  assert.equal(observation.snapshot().lastConfirmedOff, false);
+});

@@ -101,7 +101,7 @@ mqttClient.on("message", (topic, payload, packet) => {
 
   switch (topic) {
     case "heater/state/power":
-      if (value !== "true" && value !== "false") displayPower.reset(Date.now() + 1000);
+      if (value !== "true" && value !== "false") displayPower.reset(Date.now() + 1000, true);
       break;
     case "heater/state/temperature_control":
       heaterState.temperatureControl = parseTemperatureControl(value);

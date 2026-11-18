@@ -4,7 +4,7 @@ function formatTemperature(value, fahrenheit, precision = 1) {
   return (fahrenheit ? value * 9 / 5 + 32 : value).toFixed(precision) + unit;
 }
 
-function renderTemperatureReadout({ reading, lastReading, temperatureMax, heaterOff, fromCamera, fahrenheit }) {
+function renderTemperatureReadout({ reading, lastReading, temperatureMax, heaterOff, lastConfirmedOff, fromCamera, fahrenheit }) {
   const display = document.getElementById("temp-display");
   const maximum = document.getElementById("observed-maximum");
   const status = document.getElementById("temperature-status");
@@ -23,6 +23,7 @@ function renderTemperatureReadout({ reading, lastReading, temperatureMax, heater
   if (status) {
     status.hidden = reading !== null && !fromCamera;
     status.textContent = reading !== null ? (fromCamera ? "Display reading · ESP32 disconnected" : "")
+      : lastConfirmedOff ? "Last confirmed off · checking display"
       : lastReading === null ? (heaterOff ? "Heater off · no reading" : "Temperature unavailable")
       : heaterOff ? "Last reading · heater off" : "Last reading · live reading unavailable";
   }

@@ -17,42 +17,57 @@ function ambientLevel(pixels: Buffer, columns: number) {
   return samples.sort((a, b) => a - b)[Math.floor(samples.length / 2)]!;
 }
 
+type Thumbnail = Awaited<ReturnType<typeof thumbnail>>;
+
+async function loadReferences(setting: string): Promise<Thumbnail[]> {
+  const paths: unknown = setting.trimStart().startsWith("[") ? JSON.parse(setting) : [setting];
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 4 ||
+      paths.some(path => typeof path !== "string" || !path.trim()))
+    throw new Error("Provide one daylight off image or a JSON array of one to four image paths");
+  return Promise.all(paths.map(path => thumbnail(path)));
+}
+
+function matchesOff(current: Thumbnail, ref: Thumbnail, firstDisplayColumn: number, exposure: number) {
+  if (exposure < .8 || exposure > 1.25) return false;
+  let different = 0, outliers = 0, warmCells = 0;
+  for (let i = 0; i < current.pixels.length; i += 3) {
+    let error = 0;
+    for (let c = 0; c < 3; c++)
+      error = Math.max(error, Math.abs(current.pixels[i + c]! - Math.min(255, ref.pixels[i + c]! * exposure)));
+    // A small white highlight can move on the glass even when the display is off.
+    // A new warm patch on the display is stronger evidence of a lit segment.
+    const column = (i / 3) % WIDTH;
+    const warmth = current.pixels[i]! - current.pixels[i + 2]!;
+    const referenceWarmth = exposure * (ref.pixels[i]! - ref.pixels[i + 2]!);
+    if (column >= firstDisplayColumn && warmth > 16 && warmth - referenceWarmth > 12) warmCells++;
+    if (error > 38) outliers++;
+    if (error > 20) different++;
+    if (different > WIDTH * HEIGHT * .1 || outliers > WIDTH * HEIGHT * .02 || warmCells >= 3) return false;
+  }
+  return true;
+}
+
 export class DaylightCalibration {
-  private reference?: ReturnType<typeof thumbnail>;
+  private references?: Promise<Thumbnail[]>;
   private candidate: number | null = null;
   private candidateAt = 0;
 
   constructor(private readonly path: string) {}
 
   async inspect(image: Buffer, guardLeft: number) {
-    this.reference ??= thumbnail(this.path);
-    const [ref, current] = await Promise.all([this.reference, thumbnail(image)]);
+    this.references ??= loadReferences(this.path);
+    const [refs, current] = await Promise.all([this.references, thumbnail(image)]);
     const firstDisplayColumn = current.width ? Math.floor(guardLeft * WIDTH / current.width) : 0;
     const columns = firstDisplayColumn - 1;
-    if (columns < 1 || columns >= WIDTH || ref.width !== current.width || ref.height !== current.height)
+    if (columns < 1 || columns >= WIDTH || refs.some(ref => ref.width !== current.width || ref.height !== current.height))
       throw new Error("Daylight calibration requires the same camera size and housing visible left of the guard crop");
     const ambient = ambientLevel(current.pixels, columns);
-    const baseline = ambientLevel(ref.pixels, columns);
-    if (baseline < 100) throw new Error("Daylight off reference must show the housing in daylight");
-    if (ambient < Math.max(95, baseline * .55)) return "night";
-    const exposure = ambient / baseline;
-    if (exposure < .8 || exposure > 1.25) return "day";
-    let different = 0, outliers = 0, warmCells = 0;
-    for (let i = 0; i < current.pixels.length; i += 3) {
-      let error = 0;
-      for (let c = 0; c < 3; c++)
-        error = Math.max(error, Math.abs(current.pixels[i + c]! - Math.min(255, ref.pixels[i + c]! * exposure)));
-      // A small white highlight can move on the glass even when the display is off.
-      // A new warm patch on the display is stronger evidence of a lit segment.
-      const column = (i / 3) % WIDTH;
-      const warmth = current.pixels[i]! - current.pixels[i + 2]!;
-      const referenceWarmth = exposure * (ref.pixels[i]! - ref.pixels[i + 2]!);
-      if (column >= firstDisplayColumn && warmth > 16 && warmth - referenceWarmth > 12) warmCells++;
-      if (error > 38) outliers++;
-      if (error > 20) different++;
-      if (different > WIDTH * HEIGHT * .1 || outliers > WIDTH * HEIGHT * .02 || warmCells >= 3) return "day";
-    }
-    return "off-reference";
+    const baselines = refs.map(ref => ambientLevel(ref.pixels, columns));
+    if (baselines.some(baseline => baseline < 100)) throw new Error("Daylight off reference must show the housing in daylight");
+    // The original calibration owns the switch to the proven low-light reader.
+    if (ambient < Math.max(95, baselines[0]! * .55)) return "night";
+    return refs.some((ref, i) => matchesOff(current, ref, firstDisplayColumn, ambient / baselines[i]!))
+      ? "off-reference" : "day";
   }
 
   confirm(value: number | null, at: number) {
