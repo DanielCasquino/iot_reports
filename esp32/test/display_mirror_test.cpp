@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include "display_mirror.h"
 
 int main()
@@ -51,6 +52,18 @@ int main()
     assert(std::strcmp(mirror.text(12002), "47") == 0);
     assert(std::strcmp(mirror.text(42000), "47") == 0);
     assert(std::strcmp(mirror.text(42001), "-.-") == 0);
+
+    mirror.receive("h45:2000", 13000);
+    assert(std::strcmp(mirror.text(13000), "h45") == 0);
+    assert(std::strcmp(mirror.text(14999), "h45") == 0);
+    assert(std::strcmp(mirror.text(15000), "-.-") == 0);
+    mirror.receive("44", 15001);
+    for (const char *bad : {"hblank:10", "h76:1", "h45", "h45:0", "h45:30001", "h45:-1", "h45:1x", "h45:999999"}) {
+        mirror.receive(bad, 15002);
+        assert(std::strcmp(mirror.text(15002), "44") == 0);
+    }
+    mirror.receive("46", 13001);
+    assert(std::strcmp(mirror.text(13001), "46") == 0);
 
     mirror.receive("0", UINT32_MAX - 999U);
     assert(std::strcmp(mirror.text(0), "0") == 0);

@@ -97,7 +97,7 @@ test("OLED mirror retains visible digits across blank phases without replacing w
   const module = new CameraModule(mqtt as unknown as import("mqtt").MqttClient);
   try {
     assert.equal(await module.readDisplayTemperature(false, undefined, true), true);
-    assert.deepEqual(messages, [["heater/input/display", "44"]]);
+    assert.deepEqual(messages.filter(([topic]) => topic === "heater/input/display"), [["heater/input/display", "44"]]);
     assert.equal(module.getState().value, 44);
     assert.notEqual(module.getState().observedAt, null);
     image = await sharp({ create: { width: 300, height: 245, channels: 3, background: "black" } }).png().toBuffer();
@@ -106,7 +106,7 @@ test("OLED mirror retains visible digits across blank phases without replacing w
     image = await display(44, "", "c");
     assert.equal(await module.readDisplayTemperature(false, undefined, true), false);
     assert.deepEqual(messages.at(-1), ["heater/input/display", "44"]);
-    assert.ok(messages.every(([topic]) => topic === "heater/input/display"));
+    assert.ok(messages.every(([topic]) => topic === "heater/input/display" || topic === "heater/presentation/display-cache"));
   } finally {
     await module.close(); globalThis.fetch = previousFetch;
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });

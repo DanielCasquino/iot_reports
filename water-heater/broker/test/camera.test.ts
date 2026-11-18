@@ -1,4 +1,6 @@
 import test from "node:test";
+import { EventEmitter } from "node:events";
+import express from "express";
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import type { MqttClient } from "mqtt";
@@ -133,7 +135,7 @@ test("verification subscribes after reconnect and ignores retained or malformed 
     module.setup(app);
     mqtt.emit("connect");
     assert.deepEqual(subscriptions, ["heater/command/verify_temperature", "heater/command/verify_wake",
-      "heater/command/verify_temperature", "heater/command/verify_wake"]);
+      "heater/presentation/display-cache", "heater/command/verify_temperature", "heater/command/verify_wake", "heater/presentation/display-cache"]);
     for (const topic of ["heater/command/verify_temperature", "heater/command/verify_wake"]) {
       for (const id of ["", "-1", "4294967296", "12,48"])
         mqtt.emit("message", topic, Buffer.from(id), { retain: false });
@@ -343,4 +345,50 @@ test("active target verification requires fresh selection blink, not two stable 
     for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key];
     Object.assign(process.env, previous);
   }
+});
+
+
+test("retained OLED presentation is bounded, historical and never a control observation", async () => {
+  class FakeMqtt extends EventEmitter {
+    connected = true;
+    messages: { topic: string; payload: string; options: unknown }[] = [];
+    subscribe(_topic: string, _options?: unknown) {}
+    publish(topic: string, payload: string, options: unknown) { this.messages.push({ topic, payload, options }); }
+  }
+  const mqtt = new FakeMqtt();
+  let observations = 0;
+  const camera = new CameraModule(mqtt as unknown as MqttClient, () => { observations++; });
+  camera.setup(express());
+  const topic = "heater/presentation/display-cache";
+  const send = (value: unknown, age: number, retain = true) =>
+    mqtt.emit("message", topic, Buffer.from(JSON.stringify({ value, observedAt: new Date(Date.now() - age).toISOString() })), { retain });
+  try {
+    send(40, 301000);
+    send(99, 10);
+    send(41, -1000);
+    send(42, 10, false);
+    assert.equal(camera.getState().displayMirror.text, "unknown");
+    send(43, 1000);
+    assert.equal(camera.getState().displayMirror.text, "43");
+    assert.equal(camera.getState().displayMirror.historical, true);
+    assert.equal(camera.getState().value, null);
+    assert.equal(observations, 0);
+    assert.deepEqual(mqtt.messages, [{ topic: "heater/input/display", payload: "h43:30000", options: { qos: 0, retain: false } }]);
+    send(41, 3000);
+    assert.equal(camera.getState().displayMirror.text, "43");
+    assert.equal(mqtt.messages.some(m => m.topic === topic), false);
+    const oldNow = Date.now;
+    try {
+      const initialNow = Date.now();
+      Date.now = () => initialNow + 293000;
+      (camera as unknown as { publishMirror(raw: string, at: null, rejected: null): void }).publishMirror("unknown", null, null);
+      const late = mqtt.messages.at(-1)?.payload ?? "";
+      assert.match(late, /^h43:[1-9][0-9]{0,3}$/);
+      assert.ok(Number(late.split(":")[1]) <= 1000);
+      Date.now = () => initialNow + 301000;
+      (camera as unknown as { publishMirror(raw: string, at: null, rejected: null): void }).publishMirror("unknown", null, null);
+      assert.equal(camera.getState().displayMirror.text, "unknown");
+      assert.equal(mqtt.messages.at(-1)?.payload, "unknown");
+    } finally { Date.now = oldNow; }
+  } finally { await camera.close(); }
 });

@@ -17,6 +17,9 @@ export interface DisplayFrame {
   captureStartedAt?: number;
 }
 
+const CACHE_TOPIC = "heater/presentation/display-cache";
+const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const CACHE_REFRESH_MS = 30 * 1000;
 const MIRROR_TOPIC = "heater/input/display";
 const INPUT_TOPIC = "heater/input/temperature";
 const MAX_IMAGE_BYTES = 1024 * 1024;
@@ -31,6 +34,9 @@ export class CameraModule {
   private stopped = false;
   private mirrorState: { text: string; observedAt: string | null } = { text: "unknown", observedAt: null };
   private mirrorLogSignature = "";
+  private cachePublishedAt = 0;
+  private cachePublishedText = "";
+  private mirrorFromCache = false;
   private captureDiagnostic = "";
   private captureLoggedAt = Number.NEGATIVE_INFINITY;
   private lastTemperaturePollAt = 0;
@@ -54,6 +60,7 @@ export class CameraModule {
     this.invalidateMqttSession();
     this.mqtt.subscribe("heater/command/verify_temperature");
     this.mqtt.subscribe("heater/command/verify_wake");
+    this.mqtt.subscribe(CACHE_TOPIC, { qos: 1 });
   };
   private invalidateMqttSession = () => {
     this.mqttGeneration++;
@@ -64,6 +71,21 @@ export class CameraModule {
     this.targetBlankSeen = false;
   };
   private handleMqttMessage = (topic: string, payload: Buffer, packet: { retain?: boolean }) => {
+    if (topic === CACHE_TOPIC) {
+      if (!packet.retain || payload.length > 256) return;
+      try {
+        const item = JSON.parse(payload.toString()) as { value?: unknown; observedAt?: unknown };
+        if (!Number.isInteger(item.value) || Number(item.value) < 0 || Number(item.value) > 75 ||
+            typeof item.observedAt !== "string") return;
+        const at = Date.parse(item.observedAt), age = Date.now() - at;
+        const currentAt = this.mirrorState.observedAt ? Date.parse(this.mirrorState.observedAt) : -Infinity;
+        if (!Number.isFinite(at) || age < 0 || age > CACHE_MAX_AGE_MS || at <= currentAt) return;
+        this.mirrorState = { text: String(item.value), observedAt: item.observedAt };
+        this.mirrorFromCache = true;
+        if (this.mqtt.connected) this.publishMirror("unknown", null, null);
+      } catch { /* Ignore malformed retained presentation. */ }
+      return;
+    }
     if (topic === "heater/status" && (!packet.retain || payload.toString() === "offline")) {
       this.invalidateMqttSession();
       return;
@@ -127,10 +149,20 @@ export class CameraModule {
     }
   }
 
+  private expireCachedMirror(now = Date.now()) {
+    if (!this.mirrorFromCache || !this.mirrorState.observedAt) return;
+    const age = now - Date.parse(this.mirrorState.observedAt);
+    if (!Number.isFinite(age) || age < 0 || age >= CACHE_MAX_AGE_MS) {
+      this.mirrorState = { text: "unknown", observedAt: null };
+      this.mirrorFromCache = false;
+    }
+  }
+
   getState() {
+    this.expireCachedMirror();
     const age = this.state.observedAt === null ? NaN : Date.now() - Date.parse(this.state.observedAt);
     const fresh = Number.isFinite(age) && age >= 0 && age <= 30000;
-    return { ...this.state, displayMirror: { ...this.mirrorState }, available: this.state.available && fresh,
+    return { ...this.state, displayMirror: { ...this.mirrorState, historical: this.mirrorFromCache }, available: this.state.available && fresh,
       value: this.state.available && fresh ? this.state.value : null,
       displayBrightness: fresh ? this.state.displayBrightness : null,
       displayLight: fresh ? this.state.displayLight : "unknown" };
@@ -279,7 +311,16 @@ export class CameraModule {
         purpose: verificationId !== undefined ? wakeVerification ? "wake" : "target" : mirrorOnly ? "mirror" : "water" }) : false;
       captureSucceeded = value !== null;
       if (value !== null) readingState.lastValue = value;
-      if (value !== null) this.mirrorState = { text: String(value), observedAt };
+      if (value !== null) {
+        this.mirrorState = { text: String(value), observedAt };
+        this.mirrorFromCache = false;
+        if (sameSession && this.mqtt.connected &&
+            (this.cachePublishedText !== String(value) || Date.now() - this.cachePublishedAt >= CACHE_REFRESH_MS)) {
+          this.cachePublishedText = String(value);
+          this.cachePublishedAt = Date.now();
+          this.mqtt.publish(CACHE_TOPIC, JSON.stringify({ value, observedAt }), { qos: 1, retain: true });
+        }
+      }
       const rawMirrorText = value !== null ? String(value) : displayVisible ? "unknown" : "blank";
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         this.publishMirror(rawMirrorText, observedAt, rejectedValue, value !== null && waterReading && waterAccepted !== false);
@@ -341,9 +382,16 @@ export class CameraModule {
   private publishMirror(rawText: string, capturedAt: string | null, rejectedValue: number | null, waterEligible = false) {
     // Retain only the OLED presentation. Blank/failed captures remain invalid
     // for temperature/control and still establish selection blink separately.
+    this.expireCachedMirror();
     const { text, observedAt } = this.mirrorState;
     const held = rawText !== text;
-    this.mqtt.publish(MIRROR_TOPIC, text, { qos: 0, retain: false });
+    // Reserve 5 s for broker delivery and the ESP inbox; expired historical
+    // samples are never sent as fresh presentation.
+    const remaining = observedAt ? CACHE_MAX_AGE_MS - (Date.now() - Date.parse(observedAt)) - 5000 : 0;
+    const display = this.mirrorFromCache
+      ? remaining > 0 ? `h${text}:${Math.min(30000, Math.floor(remaining))}` : "unknown"
+      : text;
+    this.mqtt.publish(MIRROR_TOPIC, display, { qos: 0, retain: false });
     const signature = JSON.stringify([text, rawText, rejectedValue, held, waterEligible]);
     if (signature === this.mirrorLogSignature) return;
     this.mirrorLogSignature = signature;
