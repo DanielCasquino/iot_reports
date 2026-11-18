@@ -17,7 +17,7 @@ class ESP32MQTTClient {public:
  std::vector<std::pair<std::string,std::string>> published;
  void setURI(const char*){} void setKeepAlive(int){} void enableLastWillMessage(const char*,const char*,bool,int){} void loopStart(){}
  bool isConnected(){return connected;} bool isMyTurn(void*){return true;}
- void subscribe(const char*t,std::function<void(const std::string&)> callback){callbacks[t]=callback;}
+ void subscribe(const char*t,std::function<void(const std::string&)> callback, int qos=0){(void)qos;callbacks[t]=callback;}
  void publish(const char*t,const std::string&p,int,bool){published.push_back({t,p});}
  void onEventCallback(esp_mqtt_event_handle_t e){auto c=callbacks.find(e->topic);if(c!=callbacks.end())c->second(e->payload);}
 };

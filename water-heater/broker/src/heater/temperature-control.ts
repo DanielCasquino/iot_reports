@@ -1,11 +1,14 @@
 export interface TemperatureControl {
   base: number; target: number; status: string; locked: boolean;
   min: number; max: number; commandId: number; result: string;
-  autoShutdownTarget?: number;
+  autoShutdownTarget?: number; temperatureV2Token?: number;
 }
 export function parseTemperatureControl(raw: string): TemperatureControl | null {
   try {
     const value = JSON.parse(raw);
+    if (value?.temperatureV2Token !== undefined &&
+        (!Number.isInteger(value.temperatureV2Token) || value.temperatureV2Token <= 0 ||
+          value.temperatureV2Token > 0xffffffff)) return null;
     if (value?.autoShutdownTarget !== undefined &&
         (!Number.isInteger(value.autoShutdownTarget) || (value.autoShutdownTarget !== -1 &&
           (value.autoShutdownTarget < 30 || value.autoShutdownTarget > 75)))) return null;

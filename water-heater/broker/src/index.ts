@@ -11,6 +11,7 @@ import { HeaterObservation, type PilotState } from "./heater/state.js";
 import { pilotCommand } from "./heater/pilot-command.js";
 import { parseTemperatureControl, type TemperatureControl } from "./heater/temperature-control.js";
 import { parseCommand } from "./websocket/command.js";
+import { temperatureTransport } from "./heater/temperature-transport.js";
 import { TemperatureReconciliation } from "./heater/temperature-reconciliation.js";
 import { HeaterPanelState, type PanelEffect } from "./heater/panel-state.js";
 import { DisplayPowerObservation } from "./heater/display-power.js";
@@ -54,6 +55,7 @@ const powerOperation = new PowerOperation();
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
 let lastControlDiagnostic = "";
+let temperatureTokenReceivedAt = 0;
 let lastAutoShutdownDiagnostic = "";
 const logTelemetry = process.env.HEATER_DEBUG_TELEMETRY === "true";
 
@@ -102,6 +104,7 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
     case "heater/state/temperature_control":
       heaterState.temperatureControl = parseTemperatureControl(value);
+      temperatureTokenReceivedAt = Date.now();
       if (heaterState.temperatureControl && value !== lastControlDiagnostic) {
         lastControlDiagnostic = value;
         controlLog("temperature_controller_state", { ...heaterState.temperatureControl,
@@ -154,6 +157,7 @@ mqttClient.on("message", (topic, payload, packet) => {
       heaterState.volume = null;
       // A (re)connecting controller starts without a known power observation.
       heaterState.temperatureControl = null;
+      temperatureTokenReceivedAt = 0;
       heaterState.autoShutdown = null;
       heaterState.color = null;
       break;
@@ -181,6 +185,7 @@ function disconnectController() {
   heaterState.flowrate = null;
   heaterState.volume = null;
   heaterState.temperatureControl = null;
+  temperatureTokenReceivedAt = 0;
   broadcast({ event: "mqtt_message", data: { topic: "heater/state/temperature", payload: "unavailable" } });
 }
 mqttClient.on("offline", disconnectController);
@@ -260,7 +265,8 @@ wss.on("connection", (ws) => {
       return;
     }
     displayPower.reset(Date.now() + 6000); // Discard in-flight/pre-action images.
-    mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
+    if (command.topic === "heater/set/temperature") publishTemperatureCommand(command.payload);
+    else mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
   });
 });
 
@@ -307,6 +313,13 @@ app.get("/api/heater/status", (_req, res) => {
   });
 });
 
+function publishTemperatureCommand(payload: string) {
+  const transport = temperatureTransport(payload, heaterState.temperatureControl,
+    temperatureTokenReceivedAt, Date.now(), process.env.MQTT_TEMPERATURE_QOS1 === "true");
+  if (transport) mqttClient.publish(transport.topic, transport.payload, { qos: transport.qos, retain: false });
+  else controlLog("temperature_transport_rejected", { reason: "stale_controller_token" });
+}
+
 const panelEffects: Record<PanelEffect, () => void> = {
   press_plus: () => mqttClient.publish("heater/command/wake_display", "wake", { qos: 0, retain: false }),
   capture_water: () => { void cameraModule.readDisplayTemperature(); },
@@ -347,7 +360,7 @@ setInterval(() => {
   if (command) {
     controlLog("temperature_retry", { ...temperatureReconciliation.snapshot(), commandId: command.id,
       base: command.base, directionPolicy: "shortest_wrap", reacquireTarget: true });
-    mqttClient.publish("heater/set/temperature", `${command.id},${command.base},${command.target}`, { qos: 0, retain: false });
+    publishTemperatureCommand(`${command.id},${command.base},${command.target}`);
   }
   const reconciliation = temperatureReconciliation.snapshot();
   if (reconciliation.status !== lastReconciliationStatus) {

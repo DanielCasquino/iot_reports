@@ -10,6 +10,7 @@ import { transformSync } from "esbuild";
 import * as state from "../src/heater/state.js";
 import * as pilot from "../src/heater/pilot-command.js";
 import * as control from "../src/heater/temperature-control.js";
+import * as transport from "../src/heater/temperature-transport.js";
 import * as command from "../src/websocket/command.js";
 import * as reconciliation from "../src/heater/temperature-reconciliation.js";
 import * as panel from "../src/heater/panel-state.js";
@@ -44,7 +45,7 @@ function fixture() {
     "./websocket/server.js": { wss, broadcast() {} }, url: { fileURLToPath },
     express: Object.assign(() => app, { static() {} }), path,
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
-    "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control,
+    "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control, "./heater/temperature-transport.js": transport,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
     "./heater/control-log.js": diagnostics, "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired, "./heater/observed-max.js": observedMax,
   };

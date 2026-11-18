@@ -84,6 +84,7 @@ public:
         subscribeTopic("heater/input/temperature_verification", Kind::Verification);
         subscribeTopic("heater/input/wake_verification", Kind::WakeVerification);
         subscribeTopic("heater/set/temperature", Kind::Target);
+        subscribeTopic("heater/set/temperature_v2", Kind::TargetV2, 1);
         subscribeTopic("heater/set/temperature_base", Kind::Base);
         subscribeTopic("heater/set/power", Kind::Power);
         subscribeTopic("heater/set/autoshutdown", Kind::AutoShutdown);
@@ -111,6 +112,7 @@ public:
             if (message.kind == Kind::Connected)
             {
                 heaterModule->invalidateObservations();
+                renewTemperatureToken();
                 mqttClient.publish("heater/status", "online", 1, true);
                 publishState();
                 publishPowerState();
@@ -140,6 +142,7 @@ public:
             case Kind::Verification: handleVerification(payload, message.receivedAt); break;
             case Kind::WakeVerification: handleVerification(payload, message.receivedAt, true); break;
             case Kind::Target: handleTemperatureControl(payload, false); break;
+            case Kind::TargetV2: handleTemperatureControlV2(payload); break;
             case Kind::Base: handleTemperatureControl(payload, true); break;
             case Kind::Power: handlePower(payload); break;
             case Kind::AutoShutdown: handleAutoShutdown(payload); break;
@@ -176,6 +179,28 @@ public:
             heaterModule->setTemperature(value, receivedAt);
     }
 
+    void renewTemperatureToken()
+    {
+        uint32_t nextToken = esp_random();
+        if (!nextToken || nextToken == temperatureToken)
+            nextToken = temperatureToken == UINT32_MAX ? 1 : temperatureToken + 1;
+        temperatureToken = nextToken;
+        temperatureTokenAt = millis();
+    }
+
+    void handleTemperatureControlV2(const std::string &payload)
+    {
+        const auto separator = payload.rfind(',');
+        if (separator == std::string::npos) return;
+        uint32_t token = 0;
+        if (!parseUnsigned(payload.substr(separator + 1), token) || token != temperatureToken ||
+            uint32_t(millis() - temperatureTokenAt) >= 5000UL) return;
+        // Consume before queuing; duplicate messages cannot actuate again.
+        renewTemperatureToken();
+        handleTemperatureControl(payload.substr(0, separator), false);
+        publishTemperatureControl();
+    }
+
     void handleTemperatureControl(const std::string &payload, bool calibrate)
     {
         if (!heaterModule || payload.size() > 40) return;
@@ -192,7 +217,10 @@ public:
     void publishTemperatureControl()
     {
         if (!heaterModule || !mqttClient.isConnected()) return;
-        std::string payload = "{\"base\":" + std::to_string(heaterModule->getSetpoint()) +
+        if (!temperatureToken || uint32_t(millis() - temperatureTokenAt) >= 5000UL)
+            renewTemperatureToken();
+        std::string payload = "{\"temperatureV2Token\":" + std::to_string(temperatureToken) +
+            ",\"base\":" + std::to_string(heaterModule->getSetpoint()) +
             ",\"target\":" + std::to_string(heaterModule->getTargetTemperature()) +
             ",\"status\":\"" + heaterModule->getAdjustmentStatus() + "\",\"locked\":" +
             (heaterModule->isTemperatureLocked() ? "true" : "false") +
@@ -330,13 +358,15 @@ private:
         }
         return true;
     }
-    void subscribeTopic(const char *topic, MqttInbox::Kind kind)
+    void subscribeTopic(const char *topic, MqttInbox::Kind kind, int qos = 0)
     {
         mqttClient.subscribe(topic, [this, kind](const std::string &payload) {
             if (!inbox.push(kind, payload.data(), payload.size(), millis(), mqttConnectionRevision.load()))
                 Serial.println("MQTT message rejected: inbox full or oversized payload");
-        });
+        }, qos);
     }
+    uint32_t temperatureToken = 0;
+    uint32_t temperatureTokenAt = 0;
     MqttInbox inbox;
     bool wasConnected = false;
     static MqttModule *instance;
