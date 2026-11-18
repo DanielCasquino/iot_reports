@@ -409,3 +409,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 @media (max-width: 959px) {
   .base-settings .settings-panel { position: fixed; top: calc(72px + env(safe-area-inset-top)); right: 24px; }
 }
+
+.reading-label { font-size: 16px; color: var(--text-less-important); }
+.observed-maximum { margin: 0 0 12px; font-size: 16px; color: var(--text); }
+.observed-maximum output { margin-left: 0.3em; font-weight: 600; }

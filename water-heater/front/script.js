@@ -28,6 +28,8 @@ const heaterState = {
   power: null,
   autoShutdown: false,
   temperature: null,
+  temperatureMax: null,
+  temperatureMaxSelected: false,
   cameraTemperature: null,
   lastTemperature: null,
   status: "offline",
@@ -63,10 +65,16 @@ function updateAutoShutdown() {
 
 function updateTemperature() {
   const display = document.getElementById("temp-display");
+  const maximum = document.getElementById("observed-maximum");
+  if (maximum) {
+    const value = heaterState.temperatureMax;
+    maximum.textContent = value === null ? "Sin confirmar"
+      : `${(fahrenheit ? c2f(value) : value).toFixed(fahrenheit ? 1 : 0)}°${fahrenheit ? "F" : "C"}`;
+  }
   const fg = document.getElementById("fg");
   // While the controller is online, raw camera digits can be its setpoint.
   // Use validated water or retain it until a new water measurement arrives.
-  const reading = heaterState.temperature ?? (heaterState.status === "offline" ? heaterState.cameraTemperature : null);
+  const reading = heaterState.temperature ?? (heaterState.status === "offline" && !heaterState.temperatureMaxSelected ? heaterState.cameraTemperature : null);
   const effectTemperature = reading ?? heaterState.lastTemperature;
 
   if (fg && effectTemperature !== null) {
@@ -190,6 +198,10 @@ function handleMessage(message) {
     case "state_snapshot":
       receiveHeaterSnapshot(message.data);
       break;
+    case "temperature_max":
+      receiveTemperatureMaximum(message.data);
+      updateTemperature();
+      break;
     case "temperature_result":
       receiveTemperatureResult(message.data);
       break;
@@ -213,7 +225,14 @@ function handleMessage(message) {
   }
 }
 
+function receiveTemperatureMaximum(data) {
+  const maximum = data?.temperatureMax;
+  heaterState.temperatureMax = Number.isInteger(maximum) && maximum >= 30 && maximum <= 75 ? maximum : null;
+  heaterState.temperatureMaxSelected = data?.temperatureMaxSelected === true;
+}
+
 function receiveHeaterSnapshot(state) {
+  receiveTemperatureMaximum(state);
   const online = typeof state.online === "boolean" ? state.online : state.status === "online";
   heaterState.status = online ? "online" : "offline";
   heaterState.power = online && typeof state.power === "boolean" ? state.power : null;
@@ -441,6 +460,7 @@ async function refreshObservation() {
     temperatureControl = null;
     heaterState.temperature = null;
     heaterState.cameraTemperature = null;
+    receiveTemperatureMaximum(null);
     updateEspStatus();
     updateTemperature();
   } finally { setTimeout(refreshObservation, 5000); }

@@ -24,7 +24,7 @@
         <summary class="material-symbols-outlined" aria-label="Temperature calibration" title="Temperature calibration">tune</summary>
         <div class="settings-panel">
           <form id="base-form" onsubmit="syncTemperatureBase(event)">
-            <label for="base-temperature">Current setting on the heater (°C)</label>
+            <label for="base-temperature" lang="es">Temperatura máx. en el visor (°C)</label>
             <p>Match the number you set on the physical heater. This does not move the servos.</p>
             <div class="base-input-row"><input id="base-temperature" type="number" min="30" max="75" step="1" value="43" required disabled />
             <button id="sync-base" type="submit" disabled>Sync</button></div>
@@ -35,21 +35,23 @@
     </div>
     <main class="content">
       <section class="primary-control" aria-label="Heater control">
-      <span id="temp-display" class="temp-display">--.-°C</span>
+      <span class="reading-label" id="water-temperature-label" lang="es">Temperatura</span>
+      <span id="temp-display" class="temp-display" aria-labelledby="water-temperature-label">--.-°C</span>
       <span id="temperature-status" class="sr-only" role="status">Temperature unavailable</span>
       <span id="connection-status" class="sr-only" role="status">Disconnected</span>
       <button id="big-button" class="big-button big-button-off" disabled aria-label="Toggle heater power" onclick="toggleTerma()">
         <span class="material-symbols-outlined" aria-hidden="true">power_settings_new</span>
       </button>
       <section class="temperature-setting" aria-labelledby="target-label">
-        <div class="target-heading"><span id="target-label">Desired temperature</span>
+        <p class="observed-maximum" lang="es">Temperatura máx. <output id="observed-maximum" aria-live="polite">Sin confirmar</output></p>
+        <div class="target-heading"><span id="target-label" lang="es">Ajustar temperatura máx.</span>
           <span id="adjustment-lock" class="material-symbols-outlined" aria-label="Adjustment locked" hidden>lock</span></div>
         <div class="temperature-stepper">
           <button id="temperature-down" class="soft-button step-button" disabled onclick="changeTarget(-1)" aria-label="Lower desired temperature"><span class="material-symbols-outlined" aria-hidden="true">remove</span></button>
           <output id="target-temperature" aria-live="polite">--°C</output>
           <button id="temperature-up" class="soft-button step-button" disabled onclick="changeTarget(1)" aria-label="Raise desired temperature"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
         </div>
-        <button id="save-temperature" class="soft-button save-button" disabled onclick="saveTarget()">Save temperature</button>
+        <button id="save-temperature" class="soft-button save-button" disabled onclick="saveTarget()" lang="es">Guardar ajuste</button>
         <p id="adjustment-status" role="status">Waiting for the controller</p>
       </section>
       </section>
