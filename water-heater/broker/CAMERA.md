@@ -42,11 +42,15 @@ produces an actionable error instead of silently selecting another reader.
 Each native process has a1.5s deadline and is reaped on failure or shutdown.
 Temporary images are private and removed after every read.
 
-The web display keeps its last valid measured number through unavailable
-frames and marks it as historical in its tooltip. This cache lasts while the
-page is open; it is not fresh telemetry or MQTT-retained control data. Initial
-absence still shows dashes. Setpoints, water temperature and blink phases keep
-their existing separation in the panel state machine.
+New HTTP and WebSocket dashboard clients receive the last confirmed water reading
+and optically confirmed power state from memory. Mosquitto retains each with QoS 1
+on `heater/presentation/last-water` and `heater/presentation/last-power`.
+The payload contains `value` and `observedAt` (Unix milliseconds). Changes publish
+immediately, and repeated values refresh the retained timestamp at most once per
+30 seconds. On reconnect the backend restores these as historical observations
+and continues checking the camera and controller. The web labels history while
+waiting for live evidence. With no valid water history or reading it shows dashes.
+The OLED independently mirrors the visor, including setpoint digits and blink blanks.
 
 Camera capture and optical recognition also work with the controller offline
 or MQTT disconnected. `/api/camera/status` describes the latest optical frame;

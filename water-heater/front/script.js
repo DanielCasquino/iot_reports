@@ -31,11 +31,14 @@ function receivePowerResult(result) {
 const heaterState = {
   power: null,
   lastConfirmedOff: false,
+  lastPower: null,
+  lastWater: null,
   autoShutdown: false,
   waterTemperature: null,
   temperatureMax: null,
   temperatureMaxSelected: false,
   cameraTemperature: null,
+  lastCameraTemperature: null,
   lastValidTemperature: null,
   status: "offline",
   pilotRgbSample: null,
@@ -49,7 +52,10 @@ function updatePowerButton() {
   if (!button) return;
 
   const confirmed = brokerConnected && heaterState.status === "online" && typeof heaterState.power === "boolean";
-  button.setAttribute("aria-label", confirmed ? (heaterState.power ? "Turn heater off" : "Turn heater on") : "Heater power unconfirmed");
+  const history = heaterState.lastPower;
+  const unknown = history ? `Last confirmed ${history.value ? "on" : "off"} · awaiting confirmation` : "Heater power unconfirmed";
+  button.title = confirmed ? (heaterState.power ? "Turn heater off" : "Turn heater on") : unknown;
+  button.setAttribute("aria-label", button.title);
   button.setAttribute("aria-pressed", String(confirmed && heaterState.power));
   button.className = `big-button big-button-${confirmed && heaterState.power ? "on" : "off"}`;
 }
@@ -74,13 +80,18 @@ function receiveAutoShutdown(enabled) {
 
 function updateTemperature() {
   const heaterOff = heaterState.power === false;
-  const cameraReading = heaterState.status === "offline" && !heaterState.temperatureMaxSelected
+  const cameraReading = heaterState.status === "offline"
     ? heaterState.cameraTemperature : null;
-  const reading = heaterOff ? null : heaterState.waterTemperature ?? cameraReading;
-  if (reading !== null) heaterState.lastValidTemperature = reading;
+  const reading = heaterOff || heaterState.temperatureMaxSelected ? null : heaterState.waterTemperature ?? cameraReading;
+  if (reading !== null) {
+    if (heaterState.waterTemperature !== null) heaterState.lastValidTemperature = reading;
+    else heaterState.lastCameraTemperature = reading;
+  }
+  const lastReading = heaterState.lastWater?.value ?? heaterState.lastValidTemperature ??
+    (heaterState.status === "offline" ? heaterState.lastCameraTemperature : null);
 
   renderTemperatureReadout({
-    reading, lastReading: heaterState.lastValidTemperature, heaterOff,
+    reading, lastReading, lastWaterAt: heaterState.lastWater?.observedAt, heaterOff,
     lastConfirmedOff: heaterState.status === "online" && heaterState.power === null && heaterState.lastConfirmedOff,
     temperatureMax: heaterState.temperatureMax,
     fromCamera: heaterState.waterTemperature === null && reading !== null,
@@ -186,6 +197,11 @@ function handleMessage(message) {
     case "state_snapshot":
       receiveHeaterSnapshot(message.data);
       break;
+    case "presentation_history":
+      receivePresentationHistory(message.data);
+      updateTemperature();
+      updateControls();
+      break;
     case "temperature_max":
       receiveTemperatureMaximum(message.data);
       updateTemperature();
@@ -223,8 +239,19 @@ function receiveTemperatureMaximum(data) {
   heaterState.temperatureMaxSelected = data?.temperatureMaxSelected === true;
 }
 
+function receivePresentationHistory(state) {
+  for (const field of ["lastWater", "lastPower"]) {
+    const sample = state?.[field];
+    if (!sample || !Number.isSafeInteger(sample.observedAt) || sample.observedAt <= (heaterState[field]?.observedAt ?? 0)) continue;
+    const valid = field === "lastPower" ? typeof sample.value === "boolean"
+      : Number.isInteger(sample.value) && sample.value >= 0 && sample.value <= 75;
+    if (valid) heaterState[field] = sample;
+  }
+}
+
 function receiveHeaterSnapshot(state) {
   receiveTemperatureMaximum(state);
+  receivePresentationHistory(state);
   const online = typeof state.online === "boolean" ? state.online : state.status === "online";
   heaterState.status = online ? "online" : "offline";
   heaterState.lastConfirmedOff = online && state.displayState?.lastConfirmedOff === true;
@@ -423,7 +450,10 @@ function updateControls() {
   const powerText = powerControl?.status === "failed"
     ? "Power change not confirmed. Check servo mounting/contact and the camera view before retrying."
     : powerControl?.status === "verifying" ? `Confirming power: attempt ${powerControl.attempts}/3` : observationText;
-  document.getElementById("heater-observation").textContent = heaterState.status === "online" ? powerText : "Waiting for the ESP32";
+  const observation = heaterState.status === "online" ? powerText : "Waiting for the ESP32";
+  document.getElementById("heater-observation").textContent = heaterState.power === null && heaterState.lastPower &&
+    powerControl?.status !== "verifying" && powerControl?.status !== "failed"
+    ? `Last confirmed ${heaterState.lastPower.value ? "on" : "off"} · ${observation}` : observation;
   const lockReason = hardwareLockReason();
   const powerReason = lockReason ?? (temperatureControl ? null : "Waiting for controller status.");
   document.getElementById("big-button").disabled = Boolean(powerReason);

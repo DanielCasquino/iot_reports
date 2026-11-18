@@ -20,6 +20,7 @@ import * as optical from "../src/heater/display-power.js";
 import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
 import * as statusResponse from "../src/heater/status-response.js";
+import * as history from "../src/heater/presentation-history.js";
 import * as observedMax from "../src/heater/observed-max.js";
 
 // Run the real application wiring against in-memory transports: no broker,
@@ -45,7 +46,7 @@ function fixture() {
     async readDisplayTemperature() { return false; }
   }
   const modules: Record<string, unknown> = {
-    "dotenv/config": {}, "./mqtt/client.js": { mqttClient: mqtt },
+    "./heater/presentation-history.js": history, "dotenv/config": {}, "./mqtt/client.js": { mqttClient: mqtt },
     "./websocket/server.js": { wss, broadcast() {} }, url: { fileURLToPath },
     express: Object.assign(() => app, { static() {} }), path,
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
@@ -235,7 +236,7 @@ test("calibrated OFF reaches the controller and its false acknowledgement re-ena
     }
     assert.equal(f.publishes.some(m => m[0] === "heater/input/power"), false);
     now = 107500; f.frame(null, "mirror", "dark");
-    assert.equal(JSON.stringify(f.publishes.at(-1)), JSON.stringify(["heater/input/power", "false", { qos: 0, retain: false }]));
+    assert.equal(JSON.stringify(f.publishes.filter(m => m[0] === "heater/input/power").at(-1)), JSON.stringify(["heater/input/power", "false", { qos: 0, retain: false }]));
     f.send("heater/state/power", "false");
     f.connectSocket();
     assert.equal(f.replies.at(-1).data.power, false);
@@ -285,5 +286,40 @@ test("only a live manual plus starts the camera mirror burst without a control p
     f.send(topic, JSON.stringify(tap));
     assert.equal(f.manualWindows, 1);
     assert.equal(f.publishes.length, 0);
+  } finally { f.cleanup(); }
+});
+
+test("new clients receive confirmed history across a restart without replaying controls", () => {
+  const f = fixture();
+  const at = Date.now() - 86400000;
+  const cached = (topic: string, value: unknown, observedAt = at, retain = true) =>
+    f.send(topic, JSON.stringify({ value, observedAt }), retain);
+  try {
+    cached(history.WATER_HISTORY, 31);
+    cached(history.POWER_HISTORY, false);
+    cached(history.WATER_HISTORY, 34, at - 1);
+    cached(history.WATER_HISTORY, 75, at + 1, false);
+    cached(history.WATER_HISTORY, 200, at + 2);
+    cached(history.WATER_HISTORY, 42, Date.now() + 100000);
+    f.frame(34, "mirror");
+    f.connectSocket();
+    for (const state of [f.status(), f.replies.at(-1).data]) {
+      assert.equal(state.lastWater.value, 31);
+      assert.equal(state.lastWater.observedAt, at);
+      assert.equal(state.lastPower.value, false);
+      assert.equal(state.temperature, null);
+      assert.equal(state.power, null);
+    }
+    assert.equal(f.publishes.length, 0);
+    f.mqtt.emit("connect"); f.send("heater/status", "online");
+    f.send("heater/state/temperature_control", JSON.stringify({ base: 34, target: 0, status: "idle",
+      locked: false, min: 30, max: 75, commandId: 0, result: "none" }));
+    assert.equal(f.frame(32), true);
+    assert.equal(f.status().lastWater.value, 32);
+    const publication = f.publishes.find(m => m[0] === history.WATER_HISTORY)!;
+    assert.deepEqual(JSON.parse(String(publication[1])).value, 32);
+    assert.deepEqual(publication[2], { qos: 1, retain: true });
+    f.frame(34, "mirror");
+    assert.equal(f.status().lastWater.value, 32);
   } finally { f.cleanup(); }
 });

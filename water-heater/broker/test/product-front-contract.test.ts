@@ -322,3 +322,20 @@ test("recent OFF under glare is presented as historical and leaves the power but
   f.snapshot({ power: true, temperature: 34 });
   assert.equal(f.elements.get("temperature-status")!.hidden, true);
 });
+
+test("a new dashboard holds water through maximum digits and blanks while power is rechecked", () => {
+  const f = front();
+  const lastWater = { value: 31, observedAt: 1800 };
+  f.snapshot({ power: null, temperature: null, temperatureMax: 34, temperatureMaxSelected: true,
+    camera: { available: true, value: 34 } });
+  f.message("presentation_history", { lastWater, lastPower: { value: false, observedAt: 2000 } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  assert.equal(f.run("heaterState.waterTemperature"), null);
+  assert.equal(f.elements.get("big-button")!.disabled, true);
+  assert.match(f.elements.get("heater-observation")!.textContent, /Last confirmed off/);
+  f.snapshot({ power: false, temperature: null, lastWater: { value: 30, observedAt: 1200 },
+    camera: { available: false, displayMirror: { text: "blank" } } });
+  assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
+  assert.match(f.elements.get("temperature-status")!.textContent, /heater off/);
+  assert.equal(f.sent.length, 0);
+});
