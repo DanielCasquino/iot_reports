@@ -14,7 +14,6 @@ DisplayMirror displayMirror;
 
 unsigned long last_ms;
 unsigned long lastDiagnostic_ms;
-bool heaterIndicatorOn = false;
 
 // Required global callback for connection events
 void onMqttConnect(esp_mqtt_client_handle_t client)
@@ -31,6 +30,7 @@ void setup()
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   WiFi.setSleep(false);
 
+  // Keep the board indicator dark near the optical sensors.
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
   heaterModule.setup();
@@ -61,11 +61,6 @@ void loop()
     mqttModule.publishState();
   }
   const bool heaterOn = heaterModule.isPowerKnown() && heaterModule.getPower();
-  if (heaterOn != heaterIndicatorOn)
-  {
-    digitalWrite(LED_BUILTIN, heaterOn ? HIGH : LOW);
-    heaterIndicatorOn = heaterOn;
-  }
   displayModule.setEnabled(heaterOn);
   displayModule.setLines(displayMirror.text(curr_ms), "");
   displayModule.poll();

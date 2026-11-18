@@ -50,9 +50,9 @@ están fijadas a las versiones ya usadas; no se cambió la biblioteca MQTT.
 
 A: GPIO32/servo25; B: GPIO33/servo27 (+); C: GPIO18/servo26 (−). Botones aGND con
 INPUT_PULLUP y antirrebote40ms. SDA23/SCL22 comparten RGB y OLED. El firmware comprueba y reintenta cada
-dispositivo I²C cuando deja de responder. LED azul y OLED indican encendido
-observado. Con el visor de la terma apagado o estado desconocido, ambos se
-apagan. Con Power ON, el OLED muestra el último número recibido que siga
+dispositivo I²C cuando deja de responder. El LED azul de la placa permanece
+apagado para evitar interferencia óptica. El OLED se enciende solo con Power
+ON observado y se apaga cuando el estado es OFF o desconocido. Con Power ON, el OLED muestra el último número recibido que siga
 vigente o `-.-`. El texto se desplaza unos píxeles cada 8 s. La calibración
 actual de ángulos está en config.h: conservarla hasta medir el montaje.
 Cada tap conserva250ms de pulsación y250ms de retorno; ese bloqueo es medible,
