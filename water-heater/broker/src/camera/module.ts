@@ -39,6 +39,7 @@ export class CameraModule {
   private mirrorFromCache = false;
   private captureDiagnostic = "";
   private captureLoggedAt = Number.NEGATIVE_INFINITY;
+  private transportFailures = 0;
   private lastTemperaturePollAt = 0;
   private verificationId: string | null = null;
   private verificationPurpose: "target" | "wake" | null = null;
@@ -143,7 +144,9 @@ export class CameraModule {
           if (normalDue) this.lastTemperaturePollAt = Date.now();
           await this.readDisplayTemperature(false, undefined, !normalDue);
         }
-        if (!this.stopped) this.timer = setTimeout(poll, mirrorInterval > 0 ? mirrorInterval : interval);
+        const period = mirrorInterval || interval;
+        const retryDelay = this.transportFailures === 0 ? 0 : 500 * 2 ** this.transportFailures;
+        if (!this.stopped) this.timer = setTimeout(poll, Math.max(period, retryDelay));
       };
       this.timer = setTimeout(poll, 0);
     }
@@ -219,6 +222,7 @@ export class CameraModule {
       this.processed = null;
       const observedAt = new Date().toISOString();
       capturedAt = observedAt;
+      this.transportFailures = 0;
       this.logCaptureAvailability("ok");
       readingState = { ...readingState, displayBrightness: null, displayLight: "unknown" };
       const displayBrightness = await measureDisplayBrightness(this.image, process.env.CAMERA_DISPLAY_REGION);
@@ -357,6 +361,7 @@ export class CameraModule {
       return true;
     } catch (error) {
       if (capturedAt === null && !this.stopped) {
+        this.transportFailures = Math.min(this.transportFailures + 1, 4);
         const detail = error as { name?: unknown; code?: unknown; cause?: { code?: unknown } } | null;
         const code = detail?.cause?.code ?? detail?.code;
         this.logCaptureAvailability(typeof code === "string" && /^[A-Z][A-Z0-9_]{1,31}$/.test(code)

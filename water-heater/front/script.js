@@ -522,8 +522,12 @@ function updateTemperatureControls() {
   document.getElementById("adjustment-lock").hidden = !locked;
   const states = { applying: "Adjusting the heater. Controls are locked.", settling: "Saving on the heater. Please wait.",
     verifying: "Waiting for confirmation.", selecting: "An adjustment is being selected on the device.", error: "Could not confirm the change. Try again." };
+  const confirmed = !temperatureDraftDirty && temperatureOperation?.status === "confirmed" &&
+    temperatureOperation.target === desiredTemperature;
   document.getElementById("adjustment-status").textContent = !online ? "Waiting for the controller" :
-    pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") : states[temperatureControl.status] || temperatureMessage ||
+    pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") :
+    confirmed && ["settling", "idle"].includes(temperatureControl.status) ? `Temperatura máx. confirmada: ${output.textContent}` :
+    states[temperatureControl.status] || temperatureMessage ||
     (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : (temperatureControl.base === -1 ? "The display will be read before adjusting." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`));
   document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : (temperatureControl.base === -1 ? "Current setting unknown" : `Estimated setting: ${temperatureControl.base}°C`);
   document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";

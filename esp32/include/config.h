@@ -13,6 +13,9 @@
 // Mounted buttons: logical B is plus on GPIO27; C is minus on GPIO26.
 #define SERVO_PIN_B 27
 #define SERVO_PIN_C 26
+#ifndef FLOW_SENSOR_ENABLED
+#define FLOW_SENSOR_ENABLED 0
+#endif
 #define FLOW_PIN 34
 #define TICK_INTERVAL_MS 2000
 #define ESP_KEEPALIVE_SECONDS 10

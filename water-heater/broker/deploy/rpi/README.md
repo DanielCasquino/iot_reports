@@ -25,3 +25,25 @@ permanece visible, pero un reinicio o desconexión deja fallido el ajuste
 incompleto y requiere una orden nueva. Validar que no haya publicaciones de
 control al arrancar. Para revertir, deshabilitar y parar la unidad, y arrancar
 el proceso anterior en su propio checkout con la misma configuración.
+
+## Prueba del montaje
+
+La versión del backend y del ESP32 principal deben corresponder al mismo
+artefacto de entrega. En el `.env` privado, `MQTT_TEMPERATURE_QOS1=true` activa
+QoS 1 cuando el ESP anuncia su token. Mosquitto necesita `persistence true`
+para recuperar el último valor del OLED tras reiniciar el broker. Los tópicos
+de órdenes y las verificaciones ópticas conservan su política sin retain.
+
+| Prueba | Resultado observable |
+| --- | --- |
+| Encender, apagar y dejar el visor tenue | La web distingue apagado, visor tenue y pérdida de imagen. El OLED y el indicador de encendido siguen el estado confirmado. |
+| Subir y bajar la temperatura máx. con el visor despierto | El ajuste puede comenzar durante el parpadeo que abrió el primer toque. La web confirma la nueva máxima con evidencia del visor y mantiene aparte la temperatura del agua. |
+| Repetir con el visor tenue o un contacto fallido | El primer toque puede despertar el visor. Un nuevo intento de lectura usa otro ID. Al agotar los intentos, la web indica que se revise el contacto. |
+| Activar autoapagado con una máxima admitida y esperar a que el agua alcance el objetivo | Se registra `auto_shutdown_at_target`. La cámara y el controlador confirman que la terma queda apagada. |
+| Perder el backend y recuperarlo con la Pi encendida | Los botones locales siguen respondiendo. Las órdenes pendientes no se reanudan al reconectar. El OLED distingue un valor histórico vigente de la falta de lectura. |
+| Reiniciar la Pi sin una orden pendiente | Vuelven Mosquitto, la aplicación y Tailscale. HTTP y WebSocket responden con disponibilidad real. El journal conserva el arranque anterior y permite medir el tiempo de cada ajuste. |
+| Probar el caudal en el banco separado | Habilitar `FLOW_SENSOR_ENABLED=1` y comprobar el volumen contra la cantidad medida. El montaje sin sensor indica caudal no disponible. |
+
+En la Pi con journal aislado, usar
+`journalctl --namespace=terma -u terma-erma.service` para seguir la solicitud,
+las pulsaciones y el resultado.

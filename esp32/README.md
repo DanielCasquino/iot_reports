@@ -6,11 +6,14 @@ Power son datos distintos. Una lectura de OLED retenida es exclusivamente visual
 
 ## Contrato vigente
 
-- El primer + despierta el panel o abre la selección. La sincronización usa
-  +, espera6s, otro + y lectura del objetivo dentro de su ventana de selección.
-- Cada pulsación posterior cambia un grado en el rango circular30–75.
-  El objetivo se confirma mediante el ID de la captura vigente, durante la
-  selección; después se esperan6s para volver a aceptar temperatura del agua.
+- El primer `+` despierta el panel o abre la selección. Si la cámara confirma
+  el parpadeo y dos lecturas de la máxima, el ajuste continúa en esa ventana.
+  Si solo despierta el visor, tras 6 s se usa otro `+` y un nuevo ID de lectura.
+- Cada pulsación posterior cambia 1 °C en el rango circular de 30 a 75 °C.
+  La cámara confirma la máxima resultante durante la selección, mediante la
+  solicitud vigente. La web puede mostrar la confirmación mientras el
+  controlador espera hasta que se cumplan 6 s desde el último toque para
+  volver a interpretar agua.
 - El comando web de temperatura es una orden absoluta; los callbacks no mueven
   servos. Todas las mutaciones del controlador y sus snapshots ocurren en loop().
 - Power se ejecuta una sola vez. Una pulsación PWM **no confirma** ON/OFF:
@@ -58,8 +61,10 @@ actual de ángulos está en config.h: conservarla hasta medir el montaje.
 Cada tap conserva250ms de pulsación y250ms de retorno; ese bloqueo es medible,
 no prueba por sí solo un fallo de alimentación ni de MQTT.
 
-Caudal: GPIO34 usa INPUT porque carece de pull-up interno. El acondicionamiento
-externo y450pulsos/L requieren comprobación física. Los servos necesitan su
+Caudal: el perfil de la terma publica «unavailable» mientras el sensor esté
+desconectado. Para el banco de flujo, compila con `-DFLOW_SENSOR_ENABLED=1` y
+conecta el sensor con su acondicionamiento externo. GPIO34 carece de pull-up
+interno. El factor de 450 pulsos/L requiere calibración física. Los servos necesitan su
 alimentación dimensionada y masa común según el montaje; este README no valida
 una conexión concreta ni autoriza actuar sobre ella.
 

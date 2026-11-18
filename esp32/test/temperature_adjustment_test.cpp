@@ -68,6 +68,22 @@ int main() {
     assert(fast.tick(1751) == 1);
     fast.completedPress(2251);
 
+    TemperatureAdjustment oneStep;
+    assert(oneStep.applyTarget(38, 37));
+    assert(oneStep.tick(0) == 1);
+    oneStep.completedPress(500);
+    assert(oneStep.needsVerification(1500));
+    oneStep.verify(oneStep.requestId, 37, 1500);
+    oneStep.verify(oneStep.requestId, 37, 1750);
+    assert(oneStep.tick(1751) == 1);
+    oneStep.completedPress(2251);
+    assert(oneStep.needsVerification(3351));
+    oneStep.verify(oneStep.requestId, 38, 3351);
+    oneStep.verify(oneStep.requestId, 38, 3751);
+    assert(oneStep.state == State::Settling);
+    assert(!oneStep.finishSettling(8250));
+    assert(oneStep.finishSettling(8251));
+
     // First press merely wakes: after timeout use the second press and a new
     // request ID. A late reply from the first window must never set the base.
     TemperatureAdjustment waking;

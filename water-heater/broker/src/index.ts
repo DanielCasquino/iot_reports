@@ -268,7 +268,7 @@ wss.on("connection", (ws) => {
         temperatureReconciliation.request(target, Number(values[0]));
         controlLog("temperature_requested", { commandId: Number(values[0]), target,
           base: heaterState.temperatureControl?.base ?? -1, directionPolicy: "shortest_wrap",
-          opening: "plus_wake_or_open_then_wait_6s_then_plus_open_target", physicalConfirmed: false });
+          opening: "verify_after_first_plus_with_second_plus_fallback", physicalConfirmed: false });
       }
     } catch {
       reject("Could not save the requested state");

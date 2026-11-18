@@ -24,6 +24,17 @@ test("disconnect stops an in-flight operation; a new request can try again", () 
   r.request(45, undefined, 50000); assert.equal(r.poll(idle, true, true, 50000)?.target, 45);
 });
 
+test("a verified target completes during settling; an estimate or stale acknowledgement cannot complete it", () => {
+  const r = new TemperatureReconciliation(); r.request(44, 21, 1000);
+  const control = { ...idle, base: 44, target: 44, commandId: 21, locked: true, result: "accepted" };
+  r.poll({ ...control, status: "verifying" }, true, false, 2000);
+  r.poll({ ...control, status: "settling", commandId: 20 }, true, false, 2001);
+  r.poll({ ...control, status: "settling", target: 43 }, true, false, 2002);
+  assert.equal(r.snapshot().status, "verifying");
+  r.poll({ ...control, status: "settling" }, true, false, 2003);
+  assert.deepEqual(r.snapshot(), { target: 44, attempts: 1, status: "confirmed" });
+});
+
 test("unavailable telemetry eventually fails instead of waiting forever; an explicit retry resets the deadline", () => {
   const r = new TemperatureReconciliation(); r.request(44, undefined, 0);
   assert.equal(r.poll(null, false, false, 90000), null);

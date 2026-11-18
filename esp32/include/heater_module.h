@@ -43,7 +43,7 @@ public:
         servoModuleA.setup(SERVO_PIN_A, SERVO_REST_A, SERVO_PRESS_A);
         servoModuleB.setup(SERVO_PIN_B, SERVO_REST_B, SERVO_PRESS_B);
         servoModuleC.setup(SERVO_PIN_C, SERVO_REST_C, SERVO_PRESS_C);
-        flowModule.setup();
+        if (FLOW_SENSOR_ENABLED) flowModule.setup();
         colorModule.setup();
         buttonA.setup(BUTTON_PIN_A);
         buttonB.setup(BUTTON_PIN_B);
@@ -188,7 +188,7 @@ public:
             }
 #endif
         }
-        flowModule.poll();
+        if (FLOW_SENSOR_ENABLED) flowModule.poll();
         colorModule.poll();
         bool powerPressed = buttonA.pressed();
         bool increasePressed = buttonB.pressed();

@@ -326,8 +326,10 @@ public:
             mqttClient.publish("heater/state/color", rgb, 0, false);
         }
         else mqttClient.publish("heater/state/color", "unavailable", 0, false);
-        mqttClient.publish("heater/state/volume", std::to_string(heaterModule->getVolume()), 0, false);
-        mqttClient.publish("heater/state/flowrate", std::to_string(heaterModule->getFlowrate()), 0, false);
+        mqttClient.publish("heater/state/volume",
+                           FLOW_SENSOR_ENABLED ? std::to_string(heaterModule->getVolume()) : "unavailable", 0, false);
+        mqttClient.publish("heater/state/flowrate",
+                           FLOW_SENSOR_ENABLED ? std::to_string(heaterModule->getFlowrate()) : "unavailable", 0, false);
     }
 
     void publishPowerState()

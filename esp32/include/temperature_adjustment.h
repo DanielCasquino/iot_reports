@@ -90,9 +90,9 @@ public:
             ++requestId;
         }
     }
-    void waitForDisplay(uint32_t now) {
+    void waitForDisplay(uint32_t lastPressAt) {
         state = State::Settling;
-        verifyingAt = now;
+        verifyingAt = lastPressAt;
         requested = false;
         ++requestId;
     }
@@ -125,7 +125,9 @@ public:
             if (state == State::Confirming && int(observed) != target) { state = State::Error; verifyingAt = now; return false; }
             estimated = int(observed);
             hasPressed = true;
-            if (estimated == target) waitForDisplay(now);
+            // The remaining display selection window runs from the press,
+            // including the time already spent confirming its digits.
+            if (estimated == target) waitForDisplay(pressedAt);
             else state = State::Applying;
             return false;
         }

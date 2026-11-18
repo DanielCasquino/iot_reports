@@ -102,7 +102,9 @@ export class TemperatureReconciliation {
     this.online = true;
     if (!control || this.target === null || this.completed) return null;
     if (this.pending !== null) {
-      if (control.commandId === this.pending && control.status === "idle" && control.base === this.target) {
+      const confirmed = control.status === "idle" ||
+        (control.status === "settling" && control.result === "accepted" && control.target === this.target);
+      if (control.commandId === this.pending && control.base === this.target && confirmed) {
         this.pending = null;
         this.completed = true;
         return null;
