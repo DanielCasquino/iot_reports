@@ -304,7 +304,10 @@ const panelEffects: Record<PanelEffect, () => void> = {
 let lastReconciliationStatus = "";
 let lastPowerResult = "";
 setInterval(() => {
-  const effect = panel.tick(Date.now(), controllerIdle());
+  const previousAdjustment = temperatureReconciliation.snapshot();
+  const userAdjustmentUnresolved = previousAdjustment.target !== null &&
+    previousAdjustment.status !== "confirmed";
+  const effect = panel.tick(Date.now(), controllerIdle(), !userAdjustmentUnresolved);
   if (effect) panelEffects[effect]();
   const state = observedState();
   const powerRetry = powerOperation.poll(brokerConnected && state.online, controllerIdle(), state.power, displayPower.snapshot());

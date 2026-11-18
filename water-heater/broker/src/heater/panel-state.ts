@@ -93,7 +93,7 @@ export class HeaterPanelState {
     this.attempts = 0;
   }
 
-  tick(now: number, controllerIdle: boolean): PanelEffect | null {
+  tick(now: number, controllerIdle: boolean, allowStandaloneWake = true): PanelEffect | null {
     // Normal, optically confirmed standby needs no periodic wake taps. Pending
     // user controls already execute their own wake/selection sequence.
     if (this.mode === "standby") return null;
@@ -101,7 +101,7 @@ export class HeaterPanelState {
       case "idle": {
         const needsWake = this.unreadableSince !== null && now - this.unreadableSince >= 3000;
         const freshVisibleFrame = this.visible && now >= this.frameAt && now - this.frameAt <= 2000;
-        if (now - this.startedAt < 6000 || this.mode === "off" || !controllerIdle || !needsWake || !freshVisibleFrame || now - this.lastBlankAt < 6000 ||
+        if (!allowStandaloneWake || now - this.startedAt < 6000 || this.mode === "off" || !controllerIdle || !needsWake || !freshVisibleFrame || now - this.lastBlankAt < 6000 ||
             now - this.lastWakeAt < 60000 || this.attempts >= 3) return null;
         this.attempts++;
         this.lastWakeAt = now;

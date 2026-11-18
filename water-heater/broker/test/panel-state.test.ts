@@ -126,3 +126,13 @@ test("disconnect cancels delayed recovery without replenishing its retry budget"
   assert.equal(panel.snapshot(12001).waterFresh, true);
   assert.equal(panel.snapshot(12001).attempts, 0);
 });
+
+test("a visible unreadable panel cannot wake itself during an unresolved user adjustment", () => {
+  const panel = new HeaterPanelState(0);
+  panel.observeFrame({ value: 37, visible: true, purpose: "water", observedAt: 6000 }, true);
+  panel.observeFrame({ value: null, visible: true, purpose: "mirror", observedAt: 8000 }, true);
+  panel.observeFrame({ value: null, visible: true, purpose: "mirror", observedAt: 11500 }, true);
+  assert.equal(panel.tick(12000, true, false), null);
+  assert.equal(panel.snapshot(12000).attempts, 0);
+  assert.equal(panel.tick(12000, true, true), "press_plus");
+});
