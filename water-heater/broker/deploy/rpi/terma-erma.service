@@ -1,0 +1,22 @@
+[Unit]
+Description=Terma Erma web, MQTT control and camera reader
+Wants=mosquitto.service
+After=mosquitto.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=rpi5
+WorkingDirectory=/home/rpi5/Documents/iot_reports/water-heater/broker
+Environment=NODE_ENV=production
+ExecStart=/home/rpi5/.nvm/versions/node/v26.13.1/bin/node dist/index.js
+Restart=on-failure
+RestartSec=3s
+UMask=0077
+NoNewPrivileges=true
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=450
+
+[Install]
+WantedBy=multi-user.target

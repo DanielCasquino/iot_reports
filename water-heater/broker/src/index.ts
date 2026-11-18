@@ -37,9 +37,6 @@ const heaterState: HeaterState = {
 const desiredState = new DesiredState(path.resolve(process.env.HEATER_DESIRED_STATE_FILE ?? ".runtime/desired-state.json"));
 
 const temperatureReconciliation = new TemperatureReconciliation(path.resolve(".runtime/temperature-operation.json"));
-const savedTarget = desiredState.snapshot().temperature;
-if (savedTarget !== null && temperatureReconciliation.snapshot().target !== savedTarget)
-  temperatureReconciliation.request(savedTarget);
 
 const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
@@ -49,6 +46,16 @@ const powerOperation = new PowerOperation();
 let brokerConnected = false;
 let lastPilot: PilotState | null = null;
 let lastControlDiagnostic = "";
+let lastAutoShutdownDiagnostic = "";
+const logTelemetry = process.env.HEATER_DEBUG_TELEMETRY === "true";
+
+function interruptTemperature() {
+  try {
+    temperatureReconciliation.interrupt();
+  } catch {
+    console.error("Could not save interrupted temperature operation");
+  }
+}
 
 function observedState() {
   const water = panel.snapshot();
@@ -93,11 +100,16 @@ mqttClient.on("message", (topic, payload, packet) => {
       }
       if (heaterState.temperatureControl?.status !== "idle" || heaterState.temperatureControl.locked) displayPower.reset();
       break;
-    case "heater/state/autoshutdown":
+    case "heater/state/autoshutdown": {
       heaterState.autoShutdown = value === "true" ? true : value === "false" ? false : null;
-      controlLog("auto_shutdown_state", { enabled: heaterState.autoShutdown,
-        target: heaterState.temperatureControl?.autoShutdownTarget ?? null });
+      const details = { enabled: heaterState.autoShutdown, target: heaterState.temperatureControl?.autoShutdownTarget ?? null };
+      const signature = JSON.stringify(details);
+      if (signature !== lastAutoShutdownDiagnostic) {
+        lastAutoShutdownDiagnostic = signature;
+        controlLog("auto_shutdown_state", details);
+      }
       break;
+    }
     case "heater/state/flowrate":
     case "heater/state/volume": {
       const numeric = value.trim() === "" ? NaN : Number(value);
@@ -125,6 +137,7 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
     }
     case "heater/status":
+      interruptTemperature();
       powerOperation.disconnect();
       panel.disconnect();
       displayPower.reset();
@@ -137,7 +150,7 @@ mqttClient.on("message", (topic, payload, packet) => {
       break;
   }
 
-  console.log(`Received ${payload} from ${topic}. Broadcasting...`);
+  if (logTelemetry) console.log(`Received ${value} from ${topic}. Broadcasting...`);
   broadcast({
     event: "mqtt_message",
     data: { topic, payload: value, timestamp: Date.now() },
@@ -148,6 +161,7 @@ mqttClient.on("connect", () => {
   brokerConnected = true;
 })
 function disconnectController() {
+  interruptTemperature();
   powerOperation.disconnect();
   brokerConnected = false;
   observation.disconnect();
@@ -221,6 +235,7 @@ wss.on("connection", (ws) => {
       if (command.topic === "heater/set/power") {
         desiredState.setPower(command.payload === "true");
         powerOperation.request(command.payload === "true");
+        controlLog("power_requested", { target: command.payload === "true" });
       }
       if (command.topic === "heater/set/temperature") {
         const values = command.payload.split(",");
@@ -295,6 +310,7 @@ setInterval(() => {
   const powerRetry = powerOperation.poll(brokerConnected && state.online, controllerIdle(), state.power, displayPower.snapshot());
   if (powerRetry) {
     displayPower.reset(Date.now() + 6000);
+    controlLog("power_retry", { target: powerRetry.power, attempts: powerOperation.snapshot().attempts });
     mqttClient.publish("heater/set/power", String(powerRetry.power), { qos: 0, retain: false });
   }
   const powerResult = powerOperation.snapshot();

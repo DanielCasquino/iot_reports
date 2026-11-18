@@ -33,6 +33,7 @@ export class TemperatureReconciliation {
       } catch {}
     }
     this.saved = this.serialize();
+    this.interrupt();
   }
 
   private serialize() {
@@ -66,6 +67,13 @@ export class TemperatureReconciliation {
     this.save();
   }
 
+  interrupt() {
+    if (this.target === null || this.completed || this.failed) return;
+    this.pending = null;
+    this.failed = true;
+    this.save();
+  }
+
   snapshot() {
     return { target: this.target, attempts: this.attempts,
       status: this.failed ? "failed" : this.completed ? "confirmed" : this.attempts >= 3 && this.pending === null ? "failed" :
@@ -86,14 +94,12 @@ export class TemperatureReconciliation {
       this.failed = true;
     }
     if (this.failed) return null;
-    if (!online) { this.online = false; this.pending = null; return null; }
-    if (!this.online) {
-      if (this.completed && !control) return null;
-      this.online = true;
-      if (this.completed && !(control?.status === "idle" && !control.locked && control.base === this.target)) {
-        this.completed = false; this.attempts = 0; this.requestedAt = now;
-      }
+    if (!online) {
+      if (this.online || this.pending !== null) this.interrupt();
+      this.online = false;
+      return null;
     }
+    this.online = true;
     if (!control || this.target === null || this.completed) return null;
     if (this.pending !== null) {
       if (control.commandId === this.pending && control.status === "idle" && control.base === this.target) {

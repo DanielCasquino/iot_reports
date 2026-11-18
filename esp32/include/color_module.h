@@ -53,8 +53,6 @@ public:
         }
         sensor.getRawData(&red, &green, &blue, &clear);
         hasSample = true;
-        Serial.printf("Color raw R=%u G=%u B=%u C=%u\n",
-                      unsigned(red), unsigned(green), unsigned(blue), unsigned(clear));
     }
 
     bool isAvailable() const { return available; }

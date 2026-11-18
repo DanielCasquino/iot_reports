@@ -32,13 +32,11 @@ public:
         powerRequests = xQueueCreate(4, sizeof(bool));
         displayWakeRequests = xQueueCreate(1, sizeof(bool));
         temperatureRequests = xQueueCreate(4, sizeof(TemperatureRequest));
-        pinMode(LED_BUILTIN, OUTPUT);
 #if TEMPORARY_SENSOR_TEST_MODE
         // TEMPORARY: do not wait for the RGB pilot to establish initial power.
         // Start this test with the physical heater OFF.
         powerKnown = true;
         power = false;
-        digitalWrite(LED_BUILTIN, LOW);
 #endif
         temperatureModule.setup();
         servoModuleA.setup(SERVO_PIN_A, SERVO_REST_A, SERVO_PRESS_A);
@@ -81,7 +79,6 @@ public:
                 {
                     power = true;
                     powerKnown = true;
-                    digitalWrite(LED_BUILTIN, HIGH);
                     // A dim/readable visor proves ON, not awake controls.
                 }
                 else
@@ -92,7 +89,6 @@ public:
                     resetWakeFailure();
                     setpoint = -1;
                     invalidateTemperature();
-                    digitalWrite(LED_BUILTIN, LOW);
                     temperatureControlChanged = true;
                 }
                 continue;
@@ -186,7 +182,6 @@ public:
                 {
                     power = true;
                     powerKnown = true;
-                    digitalWrite(LED_BUILTIN, HIGH);
                     Serial.println("Power observed on from readable display");
                 }
             }
@@ -277,7 +272,6 @@ public:
         pilotState = PilotState::Awake;
         pilotObservedAt = millis();
         hasPilotObservation = true;
-        digitalWrite(LED_BUILTIN, HIGH);
     }
     void observePilot(PilotState state, uint32_t observedAt = millis())
     {
@@ -338,7 +332,6 @@ public:
         hasPilotObservation = false;
         if (pilotObservations) xQueueReset(pilotObservations);
 #endif
-        digitalWrite(LED_BUILTIN, LOW);
         invalidateTemperature();
         return true;
     }

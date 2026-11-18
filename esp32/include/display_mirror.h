@@ -38,7 +38,7 @@ public:
             hasSample = true;
         }
         if (!hasSample || uint32_t(now - latest.observedAt) > 30000U || latest.value == -2)
-            std::strcpy(buffer, "--");
+            std::strcpy(buffer, "-.-");
         else if (latest.value == -1)
             buffer[0] = '\0';
         else
@@ -51,5 +51,5 @@ private:
     QueueHandle_t mailbox = nullptr;
     Sample latest{-2, 0};
     bool hasSample = false;
-    char buffer[3] = "--";
+    char buffer[4] = "-.-";
 };

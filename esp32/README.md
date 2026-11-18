@@ -41,13 +41,19 @@ reales de include/ con periféricos y reloj simulados de test/fakes/; no copia e
 controlador a otro proyecto ni abre puertos. Cubre la matriz completa30–75,
 IDs/ventanas/corrección rechazada, retained, payload inválido, callbacks diferidos,
 cancelación offline, wake con+, confirmaciónPower y desbordamiento de millis().
-Para compilar el firmware: `platformio run -d esp32 -j1`. Las dependencias
+Para compilar por primera vez, copia `esp32/include/secrets.example.h` a
+`esp32/include/secrets.h` y llena la configuración de la red local. Git ignora
+`secrets.h`. Compila con `platformio run -d esp32 -j1`. Las dependencias
 están fijadas a las versiones ya usadas; no se cambió la biblioteca MQTT.
 
 ## Pines y montaje
 
-A: GPIO32/servo25; B: GPIO33/servo26; C: GPIO18/servo27. Botones aGND con
-INPUT_PULLUP y antirrebote40ms. SDA23/SCL22 comparten RGB yOLED. La calibración
+A: GPIO32/servo25; B: GPIO33/servo27 (+); C: GPIO18/servo26 (−). Botones aGND con
+INPUT_PULLUP y antirrebote40ms. SDA23/SCL22 comparten RGB y OLED. El firmware comprueba y reintenta cada
+dispositivo I²C cuando deja de responder. LED azul y OLED indican encendido
+observado. Con el visor de la terma apagado o estado desconocido, ambos se
+apagan. Con Power ON, el OLED muestra el último número recibido que siga
+vigente o `-.-`. El texto se desplaza unos píxeles cada 8 s. La calibración
 actual de ángulos está en config.h: conservarla hasta medir el montaje.
 Cada tap conserva250ms de pulsación y250ms de retorno; ese bloqueo es medible,
 no prueba por sí solo un fallo de alimentación ni de MQTT.

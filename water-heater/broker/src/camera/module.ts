@@ -30,6 +30,8 @@ export class CameraModule {
   private stopped = false;
   private mirrorState: { text: string; observedAt: string | null } = { text: "unknown", observedAt: null };
   private mirrorLogSignature = "";
+  private captureDiagnostic = "";
+  private captureLoggedAt = Number.NEGATIVE_INFINITY;
   private lastTemperaturePollAt = 0;
   private verificationId: string | null = null;
   private verificationPurpose: "target" | "wake" | null = null;
@@ -133,14 +135,23 @@ export class CameraModule {
       displayLight: fresh ? this.state.displayLight : "unknown" };
   }
 
+  private logCaptureAvailability(state: string, now = Date.now()) {
+    if (state === this.captureDiagnostic || now - this.captureLoggedAt < 10000) return;
+    this.captureDiagnostic = state;
+    this.captureLoggedAt = now;
+    controlLog("camera_capture_connection", { status: state });
+  }
+
   private async requestCameraJpeg(): Promise<{ image: Buffer; fresh: boolean }> {
     const base = process.env.CAMERA_URL;
     if (!base) throw new Error("Set CAMERA_URL=http://<camera-IP> in broker/.env");
     const url = new URL("/capture", base);
     url.searchParams.set("t", String(Date.now()));
     const response = await fetch(url, { signal: AbortSignal.timeout(8000), redirect: "error" });
-    if (!response.ok || !response.headers.get("content-type")?.includes("image/jpeg") || !response.body)
-      throw new Error(`Camera did not return JPEG (HTTP ${response.status})`);
+    if (!response.ok || !response.headers.get("content-type")?.includes("image/jpeg") || !response.body) {
+      const code = response.ok ? "NOT_JPEG" : `HTTP_${response.status}`;
+      throw Object.assign(new Error(`Camera did not return JPEG (HTTP ${response.status})`), { code });
+    }
     const chunks: Uint8Array[] = [];
     let bytes = 0;
     for await (const chunk of response.body) {
@@ -175,6 +186,7 @@ export class CameraModule {
       this.processed = null;
       const observedAt = new Date().toISOString();
       capturedAt = observedAt;
+      this.logCaptureAvailability("ok");
       readingState = { ...readingState, displayBrightness: null, displayLight: "unknown" };
       const displayBrightness = await measureDisplayBrightness(this.image, process.env.CAMERA_DISPLAY_REGION);
       readingState = { ...readingState, displayBrightness, displayLight: classifyDisplayLight(displayBrightness) };
@@ -296,6 +308,12 @@ export class CameraModule {
       }
       return true;
     } catch (error) {
+      if (capturedAt === null && !this.stopped) {
+        const detail = error as { name?: unknown; code?: unknown; cause?: { code?: unknown } } | null;
+        const code = detail?.cause?.code ?? detail?.code;
+        this.logCaptureAvailability(typeof code === "string" && /^[A-Z][A-Z0-9_]{1,31}$/.test(code)
+          ? code : detail?.name === "TimeoutError" ? "TIMEOUT" : "FETCH_FAILED");
+      }
       if (!frameReported && mqttGeneration === this.mqttGeneration && !this.stopped)
         this.onDisplayFrame?.({ value: null, visible: false, observedAt: Date.now(),
           light: "unknown", brightness: null, captureStartedAt, purpose: "mirror" });
