@@ -7,6 +7,7 @@ import { IsolatedOcr, type OcrReader } from "./ocr.js";
 import { SsocrReader } from "./ssocr.js";
 import { parseTemperature } from "./temperature.js";
 import { classifyDisplayLight, measureDisplayBrightness } from "./display-light.js";
+import { FrameDiagnostic, type CropMode } from "./frame-diagnostic.js";
 import { controlLog } from "../heater/control-log.js";
 
 export interface DisplayFrame {
@@ -37,6 +38,7 @@ export class CameraModule {
   private cachePublishedAt = 0;
   private cachePublishedText = "";
   private mirrorFromCache = false;
+  private frameDiagnostic = new FrameDiagnostic();
   private captureDiagnostic = "";
   private captureLoggedAt = Number.NEGATIVE_INFINITY;
   private transportFailures = 0;
@@ -161,6 +163,8 @@ export class CameraModule {
     }
   }
 
+  getFrameDiagnostic() { return this.frameDiagnostic.snapshot(); }
+
   getState() {
     this.expireCachedMirror();
     const age = this.state.observedAt === null ? NaN : Date.now() - Date.parse(this.state.observedAt);
@@ -231,6 +235,7 @@ export class CameraModule {
         (process.env.CAMERA_SEVEN_SEGMENT === "true" ? "seven-segment" : "tesseract");
       if (!["ssocr", "seven-segment", "tesseract"].includes(reader))
         throw new Error("CAMERA_READER must be ssocr, seven-segment or tesseract");
+      let cropMode: CropMode = "full";
       let pipeline = sharp(this.image, { limitInputPixels: 4_000_000 });
       const crop = process.env.CAMERA_CROP;
       const guard = process.env.CAMERA_OCR_GUARD_CROP;
@@ -244,6 +249,7 @@ export class CameraModule {
         const selected = reader === "ssocr" && guard
           ? await selectOcrCrop(this.image, crop, guard)
           : { left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! };
+        cropMode = selected.left !== values[0] || selected.width !== values[2] ? "guard" : "primary";
         pipeline = pipeline.extract(selected);
       }
       const rotation = Number(process.env.CAMERA_ROTATION ?? 0);
@@ -295,6 +301,10 @@ export class CameraModule {
         text, confidence, reader, error: rejectedValue !== null ? "Reading outside heater range (0-75C)" :
           value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
+      const evidence = this.frameDiagnostic.observe({ crop: cropMode, light: readingState.displayLight,
+        visible: displayVisible, readable: value !== null, brightness: readingState.displayBrightness, observedAt: Date.parse(observedAt), rejectedValue });
+      if (evidence) controlLog("camera_frame_diagnostic", { ...evidence,
+        interpretation: "frame_evidence_only" });
       const sameSession = mqttGeneration === this.mqttGeneration;
       const activeTarget = sameSession && this.verificationPurpose === "target" && this.verificationId !== null &&
         targetRequestAtCapture === this.verificationId &&

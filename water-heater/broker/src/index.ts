@@ -18,6 +18,7 @@ import { DisplayPowerObservation } from "./heater/display-power.js";
 import { PowerOperation } from "./heater/power-operation.js";
 import { controlLog, logServoSequence } from "./heater/control-log.js";
 import { DesiredState } from "./heater/desired-state.js";
+import { buildStatusResponse } from "./heater/status-response.js";
 import { ObservedMaximum } from "./heater/observed-max.js";
 
 interface HeaterState {
@@ -312,15 +313,12 @@ const cameraModule = new CameraModule(mqttClient, frame => {
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
-  res.set("Cache-Control", "no-store").json({ ...state, ...observedMaximum.snapshot(), panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
-    autoShutdown: state.online ? heaterState.autoShutdown : null,
-    autoShutdownTarget: state.online && (heaterState.temperatureControl?.autoShutdownTarget ?? -1) >= 30
-      ? heaterState.temperatureControl!.autoShutdownTarget : null,
+  res.set("Cache-Control", "no-store").json(buildStatusResponse({
+    ...state, ...observedMaximum.snapshot(), panel: panel.snapshot(), desired: desiredState.snapshot(),
+    reconciliation: temperatureReconciliation.snapshot(), autoShutdown: heaterState.autoShutdown,
+    temperatureControl: heaterState.temperatureControl, flowrate: heaterState.flowrate, volume: heaterState.volume,
     camera: cameraModule.getState(),
-    temperatureControl: state.online ? heaterState.temperatureControl : null,
-    flowrate: state.online ? heaterState.flowrate : null,
-    volume: state.online ? heaterState.volume : null,
-  });
+  }));
 });
 
 function publishTemperatureCommand(payload: string) {
@@ -384,7 +382,16 @@ setInterval(() => {
   if (reconciliation.status !== lastReconciliationStatus) {
     lastReconciliationStatus = reconciliation.status;
     broadcast({ event: "temperature_result", data: reconciliation });
-    controlLog("temperature_operation", { ...reconciliation, manualCheckRequired: reconciliation.status === "failed" });
+    const camera = cameraModule.getState();
+    controlLog("temperature_operation", { ...reconciliation, manualCheckRequired: reconciliation.status === "failed",
+      ...(reconciliation.status === "failed" ? { requestedTemperature: reconciliation.target,
+        controller: heaterState.temperatureControl && { commandId: heaterState.temperatureControl.commandId,
+          result: heaterState.temperatureControl.result, phase: heaterState.temperatureControl.status,
+          estimatedTemperatureMax: heaterState.temperatureControl.base },
+        camera: { available: camera.available, value: camera.value, observedAt: camera.observedAt,
+          displayLight: camera.displayLight, displayBrightness: camera.displayBrightness,
+          frameDiagnostic: cameraModule.getFrameDiagnostic() },
+        mechanicalConfirmed: false } : {}) });
   }
 }, 1000);
 

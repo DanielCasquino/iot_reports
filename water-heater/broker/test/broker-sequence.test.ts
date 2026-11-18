@@ -19,6 +19,7 @@ import * as diagnostics from "../src/heater/control-log.js";
 import * as optical from "../src/heater/display-power.js";
 import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
+import * as statusResponse from "../src/heater/status-response.js";
 import * as observedMax from "../src/heater/observed-max.js";
 
 // Run the real application wiring against in-memory transports: no broker,
@@ -38,6 +39,7 @@ function fixture() {
     constructor(_mqtt: unknown, onFrame: typeof observeFrame) { observeFrame = onFrame; }
     setup() {}
     getState() { return cameraState; }
+    getFrameDiagnostic() { return null; }
     async readDisplayTemperature() { return false; }
   }
   const modules: Record<string, unknown> = {
@@ -45,7 +47,7 @@ function fixture() {
     "./websocket/server.js": { wss, broadcast() {} }, url: { fileURLToPath },
     express: Object.assign(() => app, { static() {} }), path,
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
-    "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control, "./heater/temperature-transport.js": transport,
+    "./heater/status-response.js": statusResponse, "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control, "./heater/temperature-transport.js": transport,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
     "./heater/control-log.js": diagnostics, "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired, "./heater/observed-max.js": observedMax,
   };
