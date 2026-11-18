@@ -18,6 +18,7 @@ import * as diagnostics from "../src/heater/control-log.js";
 import * as optical from "../src/heater/display-power.js";
 import type { DisplayFrame } from "../src/camera/module.js";
 import * as desired from "../src/heater/desired-state.js";
+import * as observedMax from "../src/heater/observed-max.js";
 
 // Run the real application wiring against in-memory transports: no broker,
 // sockets, timer, camera, service or hardware is opened by this fixture.
@@ -45,7 +46,7 @@ function fixture() {
     "./camera/module.js": { CameraModule: Camera }, "./heater/state.js": state,
     "./heater/pilot-command.js": pilot, "./heater/temperature-control.js": control,
     "./websocket/command.js": command, "./heater/temperature-reconciliation.js": reconciliation,
-    "./heater/control-log.js": diagnostics, "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired,
+    "./heater/control-log.js": diagnostics, "./heater/power-operation.js": powerOps, "./heater/display-power.js": optical, "./heater/panel-state.js": panel, "./heater/desired-state.js": desired, "./heater/observed-max.js": observedMax,
   };
   const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8")
     .replaceAll("import.meta.url", JSON.stringify("file:///fixture/src/index.js"));

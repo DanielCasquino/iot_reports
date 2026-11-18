@@ -17,6 +17,7 @@ import { DisplayPowerObservation } from "./heater/display-power.js";
 import { PowerOperation } from "./heater/power-operation.js";
 import { controlLog, logServoSequence } from "./heater/control-log.js";
 import { DesiredState } from "./heater/desired-state.js";
+import { ObservedMaximum } from "./heater/observed-max.js";
 
 interface HeaterState {
   temperatureControl: TemperatureControl | null;
@@ -41,6 +42,13 @@ const temperatureReconciliation = new TemperatureReconciliation(path.resolve(".r
 const sensorTestMode = process.env.TEMPORARY_SENSOR_TEST_MODE === "true";
 const observation = new HeaterObservation(sensorTestMode);
 const panel = new HeaterPanelState();
+const observedMaximum = new ObservedMaximum();
+let lastMaximumSignature = "";
+function publishMaximumIfChanged() {
+  const data = observedMaximum.snapshot();
+  const signature = JSON.stringify(data);
+  if (signature !== lastMaximumSignature) { lastMaximumSignature = signature; broadcast({ event: "temperature_max", data }); }
+}
 const displayPower = new DisplayPowerObservation();
 const powerOperation = new PowerOperation();
 let brokerConnected = false;
@@ -62,7 +70,8 @@ function observedState() {
   const state = observation.snapshot({ available: water.waterFresh, value: water.water,
     observedAt: water.waterObservedAt === null ? null : new Date(water.waterObservedAt).toISOString() });
   const control = heaterState.temperatureControl;
-  const waterAccepted = sensorTestMode || (control?.status === "idle" && !control.locked && panel.snapshot().waterFresh);
+  const waterAccepted = (sensorTestMode || (control?.status === "idle" && !control.locked && panel.snapshot().waterFresh)) &&
+    !observedMaximum.snapshot().temperatureMaxSelected;
   return { ...state, displayState: displayPower.snapshot(), powerControl: powerOperation.snapshot(), temperature: waterAccepted ? state.temperature : null };
 }
 
@@ -190,7 +199,7 @@ wss.on("connection", (ws) => {
         powerControl: currentObservation.powerControl,
         flowrate: currentObservation.online ? heaterState.flowrate : null,
         volume: currentObservation.online ? heaterState.volume : null,
-        temperature: currentObservation.temperature, camera: cameraModule.getState(),
+        temperature: currentObservation.temperature, ...observedMaximum.snapshot(), camera: cameraModule.getState(),
       },
     }),
   );
@@ -269,7 +278,10 @@ function controllerIdle() {
 const cameraModule = new CameraModule(mqttClient, frame => {
   const idle = controllerIdle();
   const currentCapture = displayPower.acceptsCapture(frame);
-  panel.observeFrame(frame, idle && currentCapture);
+  if (currentCapture) observedMaximum.observe(frame);
+  else observedMaximum.clear();
+  publishMaximumIfChanged();
+  panel.observeFrame(frame, idle && currentCapture && !observedMaximum.snapshot().temperatureMaxSelected);
   const state = observedState();
   displayPower.observe(frame, idle, state.pilot);
   const displayObservation = displayPower.snapshot();
@@ -277,15 +289,15 @@ const cameraModule = new CameraModule(mqttClient, frame => {
   if (idle && displayObservation.mode === "standby" && displayObservation.observedAt === frame.observedAt)
     panel.observeStandby(frame.observedAt);
   if (idle && !sensorTestMode && power !== null && state.power !== power) {
-    if (!power) panel.observeMode("off", null, frame.observedAt);
+    if (!power) { panel.observeMode("off", null, frame.observedAt); observedMaximum.clear(); publishMaximumIfChanged(); }
     mqttClient.publish("heater/input/power", String(power), { qos: 0, retain: false });
   }
-  return frame.purpose === "water" && idle && currentCapture && panel.snapshot(frame.observedAt).waterFresh;
+  return frame.purpose === "water" && idle && currentCapture && !observedMaximum.snapshot().temperatureMaxSelected && panel.snapshot(frame.observedAt).waterFresh;
 });
 cameraModule.setup(app);
 app.get("/api/heater/status", (_req, res) => {
   const state = observedState();
-  res.set("Cache-Control", "no-store").json({ ...state, panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
+  res.set("Cache-Control", "no-store").json({ ...state, ...observedMaximum.snapshot(), panel: panel.snapshot(), desired: desiredState.snapshot(), reconciliation: temperatureReconciliation.snapshot(),
     autoShutdown: state.online ? heaterState.autoShutdown : null,
     autoShutdownTarget: state.online && (heaterState.temperatureControl?.autoShutdownTarget ?? -1) >= 30
       ? heaterState.temperatureControl!.autoShutdownTarget : null,
