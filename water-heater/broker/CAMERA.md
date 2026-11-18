@@ -439,3 +439,9 @@ after the matching firmware announces a fresh one-use token. Commands are
 never retained. Application admission and camera confirmation are separate
 events. An unresolved temperature operation also suppresses unsolicited panel
 wake touches until an explicit request recovers it.
+
+### Reflejos de día
+
+En el montaje calibrado, `CAMERA_DAYLIGHT_OFF_REFERENCE` apunta a un JPEG local de la terma confirmada apagada con luz diurna. El backend compara el brillo de la carcasa a la izquierda del recorte con esa referencia para escoger el tratamiento de cada foto. Con poca luz utiliza el lector nocturno. Con luz diurna usa el recorte ampliado, realza el color ámbar por bandas horizontales y exige dos lecturas coincidentes en dos segundos. La temperatura del agua puede estar por debajo de 30 °C.
+
+Una foto sin segmentos que coincide en iluminación y encuadre con el apagado registrado cuenta como fase oscura. El controlador exige varias fotos durante 6,5 segundos para confirmar apagado y descarta esa conclusión si el piloto indica calentamiento o listo. Un reflejo sin segmentos que no coincide con la referencia queda indeterminado. Si cambian el soporte o el encuadre, vuelvan a tomar la referencia con la terma físicamente apagada. La ruta y la foto pertenecen a la instalación. Quitar la variable restaura la lectura anterior.

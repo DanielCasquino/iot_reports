@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import type { MqttClient } from "mqtt";
 import sharp from "sharp";
-import { selectOcrCrop } from "./crop-guard.js";
+import { DaylightCalibration, enhanceAmberSegments } from "./daylight.js";
+import { selectOcrCrop, parseCrop } from "./crop-guard.js";
 import { readSevenSegmentImage } from "./seven-segment.js";
 import { IsolatedOcr, type OcrReader } from "./ocr.js";
 import { SsocrReader } from "./ssocr.js";
@@ -28,6 +29,7 @@ const MAX_IMAGE_BYTES = 1024 * 1024;
 export class CameraModule {
   private ocrWorker: OcrReader | null = null;
   private ssocr: SsocrReader | null = null;
+  private daylight: DaylightCalibration | null = null;
   private busy = false;
   private image: Buffer | null = null;
   private processed: Buffer | null = null;
@@ -245,14 +247,23 @@ export class CameraModule {
       const guard = process.env.CAMERA_OCR_GUARD_CROP;
       if (reader === "ssocr" && guard && !crop)
         throw new Error("CAMERA_OCR_GUARD_CROP requires CAMERA_CROP");
+      let lighting: "night" | "day" | "off-reference" = "night";
+      const daylightReference = process.env.CAMERA_DAYLIGHT_OFF_REFERENCE;
+      if (reader === "ssocr" && daylightReference && (!guard || !crop))
+        throw new Error("CAMERA_DAYLIGHT_OFF_REFERENCE requires the calibrated guard and primary crop");
+      if (reader === "ssocr" && daylightReference && guard && crop) {
+        this.daylight ??= new DaylightCalibration(daylightReference);
+        lighting = await this.daylight.inspect(this.image, parseCrop(guard, "CAMERA_OCR_GUARD_CROP").left);
+      }
       if (crop) {
         const values = crop.split(",").map(Number);
         if (values.length !== 4 || values.some((v) => !Number.isInteger(v)) ||
             values[0]! < 0 || values[1]! < 0 || values[2]! <= 0 || values[3]! <= 0)
           throw new Error("CAMERA_CROP must be left,top,width,height in image pixels");
-        const selected = reader === "ssocr" && guard
+        let selected = reader === "ssocr" && guard
           ? await selectOcrCrop(this.image, crop, guard)
           : { left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! };
+        if (lighting !== "night" && guard) selected = parseCrop(guard, "CAMERA_OCR_GUARD_CROP");
         cropMode = selected.left !== values[0] || selected.width !== values[2] ? "guard" : "primary";
         pipeline = pipeline.extract(selected);
       }
@@ -269,10 +280,23 @@ export class CameraModule {
       if (reader !== "tesseract") {
         const input = await pipeline.png().toBuffer();
         if (reader === "ssocr") this.ssocr ??= new SsocrReader();
-        const reading = reader === "ssocr" ? await this.ssocr!.read(input) : await readSevenSegmentImage(input);
-        this.processed = reading.image;
-        value = reading.value;
-        displayVisible = reading.visible;
+        if (lighting !== "night") {
+          const enhanced = await enhanceAmberSegments(input);
+          const reading = enhanced ? await this.ssocr!.read(enhanced) : null;
+          displayVisible = enhanced !== null;
+          // A verified blank can separate two lit frames of a blinking maximum.
+          value = lighting === "off-reference" && !displayVisible ? null :
+            this.daylight!.confirm(reading?.value ?? null, Date.parse(observedAt));
+          this.processed = reading?.image ?? input;
+          readingState = { ...readingState, displayLight: displayVisible ? "lit" :
+            lighting === "off-reference" ? "dark" : "unknown" };
+        } else {
+          this.daylight?.confirm(null, Date.parse(observedAt));
+          const reading = reader === "ssocr" ? await this.ssocr!.read(input) : await readSevenSegmentImage(input);
+          this.processed = reading.image;
+          value = reading.value;
+          displayVisible = reading.visible;
+        }
         text = value === null ? "" : String(value);
       } else {
         pipeline = pipeline.resize({ width: 800 }).grayscale().normalise();
@@ -305,7 +329,7 @@ export class CameraModule {
         text, confidence, reader, error: rejectedValue !== null ? "Reading outside heater range (0-75C)" :
           value === null ? (reader !== "tesseract" ? "Ambiguous or incomplete seven-segment display" : "Unreadable or low-confidence display") : null };
       if (this.stopped) throw new Error("Camera stopped during capture");
-      const evidence = this.frameDiagnostic.observe({ crop: cropMode, light: readingState.displayLight,
+      const evidence = this.frameDiagnostic.observe({ crop: cropMode, ...(daylightReference ? { lighting } : {}), light: readingState.displayLight,
         visible: displayVisible, readable: value !== null, brightness: readingState.displayBrightness, observedAt: Date.parse(observedAt), rejectedValue });
       if (evidence) controlLog("camera_frame_diagnostic", { ...evidence,
         interpretation: "frame_evidence_only" });
@@ -313,7 +337,8 @@ export class CameraModule {
       const activeTarget = sameSession && this.verificationPurpose === "target" && this.verificationId !== null &&
         targetRequestAtCapture === this.verificationId &&
         captureStartedAt >= this.verificationStartedAt && Date.now() - this.verificationStartedAt < 4500;
-      if (activeTarget && value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
+      const ambiguousDaylight = lighting === "day" && !displayVisible;
+      if (activeTarget && !ambiguousDaylight && value === null && !displayVisible && (reader !== "tesseract" || readingState.displayLight === "dark"))
         this.targetBlankSeen = true;
       if (activeTarget) {
         controlLog("camera_target_frame", { verificationId: this.verificationId, value, visible: displayVisible,
@@ -339,7 +364,7 @@ export class CameraModule {
           this.mqtt.publish(CACHE_TOPIC, JSON.stringify({ value, observedAt }), { qos: 1, retain: true });
         }
       }
-      const rawMirrorText = value !== null ? String(value) : displayVisible ? "unknown" : "blank";
+      const rawMirrorText = value !== null ? String(value) : displayVisible || ambiguousDaylight ? "unknown" : "blank";
       if (this.mqtt.connected && mqttGeneration === this.mqttGeneration && !this.stopped) {
         this.publishMirror(rawMirrorText, observedAt, rejectedValue, value !== null && waterReading && waterAccepted !== false);
         mirrored = true;
@@ -381,6 +406,7 @@ export class CameraModule {
         this.logCaptureAvailability(typeof code === "string" && /^[A-Z][A-Z0-9_]{1,31}$/.test(code)
           ? code : detail?.name === "TimeoutError" ? "TIMEOUT" : "FETCH_FAILED");
       }
+      if (!frameReported) this.daylight?.confirm(null, Date.now());
       if (!frameReported && mqttGeneration === this.mqttGeneration && !this.stopped)
         this.onDisplayFrame?.({ value: null, visible: false, observedAt: Date.now(),
           light: "unknown", brightness: null, captureStartedAt, purpose: "mirror" });

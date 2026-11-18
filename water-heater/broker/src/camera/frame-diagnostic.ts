@@ -1,6 +1,7 @@
 export type CropMode = "primary" | "guard" | "full";
 export type FrameEvidence = {
   crop: CropMode;
+  lighting?: "night" | "day" | "off-reference";
   light: "dark" | "lit" | "unknown";
   visible: boolean;
   readable: boolean;
@@ -19,7 +20,7 @@ export class FrameDiagnostic {
 
   observe(evidence: FrameEvidence, now = Date.now()): FrameEvidence | null {
     this.last = evidence;
-    const signature = JSON.stringify([evidence.crop, evidence.light, evidence.visible, evidence.readable,
+    const signature = JSON.stringify([evidence.crop, evidence.lighting, evidence.light, evidence.visible, evidence.readable,
       evidence.rejectedValue !== null]);
     if (signature !== this.candidate || now < this.candidateSince) {
       this.candidate = signature;

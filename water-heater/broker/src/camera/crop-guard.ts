@@ -2,7 +2,7 @@ import sharp from "sharp";
 
 type Crop = { left: number; top: number; width: number; height: number };
 
-function parseCrop(raw: string, name: string): Crop {
+export function parseCrop(raw: string, name: string): Crop {
   const parts = raw.split(",");
   if (parts.length !== 4 || parts.some(part => !/^\d+$/.test(part.trim()))) {
     throw new Error(`${name} must be left,top,width,height in original image pixels`);
