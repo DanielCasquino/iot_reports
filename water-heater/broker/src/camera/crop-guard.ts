@@ -15,7 +15,7 @@ export function parseCrop(raw: string, name: string): Crop {
   return { left: left!, top: top!, width: width!, height: height! };
 }
 
-export async function selectOcrCrop(image: Buffer, primaryRaw: string, guardRaw: string): Promise<Crop> {
+export async function selectOcrCrop(image: Buffer, primaryRaw: string, guardRaw: string, useFullGuard = false): Promise<Crop> {
   const primary = parseCrop(primaryRaw, "CAMERA_CROP");
   const guard = parseCrop(guardRaw, "CAMERA_OCR_GUARD_CROP");
   const metadata = await sharp(image, { limitInputPixels: 4_000_000 }).metadata();
@@ -25,6 +25,7 @@ export async function selectOcrCrop(image: Buffer, primaryRaw: string, guardRaw:
       guard.left + guard.width > imageWidth || guard.top + guard.height > imageHeight) {
     throw new Error("CAMERA_OCR_GUARD_CROP must fit the image and horizontally contain CAMERA_CROP at the same top and height");
   }
+  if (useFullGuard) return guard;
   const seams: number[] = [];
   if (guard.left < primary.left && primary.left >= 2) seams.push(primary.left);
   const right = primary.left + primary.width;

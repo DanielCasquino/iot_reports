@@ -15,6 +15,9 @@ test("neutral glare cannot make a digit and bright, dark and displaced scenes st
     const calibration = new DaylightCalibration(reference);
     assert.equal(await calibration.inspect(blank, 35), "off-reference");
     assert.equal(await enhanceAmberSegments(blank), null);
+    const glint = await sharp({ create: { width: 5, height: 5, channels: 3, background: "white" } }).png().toBuffer();
+    const reflection = await sharp(blank).composite([{ input: glint, left: 82, top: 33 }]).png().toBuffer();
+    assert.equal(await calibration.inspect(reflection, 35), "off-reference");
     const patch = await sharp({ create: { width: 40, height: 30, channels: 3, background: "#ffb950" } }).png().toBuffer();
     const lit = await sharp(blank).composite([{ input: patch, left: 55, top: 25 }]).png().toBuffer();
     assert.equal(await calibration.inspect(lit, 35), "day");

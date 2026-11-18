@@ -260,10 +260,9 @@ export class CameraModule {
         if (values.length !== 4 || values.some((v) => !Number.isInteger(v)) ||
             values[0]! < 0 || values[1]! < 0 || values[2]! <= 0 || values[3]! <= 0)
           throw new Error("CAMERA_CROP must be left,top,width,height in image pixels");
-        let selected = reader === "ssocr" && guard
-          ? await selectOcrCrop(this.image, crop, guard)
+        const selected = reader === "ssocr" && guard
+          ? await selectOcrCrop(this.image, crop, guard, lighting !== "night")
           : { left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! };
-        if (lighting !== "night" && guard) selected = parseCrop(guard, "CAMERA_OCR_GUARD_CROP");
         cropMode = selected.left !== values[0] || selected.width !== values[2] ? "guard" : "primary";
         pipeline = pipeline.extract(selected);
       }
