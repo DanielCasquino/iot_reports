@@ -3,6 +3,7 @@
 #include "heater_module.h"
 #include "display_mirror.h"
 #include "mqtt_inbox.h"
+#include "mqtt_temperature_protocol.h"
 #include "config.h"
 #include <cstdlib>
 #include <cmath>
@@ -195,7 +196,7 @@ public:
         const auto separator = payload.rfind(',');
         if (separator == std::string::npos) return;
         uint32_t token = 0;
-        if (!parseUnsigned(payload.substr(separator + 1), token) || token == 0) return;
+        if (!MqttTemperatureProtocol::parseUnsigned(payload.substr(separator + 1), token) || token == 0) return;
         const uint32_t now = millis();
         const bool current = token == temperatureToken && now - temperatureTokenAt < TEMPERATURE_TOKEN_TTL_MS;
         const bool previous = token == previousTemperatureToken &&
@@ -210,15 +211,9 @@ public:
     void handleTemperatureControl(const std::string &payload, bool calibrate)
     {
         if (!heaterModule || payload.size() > 40) return;
-        auto comma = payload.find(',');
-        auto second = comma == std::string::npos ? comma : payload.find(',', comma + 1);
-        if (second == std::string::npos) return;
-        uint32_t id = 0, base = 0, target = 0;
-        auto baseToken = payload.substr(comma + 1, second - comma - 1);
-        if (!parseUnsigned(payload.substr(0, comma), id) || id == 0 ||
-            !parseUnsigned(payload.substr(second + 1), target) || target < MIN_TEMPERATURE_C || target > MAX_TEMPERATURE_C ||
-            (baseToken != "-1" && (!parseUnsigned(baseToken, base) || base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return;
-        heaterModule->requestTemperatureControl(id, baseToken == "-1" ? -1 : int(base), int(target), calibrate);
+        MqttTemperatureProtocol::Command command;
+        if (!MqttTemperatureProtocol::parseCommand(payload, command)) return;
+        heaterModule->requestTemperatureControl(command.id, command.base, command.target, calibrate);
     }
     void publishTemperatureControl(int qos = 0)
     {
@@ -248,7 +243,7 @@ public:
             publishPowerState();
             return;
         }
-        Serial.println(payload.c_str());
+        Serial.printf("Power request: %s\n", payload.c_str());
         if (payload == "true")
         {
             heaterModule->requestPower(true);
@@ -270,7 +265,7 @@ public:
         if (!heaterModule || !mqttClient.isConnected())
             return;
         bool changed = false;
-        Serial.println(payload.c_str());
+        Serial.printf("Auto-shutdown request: %s\n", payload.c_str());
         if (payload == "true")
         {
             if (heaterModule->getIsAutoShutdownEnabled())
@@ -357,17 +352,6 @@ public:
     }
 
 private:
-    static bool parseUnsigned(const std::string &token, uint32_t &value)
-    {
-        if (token.empty()) return false;
-        value = 0;
-        for (char digit : token)
-        {
-            if (digit < '0' || digit > '9' || value > (UINT32_MAX - uint32_t(digit - '0')) / 10U) return false;
-            value = value * 10U + uint32_t(digit - '0');
-        }
-        return true;
-    }
     void subscribeTopic(const char *topic, MqttInbox::Kind kind, int qos = 0)
     {
         mqttClient.subscribe(topic, [this, kind](const std::string &payload) {

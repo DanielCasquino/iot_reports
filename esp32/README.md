@@ -79,3 +79,30 @@ recorrido/retorno de servos; iluminación/foco/crop en imágenes nuevas; referen
 RGB; factor de caudal y estabilidad de alimentación/red. Primero ensayar una
 frontera por vez con versión identificada y logs pasivos, antes de un caso completo.
 Ver también ../water-heater/broker/SOFTWARE-VALIDATION.md y ../esp32cam/README.md.
+
+## Organización del firmware y diagnóstico
+
+El ESP principal concentra los servos, botones, OLED y sensores. Su
+`src/main.cpp` ejecuta el ciclo. `mqtt_module.h` recibe y publica mensajes,
+mientras `mqtt_inbox.h` limita las colas de entrada.
+`mqtt_temperature_protocol.h` valida los campos de las órdenes sin mover
+hardware. El `heater_module.h` procesa observaciones y coordina el control
+en el ciclo principal. `temperature_adjustment.h` decide la secuencia de
+selección, pulsaciones y confirmación. `servo_module.h` ejecuta cada toque.
+`display_mirror.h` conserva la lectura visual, y `display_module.h` gestiona
+la pantalla y su conexión I²C. `color_module.h` mide el piloto RGB.
+
+En el controlador, `waterTemperature` es el agua observada;
+`estimatedMaximum` es la estimación de la consigna física;
+`adjustment.target` es el máximo que se está intentando seleccionar; y
+`requestedAutoShutdownMaximum` es el objetivo admitido para el autoapagado.
+El protocolo MQTT conserva sus nombres `base`, `target` y
+`autoShutdownTarget` para que el backend existente los entienda.
+
+Para diagnosticar una orden, relaciona su `commandId` con la admisión,
+los eventos de servo y la verificación de cámara. `mechanicalConfirmed=false`
+significa que el pulso PWM no verifica contacto mecánico. La secuencia más
+corta puede usar menos al subir un objetivo si cruza el límite 30–75.
+Los errores de lectura y el bloqueo de operación deben observarse antes de
+volver a intentar. El sensor de caudal queda deshabilitado por defecto y
+solo se activa al compilar con `FLOW_SENSOR_ENABLED=1`.

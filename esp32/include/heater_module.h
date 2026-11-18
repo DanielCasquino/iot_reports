@@ -39,7 +39,7 @@ public:
         powerKnown = true;
         power = false;
 #endif
-        temperatureModule.setup();
+        waterTemperature.setup();
         servoModuleA.setup(SERVO_PIN_A, SERVO_REST_A, SERVO_PRESS_A);
         servoModuleB.setup(SERVO_PIN_B, SERVO_REST_B, SERVO_PRESS_B);
         servoModuleC.setup(SERVO_PIN_C, SERVO_REST_C, SERVO_PRESS_C);
@@ -66,7 +66,7 @@ public:
         synchronizeTransport();
         bool previousPowerKnown = powerKnown;
         bool previousPower = power;
-        temperatureModule.poll();
+        waterTemperature.poll();
         PilotObservation pilot;
         while (pilotObservations && xQueueReceive(pilotObservations, &pilot, 0) == pdTRUE)
         {
@@ -88,7 +88,7 @@ public:
                     powerKnown = true;
                     hasPilotObservation = hasWakeConfirmation = false;
                     resetWakeFailure();
-                    setpoint = -1;
+                    estimatedMaximum = -1;
                     invalidateTemperature();
                     temperatureControlChanged = true;
                 }
@@ -136,13 +136,13 @@ public:
                 else if (request.target < MIN_TEMPERATURE_C || request.target > MAX_TEMPERATURE_C)
                     temperatureCommandResult = "invalid";
                 else if (request.calibrate)
-                    setpoint = request.target;
+                    estimatedMaximum = request.target;
                 else if (powerKnown && !power)
                     temperatureCommandResult = "off";
-                else if (!adjustment.applyTarget(request.target, setpoint))
+                else if (!adjustment.applyTarget(request.target, estimatedMaximum))
                     temperatureCommandResult = "invalid";
                 else
-                    autoShutdownTarget = request.target;
+                    requestedAutoShutdownMaximum = request.target;
             }
             temperatureControlChanged = true;
         }
@@ -169,17 +169,17 @@ public:
                 adjustment.verify(observation.id, observation.value, millis());
                 if ((beforeReading == TemperatureAdjustment::State::Opening || beforeReading == TemperatureAdjustment::State::Reading) &&
                     adjustment.state != beforeReading && adjustment.state != TemperatureAdjustment::State::Error)
-                    setpoint = adjustment.estimated;
+                    estimatedMaximum = adjustment.estimated;
             }
             else if (!adjustment.locked() && (!waking ||
                      (static_cast<int32_t>(observation.at - wakeStartedAt) >= int32_t(TEMPERATURE_ADJUST_SETTLE_MS))))
             {
-                temperatureModule.update(observation.value);
-                if (waking && temperatureModule.isAvailable())
+                waterTemperature.update(observation.value);
+                if (waking && waterTemperature.isAvailable())
                 {
                     confirmWake();
                 }
-                if (!powerKnown && temperatureModule.isAvailable())
+                if (!powerKnown && waterTemperature.isAvailable())
                 {
                     power = true;
                     powerKnown = true;
@@ -211,7 +211,7 @@ public:
             else if (increasePressed) servoModuleB.tap(displayWakeRequested ? "display_wake" : "manual_plus");
             else servoModuleC.tap("manual_minus");
             if (powerPressed) powerKnown = false;
-            setpoint = -1;
+            estimatedMaximum = -1;
             adjustment.target = 0;
             adjustment.waitForDisplay(millis());
             invalidateTemperature();
@@ -235,13 +235,13 @@ public:
                     servoModuleC.tap(reason, lastTemperatureCommandId, estimatedBefore, adjustment.estimated, adjustment.target);
                 if (adjustment.state != TemperatureAdjustment::State::Reading &&
                     adjustment.state != TemperatureAdjustment::State::Opening)
-                    setpoint = adjustment.estimated;
+                    estimatedMaximum = adjustment.estimated;
                 invalidateTemperature(); // Also discard packets received during the tap.
                 adjustment.completedPress(millis());
             }
         }
         adjustment.finishSettling(millis());
-        if (adjustment.state == TemperatureAdjustment::State::Error) setpoint = -1;
+        if (adjustment.state == TemperatureAdjustment::State::Error) estimatedMaximum = -1;
         if (previousAdjustmentState != adjustment.state)
             temperatureControlChanged = true;
         return powerKnown != previousPowerKnown || power != previousPower;
@@ -249,10 +249,10 @@ public:
 
     bool monitorAutoShutdown()
     {
-        float temp = temperatureModule.read();
+        float temp = waterTemperature.read();
         if (!isTemperatureLocked() && isAutoShutdownEnabled &&
-            autoShutdownTarget >= MIN_TEMPERATURE_C && autoShutdownTarget <= MAX_TEMPERATURE_C &&
-            temperatureModule.isAvailable() && temp >= autoShutdownTarget && powerKnown && power)
+            requestedAutoShutdownMaximum >= MIN_TEMPERATURE_C && requestedAutoShutdownMaximum <= MAX_TEMPERATURE_C &&
+            waterTemperature.isAvailable() && temp >= requestedAutoShutdownMaximum && powerKnown && power)
         {
             return setPower(false, "auto_shutdown_at_target");
         }
@@ -343,7 +343,7 @@ public:
         if (displayWakeRequests) xQueueOverwrite(displayWakeRequests, &requested);
     }
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
-    int getAutoShutdownTarget() const { return autoShutdownTarget; }
+    int getAutoShutdownTarget() const { return requestedAutoShutdownMaximum; }
     void setIsAutoShutdownEnabled(bool iase)
     {
         isAutoShutdownEnabled = iase;
@@ -390,7 +390,7 @@ public:
     }
     int getSetpoint()
     {
-        return setpoint;
+        return estimatedMaximum;
     }
     uint32_t getTemperatureCommandId() { return lastTemperatureCommandId; }
     const char *getTemperatureCommandResult() { return temperatureCommandResult; }
@@ -413,7 +413,7 @@ public:
         if (powerRequests) xQueueReset(powerRequests);
         if (temperatureRequests) xQueueReset(temperatureRequests);
         if (displayWakeRequests) xQueueReset(displayWakeRequests);
-        if (adjustment.locked()) setpoint = -1;
+        if (adjustment.locked()) estimatedMaximum = -1;
         adjustment.cancel();
         waking = pendingPowerOff = false;
         hasWakeConfirmation = false;
@@ -430,13 +430,13 @@ public:
         if (observations) xQueueReset(observations);
 #if !TEMPORARY_SENSOR_TEST_MODE
         // TEMPORARILY preserve the probe reading across power/OCR events.
-        temperatureModule.invalidate();
+        waterTemperature.invalidate();
 #endif
     }
-    bool isTemperatureAvailable() { return temperatureModule.isAvailable(); }
+    bool isTemperatureAvailable() { return waterTemperature.isAvailable(); }
     ColorModule &getColor() { return colorModule; }
 
-    float getTemperature() { return temperatureModule.read(); }
+    float getTemperature() { return waterTemperature.read(); }
 
     float getFlowrate() { return flowModule.read(); }
     float getVolume() { return flowModule.getTotalVolume(); }
@@ -515,7 +515,7 @@ private:
     {
         if (!reserveServoPress())
             return false;
-        servoModuleA.tap(pendingPowerReason, 0, -1, -1, autoShutdownTarget);
+        servoModuleA.tap(pendingPowerReason, 0, -1, -1, requestedAutoShutdownMaximum);
         return true;
     }
 
@@ -567,14 +567,14 @@ private:
     bool hasObservationBarrier = false;
     TemperatureAdjustment adjustment;
 #if TEMPORARY_SENSOR_TEST_MODE
-    int setpoint = TEMPORARY_INITIAL_SETPOINT_C;
+    int estimatedMaximum = TEMPORARY_INITIAL_SETPOINT_C;
 #else
-    int setpoint = -1;
+    int estimatedMaximum = -1;
 #endif
     uint32_t lastTap_ms = 0;
     bool hasTapped = false;
     ButtonModule buttonA, buttonB, buttonC;
-    TemperatureModule temperatureModule;
+    TemperatureModule waterTemperature;
     ServoModule servoModuleA, servoModuleB, servoModuleC;
     FlowModule flowModule;
     ColorModule colorModule;
@@ -584,6 +584,6 @@ private:
     bool isAutoShutdownEnabled = false;
     // Last admitted user target, separate from intermediate servo estimates or
     // a manual base calibration. Unknown after boot until a target is selected.
-    int autoShutdownTarget = -1;
+    int requestedAutoShutdownMaximum = -1;
     const char *pendingPowerReason = "power_toggle";
 };
