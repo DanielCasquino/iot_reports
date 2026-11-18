@@ -341,7 +341,7 @@ body { min-height: 100dvh; height: auto; max-height: none; position: relative; i
 .option .option-header { font-size: clamp(18px, 3vw, 24px); gap: 24px; }
 :root { --toggle-width: 48px; --toggle-height: 24px; --toggle-padding: 3px; }
 .switch { flex-shrink: 0; }
-input:disabled + .slider { opacity: .4; cursor: not-allowed; }
+.switch input:disabled + .slider { filter: grayscale(1); opacity: .45; cursor: not-allowed; }
 button:disabled { cursor: not-allowed; }
 button:focus-visible, summary:focus-visible, input:focus-visible + .slider { outline: 2px solid var(--terma-on); outline-offset: 5px; }
 .bottom-bar { display: none; }
@@ -411,5 +411,7 @@ button:focus-visible, summary:focus-visible, input:focus-visible + .slider { out
 }
 
 .reading-label { font-size: 16px; color: var(--text-less-important); }
+.reading-status { margin: -22px 0 24px; font-size: 14px; text-align: center; color: var(--text); }
+.control-feedback { margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: var(--text); }
 .observed-maximum { margin: 0 0 12px; font-size: 16px; color: var(--text); }
 .observed-maximum output { margin-left: 0.3em; font-weight: 600; }

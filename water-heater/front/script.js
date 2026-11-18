@@ -1,14 +1,13 @@
 const WS_URL = `${location.protocol === "https:" ? "wss" : "ws"}://${location.hostname}:8080`;
-const RECONNECT_DELAY_MS = 2000;
+const heaterSocket = createHeaterSocket({ url: WS_URL, onConnection: updateConnection, onMessage: handleMessage });
+const connect = heaterSocket.connect;
 
 let fahrenheit = false;
-let socket;
 let brokerConnected = false;
 let capturePending = false;
-let reconnectTimeout;
 let temperatureControl = null;
-let desiredTemperature = null;
-let savedDesiredTemperature = null;
+let requestedTemperature = null;
+let savedRequestedTemperature = null;
 let temperatureDraftDirty = false;
 let pendingTemperatureCommand = null;
 let temperatureMessage = "";
@@ -16,34 +15,32 @@ let temperatureOperation = null;
 
 let observationText = "Waiting for fresh readings";
 let powerControl = null;
+let pendingPowerChange = null;
+let pendingAutomaticShutdown = null;
+let autoShutdownFeedback = "";
 
 function receivePowerResult(result) {
   if (!result || !Number.isInteger(result.attempts) || result.attempts < 0 || result.attempts > 3 ||
       !["idle", "verifying", "confirmed", "failed"].includes(result.status)) return;
   powerControl = result;
+  if (result.status !== "idle" && pendingPowerChange?.enabled === result.target) pendingPowerChange = null;
   updateControls();
 }
 
 const heaterState = {
   power: null,
   autoShutdown: false,
-  temperature: null,
+  waterTemperature: null,
   temperatureMax: null,
   temperatureMaxSelected: false,
   cameraTemperature: null,
-  lastTemperature: null,
+  lastValidTemperature: null,
   status: "offline",
-  color: null,
+  pilotRgbSample: null,
   flowrate: null,
   volume: null,
 };
 
-// for weird people
-function c2f(temp) {
-  return temp * (9 / 5) + 32;
-}
-
-// ui shi
 function updatePowerButton() {
   const button = document.getElementById("big-button");
 
@@ -63,53 +60,29 @@ function updateAutoShutdown() {
   checkbox.checked = heaterState.autoShutdown;
 }
 
+function receiveAutoShutdown(enabled) {
+  heaterState.autoShutdown = enabled;
+  if (pendingAutomaticShutdown?.enabled === enabled) {
+    pendingAutomaticShutdown = null;
+    autoShutdownFeedback = "";
+  }
+  updateAutoShutdown();
+  updateControls();
+}
+
 function updateTemperature() {
-  const display = document.getElementById("temp-display");
-  const maximum = document.getElementById("observed-maximum");
-  if (maximum) {
-    const value = heaterState.temperatureMax;
-    maximum.textContent = value === null ? "Sin confirmar"
-      : `${(fahrenheit ? c2f(value) : value).toFixed(fahrenheit ? 1 : 0)}°${fahrenheit ? "F" : "C"}`;
-  }
-  const fg = document.getElementById("fg");
-  // While the controller is online, raw camera digits can be its setpoint.
-  // Use validated water or retain it until a new water measurement arrives.
-  const reading = heaterState.temperature ?? (heaterState.status === "offline" && !heaterState.temperatureMaxSelected ? heaterState.cameraTemperature : null);
-  const effectTemperature = reading ?? heaterState.lastTemperature;
+  const heaterOff = heaterState.power === false;
+  const cameraReading = heaterState.status === "offline" && !heaterState.temperatureMaxSelected
+    ? heaterState.cameraTemperature : null;
+  const reading = heaterOff ? null : heaterState.waterTemperature ?? cameraReading;
+  if (reading !== null) heaterState.lastValidTemperature = reading;
 
-  if (fg && effectTemperature !== null) {
-    const temp = effectTemperature;
-    const opacity = Math.max(
-      0.0,
-      Math.min(0.6, ((temp - 30) / (40 - 30)) * 0.6),
-    );
-    fg.style.opacity = opacity;
-  }
-
-  if (!display) return;
-  if (reading === null) {
-    const last = heaterState.lastTemperature;
-    display.textContent = last === null ? (fahrenheit ? "--.-°F" : "--.-°C")
-      : `${(fahrenheit ? c2f(last) : last).toFixed(1)}${fahrenheit ? "°F" : "°C"}`;
-    display.title = last === null ? "Temperature unavailable" : "Last valid reading (not current)";
-    if (fg && last === null) fg.style.opacity = 0;
-    const status = document.getElementById("temperature-status");
-    if (status) status.textContent = heaterState.lastTemperature === null
-      ? "Temperature unavailable" : `Last reading: ${(fahrenheit ? c2f(heaterState.lastTemperature) : heaterState.lastTemperature).toFixed(1)}${fahrenheit ? "°F" : "°C"} (not current)`;
-    return;
-  }
-  heaterState.lastTemperature = reading;
-  display.title = heaterState.temperature === null ? "Camera display reading" : "Current temperature reading";
-  const status = document.getElementById("temperature-status");
-  if (status) status.textContent = display.title;
-
-  const temperature = fahrenheit
-    ? c2f(reading)
-    : reading;
-
-  const unit = fahrenheit ? "°F" : "°C"; // 😭
-
-  display.textContent = `${temperature.toFixed(1)}${unit}`;
+  renderTemperatureReadout({
+    reading, lastReading: heaterState.lastValidTemperature, heaterOff,
+    temperatureMax: heaterState.temperatureMax,
+    fromCamera: heaterState.waterTemperature === null && reading !== null,
+    fahrenheit,
+  });
 }
 
 function updateBrokerStatus(connected) {
@@ -135,28 +108,29 @@ function updateEspStatus() {
   indicator.className = `icon-wrapper icon-wrapper-${heaterState.status === "online" ? "on" : "off"}`;
 }
 
-// mqtt shi
 function handleMqttMessage(data) {
   const { topic, payload } = data;
 
   switch (topic) {
     case "heater/state/temperature_control": {
-      try { receiveTemperatureControl(JSON.parse(payload)); } catch { temperatureControl = null; updateTemperatureControls(); }
+      try { receiveTemperatureControl(JSON.parse(payload)); } catch { temperatureControl = null; updateControls(); }
       break;
     }
     case "heater/state/power": {
       heaterState.power = payload === "true" ? true : payload === "false" ? false : null;
+      if (heaterState.power !== true) heaterState.waterTemperature = null;
+      if (pendingPowerChange?.enabled === heaterState.power) pendingPowerChange = null;
+      updateTemperature();
       updateControls();
       break;
     }
     case "heater/state/autoshutdown": {
-      heaterState.autoShutdown = payload === "true";
-      updateAutoShutdown();
+      if (payload === "true" || payload === "false") receiveAutoShutdown(payload === "true");
       break;
     }
     case "heater/state/temperature": {
       if (payload === "unavailable") {
-        heaterState.temperature = null;
+        heaterState.waterTemperature = null;
         updateTemperature();
       }
       break;
@@ -169,25 +143,24 @@ function handleMqttMessage(data) {
       break;
     }
     case "heater/state/color": {
-      heaterState.color = payload === "unavailable" ? null : payload;
+      heaterState.pilotRgbSample = payload === "unavailable" ? null : payload;
       updateColor();
       break;
     }
     case "heater/status": {
-      console.log("received " + payload + " from status");
       heaterState.status = payload === "online" ? "online" : "offline";
       heaterState.power = null;
-      heaterState.temperature = null;
+      heaterState.waterTemperature = null;
       heaterState.flowrate = null;
       heaterState.volume = null;
       temperatureControl = null;
+      powerControl = null;
+      pendingPowerChange = null;
+      pendingAutomaticShutdown = null;
       updateTemperature();
       updateEspStatus();
       break;
     }
-    default:
-      console.debug("wuduhelllllllllllllllll ooomaga no wayayayyyy:", topic);
-      break;
   }
 }
 
@@ -213,14 +186,17 @@ function handleMessage(message) {
         if (message.data.requestId === pendingTemperatureCommand.id) pendingTemperatureCommand = null;
         else pendingTemperatureCommand.timedOut = true;
         temperatureMessage = message.data.error;
-        updateTemperatureControls();
+        updateControls();
       }
+      if (message.data.topic === "heater/set/power") pendingPowerChange = null;
+      if (message.data.topic === "heater/set/autoshutdown") {
+        pendingAutomaticShutdown = null;
+        autoShutdownFeedback = message.data.error;
+      }
+      if (["heater/set/power", "heater/set/autoshutdown"].includes(message.data.topic)) updateControls();
       break;
     case "mqtt_message":
       handleMqttMessage(message.data);
-      break;
-    default:
-      console.debug("wtf message", message);
       break;
   }
 }
@@ -236,7 +212,7 @@ function receiveHeaterSnapshot(state) {
   const online = typeof state.online === "boolean" ? state.online : state.status === "online";
   heaterState.status = online ? "online" : "offline";
   heaterState.power = online && typeof state.power === "boolean" ? state.power : null;
-  heaterState.temperature = online && typeof state.temperature === "number" &&
+  heaterState.waterTemperature = online && typeof state.temperature === "number" &&
     Number.isFinite(state.temperature) && state.temperature >= 0 && state.temperature <= 75 ? state.temperature : null;
   const camera = state.camera;
   heaterState.cameraTemperature = camera?.available === true && typeof camera.value === "number" &&
@@ -245,12 +221,12 @@ function receiveHeaterSnapshot(state) {
     const value = state[field];
     heaterState[field] = online && typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
   }
-  if (typeof state.autoShutdown === "boolean") heaterState.autoShutdown = state.autoShutdown;
-  if (!online || "color" in state) heaterState.color = online && typeof state.color === "string" ? state.color : null;
+  if (typeof state.autoShutdown === "boolean") receiveAutoShutdown(state.autoShutdown);
+  if (!online || "color" in state) heaterState.pilotRgbSample = online && typeof state.color === "string" ? state.color : null;
   const target = state.desired?.temperature;
-  savedDesiredTemperature = Number.isInteger(target) && target >= 30 && target <= 75 ? target : null;
-  if (!temperatureDraftDirty && !pendingTemperatureCommand && savedDesiredTemperature !== null)
-    desiredTemperature = savedDesiredTemperature;
+  savedRequestedTemperature = Number.isInteger(target) && target >= 30 && target <= 75 ? target : null;
+  if (!temperatureDraftDirty && !pendingTemperatureCommand && savedRequestedTemperature !== null)
+    requestedTemperature = savedRequestedTemperature;
   receiveTemperatureControl(online ? state.temperatureControl : null);
   receiveTemperatureResult(state.reconciliation);
   if (state.powerControl) receivePowerResult(state.powerControl);
@@ -270,7 +246,7 @@ function receiveTemperatureResult(result) {
   if (!result || !Number.isInteger(result.target) || result.target < 30 || result.target > 75 ||
       !Number.isInteger(result.attempts) || result.attempts < 0 || result.attempts > 3 ||
       !["waiting", "verifying", "confirmed", "failed"].includes(result.status)) return;
-  const target = pendingTemperatureCommand?.target ?? savedDesiredTemperature ?? desiredTemperature;
+  const target = pendingTemperatureCommand?.target ?? savedRequestedTemperature ?? requestedTemperature;
   if (result.target !== target || pendingTemperatureCommand?.calibrate) return;
   if (pendingTemperatureCommand) {
     if (result.status === "waiting" || result.status === "verifying") pendingTemperatureCommand.reconciliationStarted = true;
@@ -280,88 +256,61 @@ function receiveTemperatureResult(result) {
   temperatureOperation = result;
   temperatureMessage = result.status === "failed"
     ? "Could not confirm the adjustment. Check servo mounting/contact and the camera view before retrying." : "";
-  updateTemperatureControls();
+  updateControls();
 }
 
-function connect() {
-  if (
-    socket &&
-    (socket.readyState === WebSocket.OPEN ||
-      socket.readyState === WebSocket.CONNECTING)
-  ) {
-    return;
-  }
-
-  console.log("Connecting to WebSocket server...");
-
-  socket = new WebSocket(WS_URL);
-
-  socket.addEventListener("open", () => {
-    console.log("WebSocket connected.");
-    updateBrokerStatus(true);
-  });
-
-  socket.addEventListener("message", (event) => {
-    try {
-      const message = JSON.parse(event.data);
-      handleMessage(message);
-    } catch (error) {
-      console.error("Invalid WebSocket message:", error);
-    }
-  });
-
-  socket.addEventListener("close", () => {
-    console.log("WebSocket disconnected.");
-    updateBrokerStatus(false);
+function updateConnection(connected) {
+  if (!connected) {
     heaterState.status = "offline";
     heaterState.power = null;
+    heaterState.waterTemperature = null;
+    heaterState.cameraTemperature = null;
     heaterState.flowrate = null;
     heaterState.volume = null;
+    heaterState.pilotRgbSample = null;
     temperatureControl = null;
-    updateTemperatureControls();
-    heaterState.color = null;
+    powerControl = null;
+    pendingPowerChange = null;
+    pendingAutomaticShutdown = null;
     updateColor();
     updateEspStatus();
-    heaterState.temperature = null;
-    heaterState.cameraTemperature = null;
     updateTemperature();
-
-    reconnectTimeout = setTimeout(connect, RECONNECT_DELAY_MS);
-  });
-
-  socket.addEventListener("error", (error) => {
-    console.error("WebSocket error:", error);
-    socket.close();
-  });
+  }
+  updateBrokerStatus(connected);
 }
 
 function sendCommand(event, data) {
-  if (!brokerConnected || heaterState.status !== "online" || !socket || socket.readyState !== WebSocket.OPEN) {
-    console.error("Cannot send command: WebSocket is not connected.");
-    return false;
-  }
-
-  socket.send(JSON.stringify({ event, data }));
-  console.log(JSON.stringify({ event, data }));
-  return true;
+  return brokerConnected && heaterState.status === "online" && heaterSocket.send(event, data);
 }
 
-// ui input shi
 function toggleTerma() {
-  if (typeof heaterState.power !== "boolean") return;
-  sendCommand("set_heater_power", {
-    enabled: !heaterState.power,
-  });
+  if (!temperatureControl || hardwareLockReason()) return;
+  const request = { enabled: !heaterState.power };
+  if (!sendCommand("set_heater_power", request)) return;
+  pendingPowerChange = request;
+  updateControls();
+  setTimeout(() => {
+    if (pendingPowerChange !== request) return;
+    pendingPowerChange = null;
+    updateControls();
+  }, 8000);
 }
 
 function toggleAutomatedShutdown(checkbox) {
   const requestedState = checkbox.checked;
-
   checkbox.checked = heaterState.autoShutdown;
-
-  sendCommand("set_auto_shutdown", {
-    enabled: requestedState,
-  });
+  if (hardwareLockReason()) return;
+  const request = { enabled: requestedState };
+  if (!sendCommand("set_auto_shutdown", request)) return;
+  pendingAutomaticShutdown = request;
+  autoShutdownFeedback = "";
+  updateControls();
+  setTimeout(() => {
+    if (pendingAutomaticShutdown !== request) return;
+    pendingAutomaticShutdown = null;
+    autoShutdownFeedback = "Autoapagado sin confirmar.";
+    updateControls();
+  }, 7000);
 }
 
 function toggleFahrenheit(checkbox) {
@@ -385,7 +334,6 @@ function retrieveLocalSettings() {
   updateTemperature();
 }
 
-// int main type shi
 window.addEventListener("load", () => {
   retrieveLocalSettings();
 
@@ -397,17 +345,14 @@ window.addEventListener("load", () => {
   connect();
 });
 
-async function captureTemperature(wake = false) {
-  if (!brokerConnected || capturePending || (wake && (heaterState.status !== "online" || !heaterState.power))) return;
+async function captureTemperature() {
+  if (!brokerConnected || capturePending) return;
   capturePending = true;
-  const button = document.getElementById("capture-temperature");
+  updateControls();
   const status = document.getElementById("camera-status");
-  const wakeButton = document.getElementById("wake-temperature");
-  if (button) button.disabled = true;
-  if (wakeButton) wakeButton.disabled = true;
   if (status) status.textContent = "Capturing and reading display...";
   try {
-    const response = await fetch(wake ? "/api/camera/capture?wake=1" : "/api/camera/capture", { method: "POST", cache: "no-store" });
+    const response = await fetch("/api/camera/capture", { method: "POST", cache: "no-store" });
     const result = await response.json();
     if (!response.ok || result.error || typeof result.value !== "number" || !Number.isFinite(result.value)) {
       if (status) status.textContent = "Display unreadable or capture unavailable. No new temperature confirmed.";
@@ -421,7 +366,29 @@ async function captureTemperature(wake = false) {
 
 function updateColor() {
   const display = document.getElementById("color-display");
-  if (display) display.textContent = heaterState.color === null ? "RGB sensor unavailable" : `Raw R,G,B,C: ${heaterState.color}`;
+  if (display) display.textContent = heaterState.pilotRgbSample === null ? "Piloto LED · RGB no disponible" : `Piloto LED · RGB y claro: ${heaterState.pilotRgbSample}`;
+}
+
+function currentOperationLock() {
+  if (pendingPowerChange || powerControl?.status === "verifying") return "Confirmando encendido o apagado…";
+  if (pendingAutomaticShutdown) return "Confirmando autoapagado…";
+  if (pendingTemperatureCommand || temperatureControl?.locked || temperatureControl?.status === "selecting" ||
+      (temperatureOperation?.status === "verifying" && temperatureOperation.attempts > 0))
+    return "Ajuste de temperatura máx. en curso.";
+  return null;
+}
+
+function hardwareLockReason() {
+  if (!brokerConnected || heaterState.status !== "online") return "Controlador sin conexión.";
+  return currentOperationLock() ?? (typeof heaterState.power !== "boolean" ? "Esperando confirmación de encendido." : null);
+}
+
+function showControlFeedback(id, message) {
+  const status = document.getElementById(id);
+  if (status) {
+    status.textContent = message ?? "";
+    status.hidden = !message;
+  }
 }
 
 function updateControls() {
@@ -433,15 +400,17 @@ function updateControls() {
     ? "Power change not confirmed. Check servo mounting/contact and the camera view before retrying."
     : powerControl?.status === "verifying" ? `Confirming power: attempt ${powerControl.attempts}/3` : observationText;
   document.getElementById("heater-observation").textContent = available ? powerText : "Waiting for fresh readings";
-  for (const id of ["big-button", "automated-shutdown", "capture-temperature", "wake-temperature"]) {
-    const control = document.getElementById(id);
-    if (control) control.disabled = id === "capture-temperature" ? !brokerConnected || capturePending :
-      !available || (id === "big-button" && (typeof heaterState.power !== "boolean" || powerControl?.status === "verifying")) || ((id.includes("temperature")) && capturePending) || (id === "wake-temperature" && !heaterState.power);
-  }
+  const lockReason = hardwareLockReason();
+  const powerReason = lockReason ?? (temperatureControl ? null : "Esperando estado del controlador.");
+  document.getElementById("big-button").disabled = Boolean(powerReason);
+  document.getElementById("automated-shutdown").disabled = Boolean(lockReason);
+  document.getElementById("capture-temperature").disabled = !brokerConnected || capturePending;
+  showControlFeedback("power-lock-status", powerReason);
+  showControlFeedback("auto-shutdown-status", lockReason ?? (autoShutdownFeedback || null));
   const status = document.getElementById("connection-status");
   if (status) status.textContent = !available ? (heaterState.cameraTemperature === null ? "Disconnected · controls unavailable" : "Controller offline · camera reading available") :
     typeof heaterState.power !== "boolean" ? "Connected · waiting for power confirmation" :
-    temperatureControl?.locked || pendingTemperatureCommand ? "Connected · adjustment in progress" : "Connected · controls ready";
+    currentOperationLock() ? "Connected · adjustment in progress" : "Connected · controls ready";
 }
 
 // The backend combines fresh observations; a failed OCR does not establish sleep.
@@ -458,7 +427,7 @@ async function refreshObservation() {
     heaterState.flowrate = null;
     heaterState.volume = null;
     temperatureControl = null;
-    heaterState.temperature = null;
+    heaterState.waterTemperature = null;
     heaterState.cameraTemperature = null;
     receiveTemperatureMaximum(null);
     updateEspStatus();
@@ -483,7 +452,7 @@ function receiveTemperatureControl(control) {
       !Number.isInteger(control.commandId) || control.commandId < 0 || control.commandId > 0xffffffff ||
       !["none", "accepted", "busy", "off", "base_mismatch", "invalid", "disabled"].includes(control.result)) {
     temperatureControl = null;
-    updateTemperatureControls();
+    updateControls();
     return;
   }
   temperatureControl = control;
@@ -496,48 +465,48 @@ function receiveTemperatureControl(control) {
       temperatureMessage = errors[control.result] || "The command was not accepted.";
     } else {
       temperatureMessage = pendingTemperatureCommand.calibrate ? "Current setting synchronized. No servos moved." : "";
-      if (!pendingTemperatureCommand.calibrate) savedDesiredTemperature = pendingTemperatureCommand.target;
+      if (!pendingTemperatureCommand.calibrate) savedRequestedTemperature = pendingTemperatureCommand.target;
       temperatureDraftDirty = false;
     }
     pendingTemperatureCommand = null;
   }
-  if (desiredTemperature === null || (!temperatureDraftDirty && !pendingTemperatureCommand))
-    desiredTemperature = savedDesiredTemperature ?? ((control.locked || control.status === "selecting") && control.target >= control.min ? control.target : control.base === -1 ? (control.target >= control.min ? control.target : null) : control.base);
+  if (requestedTemperature === null || (!temperatureDraftDirty && !pendingTemperatureCommand))
+    requestedTemperature = savedRequestedTemperature ?? ((control.locked || control.status === "selecting") && control.target >= control.min ? control.target : control.base === -1 ? (control.target >= control.min ? control.target : null) : control.base);
   const input = document.getElementById("base-temperature");
   if (document.activeElement !== input) input.value = control.base === -1 ? "" : control.base;
-  updateTemperatureControls();
+  updateControls();
 }
 function updateTemperatureControls() {
   const online = brokerConnected && heaterState.status === "online" && temperatureControl;
-  const locked = Boolean(pendingTemperatureCommand || temperatureControl?.locked || temperatureControl?.status === "selecting");
+  const locked = Boolean(currentOperationLock());
   const editable = online && heaterState.power === true && !locked;
   document.getElementById("temperature-down").disabled = !editable;
   document.getElementById("temperature-up").disabled = !editable;
-  const retry = temperatureOperation?.status === "failed" && temperatureOperation.target === desiredTemperature;
-  document.getElementById("save-temperature").disabled = !editable || desiredTemperature === null || (desiredTemperature === temperatureControl?.base && !retry);
+  const retry = temperatureOperation?.status === "failed" && temperatureOperation.target === requestedTemperature;
+  document.getElementById("save-temperature").disabled = !editable || requestedTemperature === null || (requestedTemperature === temperatureControl?.base && !retry);
   document.getElementById("sync-base").disabled = !online || locked;
   document.getElementById("base-temperature").disabled = !online || locked;
   const output = document.getElementById("target-temperature");
-  output.textContent = desiredTemperature === null ? "--°C" : `${fahrenheit ? c2f(desiredTemperature).toFixed(1) : desiredTemperature}°${fahrenheit ? "F" : "C"}`;
+  output.textContent = formatTemperature(requestedTemperature, fahrenheit, fahrenheit ? 1 : 0);
   document.getElementById("adjustment-lock").hidden = !locked;
   const states = { applying: "Adjusting the heater. Controls are locked.", settling: "Saving on the heater. Please wait.",
     verifying: "Waiting for confirmation.", selecting: "An adjustment is being selected on the device.", error: "Could not confirm the change. Try again." };
   const confirmed = !temperatureDraftDirty && temperatureOperation?.status === "confirmed" &&
-    temperatureOperation.target === desiredTemperature;
+    temperatureOperation.target === requestedTemperature;
   document.getElementById("adjustment-status").textContent = !online ? "Waiting for the controller" :
     pendingTemperatureCommand ? (pendingTemperatureCommand.timedOut ? "No acknowledgement received. Check the heater and reload before retrying." : "Sending command. Please wait…") :
     confirmed && ["settling", "idle"].includes(temperatureControl.status) ? `Temperatura máx. confirmada: ${output.textContent}` :
-    states[temperatureControl.status] || temperatureMessage ||
+    states[temperatureControl.status] || currentOperationLock() || temperatureMessage ||
     (heaterState.power !== true ? "Turn the heater on to adjust." : temperatureDraftDirty ? "Not saved yet. Press Save to apply." : (temperatureControl.base === -1 ? "The display will be read before adjusting." : `Estimated setting: ${temperatureControl.base}°C · range ${temperatureControl.min}–${temperatureControl.max}°C`));
   document.getElementById("base-status").textContent = !online ? "Waiting for the controller" : locked ? "Calibration is locked during adjustment." : (temperatureControl.base === -1 ? "Current setting unknown" : `Estimated setting: ${temperatureControl.base}°C`);
   document.getElementById("save-temperature").textContent = locked ? "Adjustment locked" : "Save temperature";
 }
 function changeTarget(direction) {
   if (document.getElementById(direction > 0 ? "temperature-up" : "temperature-down").disabled) return;
-  const next = desiredTemperature === null ? (direction > 0 ? temperatureControl.min : temperatureControl.max) : desiredTemperature + direction;
-  desiredTemperature = next < temperatureControl.min ? temperatureControl.max :
+  const next = requestedTemperature === null ? (direction > 0 ? temperatureControl.min : temperatureControl.max) : requestedTemperature + direction;
+  requestedTemperature = next < temperatureControl.min ? temperatureControl.max :
     next > temperatureControl.max ? temperatureControl.min : next;
-  temperatureDraftDirty = desiredTemperature !== temperatureControl.base;
+  temperatureDraftDirty = requestedTemperature !== temperatureControl.base;
   temperatureMessage = "";
   updateTemperatureControls();
 }
@@ -551,15 +520,15 @@ function sendTemperatureCommand(calibrate, target) {
     setTimeout(() => {
       if (pendingTemperatureCommand?.id === id) {
         pendingTemperatureCommand.timedOut = true;
-        updateTemperatureControls();
+        updateControls();
       }
     }, 15000);
     temperatureMessage = "";
-    updateTemperatureControls();
+    updateControls();
   }
 }
 function saveTarget() {
-  if (!document.getElementById("save-temperature").disabled) sendTemperatureCommand(false, desiredTemperature);
+  if (!document.getElementById("save-temperature").disabled) sendTemperatureCommand(false, requestedTemperature);
 }
 function syncTemperatureBase(event) {
   event.preventDefault();

@@ -37,14 +37,15 @@
       <section class="primary-control" aria-label="Heater control">
       <span class="reading-label" id="water-temperature-label" lang="es">Temperatura</span>
       <span id="temp-display" class="temp-display" aria-labelledby="water-temperature-label">--.-°C</span>
-      <span id="temperature-status" class="sr-only" role="status">Temperature unavailable</span>
+      <span id="temperature-status" class="reading-status" role="status" lang="es">Temperatura no disponible</span>
       <span id="connection-status" class="sr-only" role="status">Disconnected</span>
-      <button id="big-button" class="big-button big-button-off" disabled aria-label="Toggle heater power" onclick="toggleTerma()">
+      <button id="big-button" class="big-button big-button-off" disabled aria-label="Toggle heater power" aria-describedby="power-lock-status" onclick="toggleTerma()">
         <span class="material-symbols-outlined" aria-hidden="true">power_settings_new</span>
       </button>
+      <p id="power-lock-status" class="control-feedback" role="status" lang="es" hidden></p>
       <section class="temperature-setting" aria-labelledby="target-label">
         <p class="observed-maximum" lang="es">Temperatura máx. <output id="observed-maximum" aria-live="polite">Sin confirmar</output></p>
-        <div class="target-heading"><span id="target-label" lang="es">Ajustar temperatura máx.</span>
+        <div class="target-heading"><span id="target-label" lang="es">Temperatura objetivo</span>
           <span id="adjustment-lock" class="material-symbols-outlined" aria-label="Adjustment locked" hidden>lock</span></div>
         <div class="temperature-stepper">
           <button id="temperature-down" class="soft-button step-button" disabled onclick="changeTarget(-1)" aria-label="Lower desired temperature"><span class="material-symbols-outlined" aria-hidden="true">remove</span></button>
@@ -59,16 +60,16 @@
       <div class="option-list">
         <div class="option"><div class="option-header">
           <span>Low Cortisol Mode</span>
-          <label class="switch"><input id="automated-shutdown" disabled aria-label="Automatic shutdown" type="checkbox" onchange="toggleAutomatedShutdown(this)" /><span class="slider"></span></label>
+          <label class="switch"><input id="automated-shutdown" disabled aria-label="Autoapagado" aria-describedby="auto-shutdown-description auto-shutdown-status" type="checkbox" onchange="toggleAutomatedShutdown(this)" /><span class="slider"></span></label>
         </div>
-          <span class="option-description">If enabled, the heater will turn off automatically when reaching
-            maximum temperature.</span>
+          <span id="auto-shutdown-description" class="option-description" lang="es">Apaga la terma cuando el agua alcanza la temperatura objetivo guardada.</span>
+          <span id="auto-shutdown-status" class="control-feedback" role="status" lang="es" hidden></span>
         </div>
         <div class="option"><div class="option-header">
           <span>Fahrenheit Display</span>
           <label class="switch"><input id="fahrenheit" aria-label="Display Fahrenheit" type="checkbox" onchange="toggleFahrenheit(this)" /><span class="slider"></span></label>
         </div>
-          <span class="option-description">You're so weird if you use this.</span>
+          <span class="option-description" lang="es">Cambia la unidad de la temperatura en la web.</span>
         </div>
       </div>
       <details class="settings diagnostics">
@@ -76,7 +77,7 @@
         <div class="settings-panel diagnostics-panel">
           <p id="flow-display">Flow unavailable</p>
           <p id="heater-observation">Waiting for fresh readings</p>
-          <p id="color-display">RGB unavailable</p>
+          <p id="color-display" lang="es">Piloto LED · RGB no disponible</p>
           <button id="capture-temperature" disabled onclick="captureTemperature()">Read display</button>
           <p id="camera-status" role="status"></p>
           <img id="camera-preview" alt="Last captured display" />
@@ -85,6 +86,8 @@
       </aside>
     </main>
     <div id="fg" class="fg"></div>
+    <script src="js/socket.js" defer></script>
+    <script src="js/temperature-view.js" defer></script>
     <script src="script.js" defer></script>
   </body>
 </html>

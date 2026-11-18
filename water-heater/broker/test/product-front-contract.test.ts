@@ -4,8 +4,9 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { parseTemperatureControl } from "../src/heater/temperature-control.js";
 
-const source = readFileSync(new URL("../../front/script.js", import.meta.url), "utf8");
 const html = readFileSync(new URL("../../front/index.html", import.meta.url), "utf8");
+const scripts = [...html.matchAll(/<script src="([^"]+)" defer><\/script>/g)]
+  .map(([, file]) => ({ file, code: readFileSync(new URL(`../../front/${file}`, import.meta.url), "utf8") }));
 const idle = { base: 43, target: 0, status: "idle", locked: false,
   min: 30, max: 75, commandId: 0, result: "none" };
 
@@ -38,7 +39,7 @@ function front() {
     setTimeout: (callback: () => void, ms: number) => { timers.push({ callback, ms }); return timers.length; },
     AbortSignal, fetch: async () => { throw new Error("No external services"); },
   });
-  vm.runInContext(source, context);
+  for (const { file, code } of scripts) vm.runInContext(code, context, { filename: file });
   const run = (code: string) => vm.runInContext(code, context);
   run("connect(); updateBrokerStatus(true)");
   const message = (event: string, data: unknown) => run(`handleMessage(${JSON.stringify({ event, data })})`);
@@ -74,7 +75,7 @@ test("raw visor MQTT cannot overwrite a validated or unavailable backend tempera
   assert.equal(f.elements.get("temp-display")!.textContent, "0.0°C");
   f.mqtt("heater/state/temperature", "unavailable");
   assert.equal(f.elements.get("temp-display")!.textContent, "0.0°C");
-  assert.equal(f.run("heaterState.temperature"), null);
+  assert.equal(f.run("heaterState.waterTemperature"), null);
 });
 
 test("failed readings retain the last valid display through unit changes and disconnects", () => {
@@ -83,7 +84,7 @@ test("failed readings retain the last valid display through unit changes and dis
   f.snapshot({ temperature: null });
   assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
   assert.match(f.elements.get("temp-display")!.title, /not current/);
-  assert.equal(f.run("heaterState.temperature"), null);
+  assert.equal(f.run("heaterState.waterTemperature"), null);
   f.run("toggleFahrenheit({ checked: true })");
   assert.equal(f.elements.get("temp-display")!.textContent, "87.8°F");
   f.disconnect();
@@ -97,6 +98,45 @@ test("failed readings retain the last valid display through unit changes and dis
   assert.equal(f.sent.length, 0);
 });
 
+test("confirmed OFF labels the last water reading as historical", () => {
+  const f = front(); f.snapshot({ temperature: 39 });
+  assert.equal(f.elements.get("temperature-status")!.hidden, true);
+  f.mqtt("heater/state/power", "false");
+  f.snapshot({ power: false, temperature: 42 });
+  assert.equal(f.elements.get("temp-display")!.textContent, "39.0°C");
+  assert.equal(f.elements.get("temperature-status")!.textContent, "Última lectura · terma apagada");
+  assert.equal(f.elements.get("temperature-status")!.hidden, false);
+});
+
+test("actuator controls explain their lock while the local unit selector stays available", () => {
+  const f = front();
+  f.snapshot({ temperatureControl: { ...idle, status: "applying", locked: true } });
+  assert.ok(f.elements.get("automated-shutdown")!.disabled);
+  assert.ok(f.elements.get("big-button")!.disabled);
+  assert.ok(f.elements.get("save-temperature")!.disabled);
+  assert.equal(f.elements.get("fahrenheit")!.disabled, false);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Ajuste de temperatura máx/);
+  f.snapshot();
+  assert.equal(f.elements.get("automated-shutdown")!.disabled, false);
+});
+
+test("the auto-off switch waits for the controller rather than changing optimistically", () => {
+  const f = front(); f.snapshot({ autoShutdown: false });
+  const toggle = f.elements.get("automated-shutdown")!;
+  toggle.checked = true;
+  f.run('toggleAutomatedShutdown(document.getElementById("automated-shutdown"))');
+  assert.deepEqual(f.sent, [{ event: "set_auto_shutdown", data: { enabled: true } }]);
+  assert.equal(toggle.checked, false);
+  assert.equal(toggle.disabled, true);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /Confirmando autoapagado/);
+  f.snapshot({ autoShutdown: false });
+  assert.equal(toggle.disabled, true);
+  f.mqtt("heater/state/autoshutdown", "true");
+  assert.equal(toggle.checked, true);
+  assert.equal(toggle.disabled, false);
+  assert.equal(f.elements.get("auto-shutdown-status")!.hidden, true);
+});
+
 test("manual target digits never replace hot water in the web reading or heat effect", () => {
   const f = front();
   f.snapshot({ temperature: 60, camera: { available: true, value: 60 } });
@@ -104,7 +144,7 @@ test("manual target digits never replace hot water in the web reading or heat ef
     temperatureControl: { ...idle, base: -1, target: 0, status: "settling", locked: true } });
   assert.equal(f.elements.get("temp-display")!.textContent, "60.0°C");
   assert.match(f.elements.get("temp-display")!.title, /not current/);
-  assert.equal(f.run("heaterState.lastTemperature"), 60);
+  assert.equal(f.run("heaterState.lastValidTemperature"), 60);
   assert.equal(f.elements.get("fg")!.style.opacity, 0.6);
   f.snapshot({ temperature: null, camera: { available: true, value: 42 } });
   assert.equal(f.elements.get("temp-display")!.textContent, "60.0°C");
@@ -122,7 +162,7 @@ test("camera display is visible with ESP32 offline and actuator controls stay di
   assert.equal(f.elements.get("capture-temperature")!.disabled, false);
   assert.equal(f.elements.get("big-button")!.disabled, true);
   assert.equal(f.elements.get("save-temperature")!.disabled, true);
-  assert.equal(f.run("heaterState.temperature"), null);
+  assert.equal(f.run("heaterState.waterTemperature"), null);
   f.mqtt("heater/status", "offline");
   assert.equal(f.elements.get("temp-display")!.textContent, "31.0°C");
   f.snapshot({ status: "offline", temperature: null, temperatureControl: null,
