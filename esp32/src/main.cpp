@@ -48,8 +48,10 @@ void loop()
   mqttModule.loop();
   if (heaterModule.loop())
     mqttModule.publishPowerState();
-  if (heaterModule.takeTemperatureControlChanged())
+  if (heaterModule.takeTemperatureControlChanged()) {
     mqttModule.publishTemperatureControl(1);
+    mqttModule.publishAutoShutdown();
+  }
   mqttModule.requestTemperatureVerification();
   mqttModule.requestWakeVerification();
   unsigned long curr_ms = millis();

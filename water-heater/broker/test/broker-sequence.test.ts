@@ -142,6 +142,26 @@ test("HTTP auto-off flag follows the controller and becomes unknown on disconnec
   } finally { f.cleanup(); }
 });
 
+test("explicit auto enable requires supported optical acquisition; disable remains available", () => {
+  const f = fixture();
+  try {
+    f.mqtt.emit("connect"); f.send("heater/status", "online"); f.send("heater/state/power", "true");
+    const control = { base: -1, target: 0, status: "idle", locked: false, min: 30, max: 75,
+      commandId: 0, result: "none", autoShutdownTarget: -1 };
+    f.send("heater/state/temperature_control", JSON.stringify(control));
+    f.connectSocket();
+    f.request("set_auto_shutdown", true);
+    assert.equal(f.replies.at(-1).event, "command_error");
+    assert.equal(f.publishes.length, 0);
+    f.send("heater/state/temperature_control", JSON.stringify({ ...control, autoShutdownRead: 1 }));
+    f.request("set_auto_shutdown", true);
+    assert.deepEqual(f.publishes.at(-1)?.slice(0, 2), ["heater/set/autoshutdown", "true"]);
+    f.send("heater/state/power", "unknown");
+    f.request("set_auto_shutdown", false);
+    assert.deepEqual(f.publishes.at(-1)?.slice(0, 2), ["heater/set/autoshutdown", "false"]);
+  } finally { f.cleanup(); }
+});
+
 test("a newer raw mirror frame cannot replace the panel's confirmed water reading", () => {
   const f = fixture();
   try {

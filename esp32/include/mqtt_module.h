@@ -223,7 +223,8 @@ public:
         if (!temperatureToken || uint32_t(millis() - temperatureTokenAt) >= TEMPERATURE_TOKEN_TTL_MS / 2)
             renewTemperatureToken(true);
         std::string payload = "{\"temperatureV2Token\":" + std::to_string(temperatureToken) +
-            ",\"base\":" + std::to_string(heaterModule->getSetpoint()) +
+            ",\"autoShutdownRead\":1,\"autoShutdownArmStatus\":\"" + heaterModule->getAutoShutdownArmStatus() +
+            "\",\"base\":" + std::to_string(heaterModule->getSetpoint()) +
             ",\"target\":" + std::to_string(heaterModule->getTargetTemperature()) +
             ",\"status\":\"" + heaterModule->getAdjustmentStatus() + "\",\"locked\":" +
             (heaterModule->isTemperatureLocked() ? "true" : "false") +
@@ -265,32 +266,12 @@ public:
 
     void handleAutoShutdown(const std::string &payload)
     {
-        if (!heaterModule || !mqttClient.isConnected())
-            return;
-        bool changed = false;
-        Serial.printf("Auto-shutdown request: %s\n", payload.c_str());
-        if (payload == "true")
-        {
-            if (heaterModule->getIsAutoShutdownEnabled())
-                return;
-            heaterModule->setIsAutoShutdownEnabled(true);
-            changed = true;
+        if (!heaterModule || !mqttClient.isConnected()) return;
+        if (payload != "true" && payload != "false") return;
+        if (!heaterModule->requestAutoShutdown(payload == "true")) {
+            Serial.println("Auto-shutdown arming rejected: heater off, unknown, or busy");
         }
-        else if (payload == "false")
-        {
-            if (!heaterModule->getIsAutoShutdownEnabled())
-                return;
-            heaterModule->setIsAutoShutdownEnabled(false);
-            changed = true;
-        }
-        else
-        {
-            Serial.println("Invalid autoshutdown payload");
-        }
-
-        if (!mqttClient.isConnected() || !changed)
-            return;
-
+        publishTemperatureControl(1);
         publishAutoShutdown();
     }
     void handleSnapshot(const std::string &)

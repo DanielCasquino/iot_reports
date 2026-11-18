@@ -32,6 +32,7 @@ public:
         if (state != State::Idle || value < MIN_TEMPERATURE_C || value > MAX_TEMPERATURE_C ||
             (base != -1 && (base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return false;
         clearFailure();
+        readOnly = false;
         target = value;
         estimated = base;
         hasPressed = false;
@@ -39,6 +40,11 @@ public:
         requested = false;
         readingStarted = false;
         ++requestId;
+        return true;
+    }
+    bool acquireMaximum() {
+        if (!applyTarget(MIN_TEMPERATURE_C, -1)) return false;
+        readOnly = true;
         return true;
     }
     bool finishSettling(uint32_t now) {
@@ -135,7 +141,7 @@ public:
             hasPressed = true;
             // The remaining display selection window runs from the press,
             // including the time already spent confirming its digits.
-            if (estimated == target) waitForDisplay(pressedAt);
+            if (readOnly || estimated == target) waitForDisplay(pressedAt);
             else state = State::Applying;
             return false;
         }
@@ -164,5 +170,5 @@ private:
         return next;
     }
     uint32_t pressedAt = 0, verifyingAt = 0, requestedAt = 0;
-    bool hasPressed = false, requested = false, readingStarted = false;
+    bool hasPressed = false, requested = false, readingStarted = false, readOnly = false;
 };

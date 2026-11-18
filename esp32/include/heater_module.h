@@ -170,6 +170,13 @@ public:
                 if ((beforeReading == TemperatureAdjustment::State::Opening || beforeReading == TemperatureAdjustment::State::Reading) &&
                     adjustment.state != beforeReading && adjustment.state != TemperatureAdjustment::State::Error)
                     estimatedMaximum = adjustment.estimated;
+                if (autoShutdownArming && adjustment.state == TemperatureAdjustment::State::Settling) {
+                    requestedAutoShutdownMaximum = adjustment.estimated;
+                    isAutoShutdownEnabled = true;
+                    autoShutdownArming = false;
+                    autoShutdownArmStatus = "confirmed";
+                    temperatureControlChanged = true;
+                }
             }
             else if (!adjustment.locked() && (!waking ||
                      (static_cast<int32_t>(observation.at - wakeStartedAt) >= int32_t(TEMPERATURE_ADJUST_SETTLE_MS))))
@@ -206,6 +213,7 @@ public:
             if (observations) xQueueReset(observations);
             if (pilotObservations) xQueueReset(pilotObservations);
             hasPilotObservation = false;
+            cancelAutoShutdownArming();
             adjustment.cancel();
             if (powerPressed) servoModuleA.tap("manual_power");
             else if (increasePressed) servoModuleB.tap(displayWakeRequested ? "display_wake" : "manual_plus");
@@ -239,6 +247,12 @@ public:
                 invalidateTemperature(); // Also discard packets received during the tap.
                 adjustment.completedPress(millis());
             }
+        }
+        if (autoShutdownArming && adjustment.state == TemperatureAdjustment::State::Error) {
+            autoShutdownArming = false;
+            autoShutdownArmStatus = "failed";
+            isAutoShutdownEnabled = false;
+            temperatureControlChanged = true;
         }
         adjustment.finishSettling(millis());
         if (adjustment.state == TemperatureAdjustment::State::Error) estimatedMaximum = -1;
@@ -309,12 +323,14 @@ public:
         if (waking)
         {
             pendingPowerOff = !p;
+            cancelAutoShutdownArming();
             adjustment.cancel();
             temperatureControlChanged = true;
             return false;
         }
         if (!p)
         {
+            cancelAutoShutdownArming();
             adjustment.cancel();
             pendingPowerOff = true;
             temperatureControlChanged = true;
@@ -325,6 +341,7 @@ public:
             return false;
         pendingPowerOff = false;
         hasWakeConfirmation = false;
+        cancelAutoShutdownArming();
         adjustment.cancel();
         temperatureControlChanged = true;
         power = p; // Requested controller estimate; not a physical confirmation.
@@ -344,8 +361,38 @@ public:
     }
     bool getIsAutoShutdownEnabled() { return isAutoShutdownEnabled; }
     int getAutoShutdownTarget() const { return requestedAutoShutdownMaximum; }
+    bool requestAutoShutdown(bool enabled)
+    {
+        if (!enabled) {
+            if (autoShutdownArming) adjustment.cancel();
+            autoShutdownArming = false;
+            autoShutdownArmStatus = "idle";
+            isAutoShutdownEnabled = false;
+            temperatureControlChanged = true;
+            return true;
+        }
+        if (requestedAutoShutdownMaximum >= MIN_TEMPERATURE_C && requestedAutoShutdownMaximum <= MAX_TEMPERATURE_C) {
+            isAutoShutdownEnabled = true;
+            autoShutdownArmStatus = "confirmed";
+            temperatureControlChanged = true;
+            return true;
+        }
+        if (!powerKnown || !power || isTemperatureLocked() || !adjustment.acquireMaximum()) return false;
+        isAutoShutdownEnabled = false;
+        autoShutdownArming = true;
+        autoShutdownArmStatus = "verifying";
+        temperatureControlChanged = true;
+        return true;
+    }
+    const char *getAutoShutdownArmStatus() const { return autoShutdownArmStatus; }
     void setIsAutoShutdownEnabled(bool iase)
     {
+        if (!iase && autoShutdownArming) {
+            adjustment.cancel();
+            autoShutdownArming = false;
+            autoShutdownArmStatus = "idle";
+            temperatureControlChanged = true;
+        }
         isAutoShutdownEnabled = iase;
     }
 
@@ -417,6 +464,11 @@ public:
         if (displayWakeRequests) xQueueReset(displayWakeRequests);
         if (adjustment.locked()) estimatedMaximum = -1;
         adjustment.cancel();
+        if (autoShutdownArming) {
+            autoShutdownArming = false;
+            autoShutdownArmStatus = "failed";
+            isAutoShutdownEnabled = false;
+        }
         waking = pendingPowerOff = false;
         hasWakeConfirmation = false;
         temperatureControlChanged = true;
@@ -444,6 +496,14 @@ public:
     float getVolume() { return flowModule.getTotalVolume(); }
 
 private:
+    void cancelAutoShutdownArming()
+    {
+        if (!autoShutdownArming) return;
+        autoShutdownArming = false;
+        autoShutdownArmStatus = "failed";
+        isAutoShutdownEnabled = false;
+        temperatureControlChanged = true;
+    }
     bool pilotIs(PilotState state) const
     {
         return hasPilotObservation && pilotState == state && millis() - pilotObservedAt <= PILOT_MAX_AGE_MS;
@@ -484,6 +544,7 @@ private:
         waking = false;
         wakeFailed = true;
         pendingPowerOff = false;
+        cancelAutoShutdownArming();
         adjustment.cancel();
         temperatureControlChanged = true;
         Serial.println("Heater wake unconfirmed; command cancelled");
@@ -584,6 +645,8 @@ private:
     bool powerKnown = false;
     bool power = false;
     bool isAutoShutdownEnabled = false;
+    bool autoShutdownArming = false;
+    const char *autoShutdownArmStatus = "idle";
     // Last admitted user target, separate from intermediate servo estimates or
     // a manual base calibration. Unknown after boot until a target is selected.
     int requestedAutoShutdownMaximum = -1;

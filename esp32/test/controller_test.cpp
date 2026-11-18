@@ -75,7 +75,9 @@ int main(){
   receive("heater/input/temperature","41");receive("heater/input/temperature","unavailable");receive("heater/input/temperature","42");
   testNow+=20;mqtt.loop();heater.loop();assert(heater.getTemperature()==42);
   receive("heater/set/autoshutdown","true");assert(!heater.getIsAutoShutdownEnabled());
-  mqtt.loop();assert(heater.getIsAutoShutdownEnabled());
+  mqtt.loop();assert(!heater.getIsAutoShutdownEnabled());
+  assert(std::string(heater.getAutoShutdownArmStatus())=="verifying");
+  receive("heater/set/autoshutdown","false");mqtt.loop();
   receive("heater/set/power","false",true);mqtt.loop();heater.loop();assert(movements.empty());
   receive("heater/command/wake_display","wake",true);mqtt.loop();heater.loop();assert(movements.empty());
   receive("heater/set/power","false");mqtt.loop();heater.loop();assert(movements.size()==2);

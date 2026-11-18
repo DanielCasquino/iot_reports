@@ -33,6 +33,50 @@ int main() {
         assert(heater.getAutoShutdownTarget() == -1);
         assert(!heater.monitorAutoShutdown() && movements.empty()); // No invented/default target.
     }
+    {
+        testNow = 2000;
+        HeaterModule heater; heater.setup(); heater.observePowerOn(); movements.clear();
+        assert(heater.requestAutoShutdown(true));
+        assert(!heater.getIsAutoShutdownEnabled());
+        assert(heater.getAutoShutdownTarget() == -1);
+        assert(std::string(heater.getAutoShutdownArmStatus()) == "verifying");
+        heater.loop(); // First + opens selection or wakes the heater.
+        assert(movements.size() == 2 && movements.front().first == SERVO_PIN_B);
+        testNow += 1000;
+        assert(heater.needsTemperatureVerification());
+        auto id = heater.temperatureVerificationId();
+        heater.verifyTemperature(id, 40); heater.loop();
+        assert(!heater.getIsAutoShutdownEnabled());
+        testNow += 500;
+        assert(heater.needsTemperatureVerification());
+        heater.verifyTemperature(id, 40); heater.loop();
+        assert(heater.getIsAutoShutdownEnabled());
+        assert(heater.getAutoShutdownTarget() == 40);
+        assert(std::string(heater.getAutoShutdownArmStatus()) == "confirmed");
+        assert(movements.size() == 2); // No adjustment presses after reading.
+    }
+    {
+        testNow = 2000;
+        HeaterModule heater; heater.setup(); heater.observePowerOn(); movements.clear();
+        assert(heater.requestAutoShutdown(true));
+        heater.loop();
+        assert(heater.requestAutoShutdown(false));
+        testNow += 10000; heater.loop();
+        assert(!heater.getIsAutoShutdownEnabled() && heater.getAutoShutdownTarget() == -1);
+        assert(movements.size() == 2);
+    }
+    {
+        testNow = 2000;
+        HeaterModule heater; heater.setup();
+        assert(!heater.requestAutoShutdown(true)); // Power unknown.
+        heater.observePowerOn(); movements.clear();
+        assert(heater.requestAutoShutdown(true));
+        heater.loop();
+        testNow += 6000; heater.loop(); // fallback press
+        testNow += 5000; heater.loop(); // selection timed out
+        assert(!heater.getIsAutoShutdownEnabled() && heater.getAutoShutdownTarget() == -1);
+        assert(std::string(heater.getAutoShutdownArmStatus()) == "failed");
+    }
     for (int target : {30, 42, 60, 75}) {
         for (int overshoot : {0, 1}) {
             testNow = 2000;

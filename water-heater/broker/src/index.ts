@@ -226,11 +226,12 @@ wss.on("connection", (ws) => {
       ? Number(command.payload.split(",")[0]) : undefined;
     const reject = (error: string) => ws.send(JSON.stringify({ event: "command_error", data: { error, requestId, topic: command.topic } }));
     const currentObservation = observedState();
-    if (["settling", "reading"].includes(panel.snapshot().recovery)) {
+    const disarming = command.topic === "heater/set/autoshutdown" && command.payload === "false";
+    if (!disarming && ["settling", "reading"].includes(panel.snapshot().recovery)) {
       reject("Display is waking; please wait");
       return;
     }
-    if (!brokerConnected || !currentObservation.online || currentObservation.power === null) {
+    if (!brokerConnected || !currentObservation.online || (!disarming && currentObservation.power === null)) {
       reject("Controller unavailable");
       return;
     }
@@ -247,6 +248,18 @@ wss.on("connection", (ws) => {
       if (!control || control.status !== "idle" ||
           (command.topic === "heater/set/temperature" && currentObservation.power !== true)) {
         reject("Temperature control unavailable or busy");
+        return;
+      }
+    }
+    if (command.topic === "heater/set/autoshutdown" && command.payload === "true") {
+      const control = heaterState.temperatureControl;
+      if (!control || control.status !== "idle" || control.locked) {
+        reject("Controller busy; wait before enabling auto shutdown");
+        return;
+      }
+      if ((control.autoShutdownTarget ?? -1) < 30 &&
+          (control.autoShutdownRead !== 1 || currentObservation.power !== true)) {
+        reject("Turn on the heater and update its controller to verify the target");
         return;
       }
     }
@@ -277,7 +290,8 @@ wss.on("connection", (ws) => {
       reject("Could not save the requested state");
       return;
     }
-    displayPower.reset(Date.now() + 6000); // Discard in-flight/pre-action images.
+    if (!disarming && command.topic !== "heater/set/autoshutdown")
+      displayPower.reset(Date.now() + 6000); // Discard in-flight/pre-action images.
     if (command.topic === "heater/set/temperature") publishTemperatureCommand(command.payload);
     else mqttClient.publish(command.topic, command.payload, { qos: 0, retain: false });
   });
