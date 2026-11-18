@@ -25,7 +25,7 @@ Power son datos distintos. Una lectura de OLED retenida es exclusivamente visual
 - Desconectar/reconectar MQTT invalida observaciones y acciones remotas pendientes.
   Los mensajes retenidos, demasiado grandes, con NUL o con más de5s en la cola
   local se rechazan. Los botones locales siguen atendidos desde el loop.
-- El autoapagado opcional usa sólo temperatura vigente yON observado; apaga al alcanzar/superar el último objetivo seleccionado y admitido por el controlador (sin límite fijo de40°C). Si no hay objetivo conocido, espera una selección. El valor retenido del OLED no se usa para decidirlo.
+- El autoapagado opcional usa sólo temperatura vigente yON observado; apaga al alcanzar/superar el último objetivo seleccionado y admitido por el controlador (sin límite fijo de40°C). Si falta el objetivo al activarlo, comprueba la máxima del visor mientras parpadea. El modo queda desactivado si la comprobación vence. El valor retenido del OLED no se usa para decidirlo.
   No sustituye los controles térmicos originales del equipo.
 
 La máquina de temperatura es Idle→Opening→Reading→Applying→Confirming→Settling→Idle,
@@ -62,7 +62,7 @@ Cada tap conserva250ms de pulsación y250ms de retorno; ese bloqueo es medible,
 no prueba por sí solo un fallo de alimentación ni de MQTT.
 
 Caudal: el perfil de la terma publica «unavailable» mientras el sensor esté
-desconectado. Para el banco de flujo, compila con `-DFLOW_SENSOR_ENABLED=1` y
+desconectado. Para el banco de flujo usa `platformio run -d esp32 -e esp32doit-devkit-v1-flow` y
 conecta el sensor con su acondicionamiento externo. GPIO34 carece de pull-up
 interno. El factor de 450 pulsos/L requiere calibración física. Los servos necesitan su
 alimentación dimensionada y masa común según el montaje; este README no valida

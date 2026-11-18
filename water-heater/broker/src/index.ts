@@ -257,10 +257,19 @@ wss.on("connection", (ws) => {
         reject("Controller busy; wait before enabling auto shutdown");
         return;
       }
-      if ((control.autoShutdownTarget ?? -1) < 30 &&
-          (control.autoShutdownRead !== 1 || currentObservation.power !== true)) {
-        reject("Turn on the heater and update its controller to verify the target");
-        return;
+      if ((control.autoShutdownTarget ?? -1) < 30) {
+        if (control.autoShutdownRead !== 1 || currentObservation.power !== true) {
+          reject("Enciende la terma para que Low Cortisol pueda comprobar la máxima.");
+          return;
+        }
+        const camera = cameraModule.getState();
+        const captureAge = Date.now() - Date.parse(camera.observedAt ?? "");
+        if (!panel.snapshot().waterFresh || observedMaximum.snapshot().temperatureMaxSelected ||
+            currentObservation.displayState.power !== true || !camera.available ||
+            !(captureAge >= 0 && captureAge <= 3000)) {
+          reject("Espera a que el visor muestre la temperatura fija antes de activar Low Cortisol.");
+          return;
+        }
       }
     }
     if (command.topic === "heater/set/temperature" &&

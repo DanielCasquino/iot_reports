@@ -134,7 +134,25 @@ test("the auto-off switch waits for the controller rather than changing optimist
   f.mqtt("heater/state/autoshutdown", "true");
   assert.equal(toggle.checked, true);
   assert.equal(toggle.disabled, false);
-  assert.equal(f.elements.get("auto-shutdown-status")!.hidden, true);
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /sin objetivo/);
+});
+
+test("a dark unreadable photo still marks the camera connected", () => {
+  const f = front();
+  f.snapshot({ camera: { available: false, value: null, observedAt: new Date().toISOString() } });
+  assert.match(f.elements.get("camera-indicator")!.className, /icon-wrapper-on/);
+  f.snapshot({ camera: { available: false, value: null, observedAt: null } });
+  assert.match(f.elements.get("camera-indicator")!.className, /icon-wrapper-off/);
+});
+
+test("Low Cortisol shows the verification and its actual armed threshold", () => {
+  const f = front();
+  f.snapshot({ autoShutdown: false, temperatureControl: { ...idle, base: -1, status: "verifying", locked: true,
+    autoShutdownTarget: -1, autoShutdownArmStatus: "verifying" } });
+  assert.match(f.elements.get("auto-shutdown-status")!.textContent, /comprobando la temperatura máx/);
+  assert.ok(f.elements.get("automated-shutdown")!.disabled);
+  f.snapshot({ autoShutdown: true, temperatureControl: { ...idle, autoShutdownTarget: 40, autoShutdownArmStatus: "confirmed" } });
+  assert.equal(f.elements.get("auto-shutdown-status")!.textContent, "Objetivo de autoapagado · 40°C");
 });
 
 test("manual target digits never replace hot water in the web reading or heat effect", () => {

@@ -334,7 +334,7 @@ function toggleFahrenheit(checkbox) {
   try { localStorage.setItem("fahrenheit", String(fahrenheit)); } catch {}
 
   updateTemperature();
-  updateTemperatureControls();
+  updateControls();
 }
 
 function retrieveLocalSettings() {

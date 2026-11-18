@@ -155,6 +155,10 @@ test("explicit auto enable requires supported optical acquisition; disable remai
     assert.equal(f.publishes.length, 0);
     f.send("heater/state/temperature_control", JSON.stringify({ ...control, autoShutdownRead: 1 }));
     f.request("set_auto_shutdown", true);
+    assert.equal(f.replies.at(-1).event, "command_error");
+    assert.equal(f.publishes.length, 0);
+    assert.equal(f.frame(40, "water", "lit"), true);
+    f.request("set_auto_shutdown", true);
     assert.deepEqual(f.publishes.at(-1)?.slice(0, 2), ["heater/set/autoshutdown", "true"]);
     f.send("heater/state/power", "unknown");
     f.request("set_auto_shutdown", false);

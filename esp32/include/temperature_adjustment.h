@@ -31,20 +31,12 @@ public:
     bool applyTarget(int value, int base) {
         if (state != State::Idle || value < MIN_TEMPERATURE_C || value > MAX_TEMPERATURE_C ||
             (base != -1 && (base < MIN_TEMPERATURE_C || base > MAX_TEMPERATURE_C))) return false;
-        clearFailure();
-        readOnly = false;
-        target = value;
-        estimated = base;
-        hasPressed = false;
-        state = State::Opening;
-        requested = false;
-        readingStarted = false;
-        ++requestId;
+        beginOpening(value, base, false);
         return true;
     }
     bool acquireMaximum() {
-        if (!applyTarget(MIN_TEMPERATURE_C, -1)) return false;
-        readOnly = true;
+        if (state != State::Idle) return false;
+        beginOpening(0, -1, true);
         return true;
     }
     bool finishSettling(uint32_t now) {
@@ -148,6 +140,18 @@ public:
         return false;
     }
 private:
+    void beginOpening(int requestedMaximum, int estimatedMaximum, bool observeOnly) {
+        clearFailure();
+        readOnly = observeOnly;
+        target = requestedMaximum;
+        estimated = estimatedMaximum;
+        hasPressed = false;
+        state = State::Opening;
+        requested = false;
+        readingStarted = false;
+        ++requestId;
+    }
+
     void clearFailure() {
         failure = nullptr;
         failedMaximum = -1;

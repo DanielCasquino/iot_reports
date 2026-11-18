@@ -48,6 +48,6 @@ separada del control.
   [el ejemplo](water-heater/broker/.env.example).
 - Firmware principal. Usar las instrucciones de [ESP32](esp32/README.md).
   La configuración de la red va en `include/secrets.h`, fuera de Git.
-  El banco Hall habilita `FLOW_SENSOR_ENABLED=1`; en la terma sin cablear
+  El banco Hall usa el perfil `esp32doit-devkit-v1-flow`; en la terma sin cablear
   el canal figura como no disponible.
 - [Despliegue, aceptación y diagnóstico en la Pi](water-heater/broker/deploy/rpi/README.md).
