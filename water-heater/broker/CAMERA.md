@@ -424,3 +424,18 @@ Si tres filas consecutivas cruzan el borde con brillo suficiente, se usa el
 recorte amplio para esa imagen; en otro caso se mantiene el principal. Es una
 heurística de recorte, no una verificación de dígitos ni de Power. Con la
 opción ausente se mantiene exactamente el recorte anterior.
+
+
+### Staged MQTT options
+
+The OLED presentation cache uses `heater/presentation/display-cache` with QoS 1
+and retain. It stores a value and the time it was actually captured. After a
+restart the backend can restore up to five minutes of history, marked `h` on a
+compatible OLED. The historical value is not a current water sample and does
+not feed power, setpoint verification or automatic shutoff.
+
+`MQTT_TEMPERATURE_QOS1=true` opts into the versioned temperature command path
+after the matching firmware announces a fresh one-use token. Commands are
+never retained. Application admission and camera confirmation are separate
+events. An unresolved temperature operation also suppresses unsolicited panel
+wake touches until an explicit request recovers it.
