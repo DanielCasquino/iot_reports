@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { MqttClient } from "mqtt";
 import sharp from "sharp";
+import { selectOcrCrop } from "./crop-guard.js";
 import { readSevenSegmentImage } from "./seven-segment.js";
 import { IsolatedOcr, type OcrReader } from "./ocr.js";
 import { SsocrReader } from "./ssocr.js";
@@ -190,22 +191,28 @@ export class CameraModule {
       readingState = { ...readingState, displayBrightness: null, displayLight: "unknown" };
       const displayBrightness = await measureDisplayBrightness(this.image, process.env.CAMERA_DISPLAY_REGION);
       readingState = { ...readingState, displayBrightness, displayLight: classifyDisplayLight(displayBrightness) };
+      const reader = process.env.CAMERA_READER ??
+        (process.env.CAMERA_SEVEN_SEGMENT === "true" ? "seven-segment" : "tesseract");
+      if (!["ssocr", "seven-segment", "tesseract"].includes(reader))
+        throw new Error("CAMERA_READER must be ssocr, seven-segment or tesseract");
       let pipeline = sharp(this.image, { limitInputPixels: 4_000_000 });
       const crop = process.env.CAMERA_CROP;
+      const guard = process.env.CAMERA_OCR_GUARD_CROP;
+      if (reader === "ssocr" && guard && !crop)
+        throw new Error("CAMERA_OCR_GUARD_CROP requires CAMERA_CROP");
       if (crop) {
         const values = crop.split(",").map(Number);
         if (values.length !== 4 || values.some((v) => !Number.isInteger(v)) ||
             values[0]! < 0 || values[1]! < 0 || values[2]! <= 0 || values[3]! <= 0)
           throw new Error("CAMERA_CROP must be left,top,width,height in image pixels");
-        pipeline = pipeline.extract({ left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! });
+        const selected = reader === "ssocr" && guard
+          ? await selectOcrCrop(this.image, crop, guard)
+          : { left: values[0]!, top: values[1]!, width: values[2]!, height: values[3]! };
+        pipeline = pipeline.extract(selected);
       }
       const rotation = Number(process.env.CAMERA_ROTATION ?? 0);
       if (![0, 90, 180, 270].includes(rotation)) throw new Error("CAMERA_ROTATION must be 0, 90, 180 or 270");
       pipeline = pipeline.rotate(rotation);
-      const reader = process.env.CAMERA_READER ??
-        (process.env.CAMERA_SEVEN_SEGMENT === "true" ? "seven-segment" : "tesseract");
-      if (!["ssocr", "seven-segment", "tesseract"].includes(reader))
-        throw new Error("CAMERA_READER must be ssocr, seven-segment or tesseract");
       readingState = { ...readingState, reader };
       let value: number | null;
       let text: string;

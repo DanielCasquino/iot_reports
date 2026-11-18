@@ -411,3 +411,16 @@ The OLED receives `heater/input/display`. The broker now sends its last coherent
 When the ESP32 is online, the web temperature/heat effect uses accepted current water, or its last valid water reading while selection/control is active. Raw camera digits can be target settings and cannot overwrite that water display. Camera-only display with the ESP32 offline remains available. The interpolation formula is unchanged.
 
 Current auto-off policy: when enabled, a fresh water reading at or above the last user target admitted by the controller triggers the existing Power path. Unknown targets, stale data and active temperature control do not trigger it. The fixed40C threshold is removed. The selected target is kept separate from intermediate servo estimates and manual base calibration; held OLED readings never enter this decision. Target changes require a new admitted temperature request. The mainESP32 firmware must also be updated to activate this policy. `auto_shutdown_requested` and `auto_shutdown_state` distinguish a UI request from the MCU flag; `/api/heater/status.autoShutdown` reports the flag ornull offline, and `autoShutdownTarget` reports the admitted target ornull when unknown/old firmware. Automatic Power tap diagnostics use `auto_shutdown_at_target`. No automatic-off actuation test is performed just by inspecting these diagnostics.
+
+
+### Borde del recorte SSOCR
+
+`CAMERA_OCR_GUARD_CROP` es opcional. Usa las mismas coordenadas del JPEG
+original que `CAMERA_CROP`, con el mismo `top` y alto, y debe contener el
+recorte principal horizontalmente. Ejemplo para el montaje actual:
+`CAMERA_CROP=140,0,180,240` y `CAMERA_OCR_GUARD_CROP=90,0,230,240`.
+Con SSOCR se revisan franjas de cuatro píxeles junto a cada borde ampliable.
+Si tres filas consecutivas cruzan el borde con brillo suficiente, se usa el
+recorte amplio para esa imagen; en otro caso se mantiene el principal. Es una
+heurística de recorte, no una verificación de dígitos ni de Power. Con la
+opción ausente se mantiene exactamente el recorte anterior.
